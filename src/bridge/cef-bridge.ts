@@ -8,11 +8,15 @@
 import { EventEmitter } from 'events';
 import CDP from 'chrome-remote-interface';
 import type { Client } from 'chrome-remote-interface';
-import type {
-  BBox,
-  NetworkEvent,
-  SafetySetPolicyParams as SafetyPolicy,
-} from './browser-automation-mcp-types.js';
+import type { BBox, NetworkEvent } from '../shared/types/index.js';
+
+// Safety policy type
+interface SafetyPolicy {
+  allowedDomains?: string[];
+  blockedDomains?: string[];
+  allowFileUploads?: boolean;
+  maxNetworkRequests?: number;
+}
 
 /**
  * CEFBridge connects to CEF's Chrome DevTools Protocol server
@@ -28,6 +32,7 @@ export class CEFBridge extends EventEmitter {
   private readonly reconnectDelay = 2000; // milliseconds
   private isConnecting = false;
   private isClosing = false;
+  private networkEventsBuffer: NetworkEvent[] = [];
 
   constructor() {
     super();
@@ -277,6 +282,17 @@ export class CEFBridge extends EventEmitter {
   }
 
   /**
+   * Get observed network events from buffer
+   *
+   * @returns Array of network events
+   */
+  getObservedNetworkEvents(): NetworkEvent[] {
+    const events = [...this.networkEventsBuffer];
+    this.networkEventsBuffer = []; // Clear buffer after reading
+    return events;
+  }
+
+  /**
    * Observe network events matching patterns
    *
    * @param patterns URL patterns to observe
@@ -297,6 +313,9 @@ export class CEFBridge extends EventEmitter {
       if (!event) {
         return;
       }
+
+      // Add to buffer for getObservedNetworkEvents()
+      this.networkEventsBuffer.push(event);
 
       if (!patterns || patterns.some((pattern) => this.matchPattern(event.url, pattern))) {
         eventQueue.push(event);

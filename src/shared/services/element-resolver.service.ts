@@ -1,0 +1,386 @@
+/**
+ * Element Resolver Service
+ *
+ * Resolves LocatorHints to concrete ElementRefs by querying the DOM
+ * and populating selectors, nodeIds, and metadata.
+ *
+ * FIXES: The stub implementation in browser-automation-mcp-server.ts:690-724
+ * that returned incomplete ElementRefs without actually querying the DOM.
+ */
+
+import type { ElementRef, LocatorHint, Selectors, BBox } from '../types/index.js';
+import type { SelectorBuilderService } from './selector-builder.service.js';
+
+interface CdpBridge {
+  executeDevToolsMethod<T>(method: string, params?: unknown): Promise<T>;
+}
+
+interface DomQueryResult {
+  nodeId: number;
+}
+
+interface BoxModelResult {
+  model: {
+    content: number[];
+    width: number;
+    height: number;
+  };
+}
+
+interface NodeAttributesResult {
+  attributes: string[];
+}
+
+export class ElementResolverService {
+  constructor(
+    private readonly cdpBridge: CdpBridge,
+    private readonly selectorBuilder: SelectorBuilderService,
+  ) {}
+
+  /**
+   * Resolve a LocatorHint to a concrete ElementRef
+   *
+   * This method:
+   * 1. If already an ElementRef, validates and returns it
+   * 2. Otherwise queries the DOM using the hint
+   * 3. Populates all selectors (CSS, XPath, AX)
+   * 4. Gets the nodeId for CDP operations
+   * 5. Retrieves bbox, role, label, name
+   */
+  async resolve(
+    hint: ElementRef | LocatorHint,
+    frameId: string = 'main',
+  ): Promise<ElementRef> {
+    // If already an ElementRef, validate and return
+    if (this.isElementRef(hint)) {
+      return this.validateElementRef(hint);
+    }
+
+    // Try to find element using provided hints
+    const nodeId = await this.findNodeId(hint, frameId);
+    if (!nodeId) {
+      throw new Error(`Could not resolve element from hint: ${JSON.stringify(hint)}`);
+    }
+
+    // Build comprehensive selectors for the element
+    const selectors = await this.buildSelectors(nodeId, hint, frameId);
+
+    // Get bounding box
+    const bbox = await this.getBoundingBox(nodeId);
+
+    // Get accessibility metadata
+    const metadata = await this.getAccessibilityMetadata(nodeId);
+
+    return {
+      frameId,
+      nodeId,
+      selectors,
+      bbox,
+      ...metadata,
+    };
+  }
+
+  /**
+   * Find the CDP nodeId for an element using various strategies
+   */
+  private async findNodeId(hint: LocatorHint, frameId: string): Promise<number | null> {
+    // Strategy 1: Direct selector (CSS, XPath)
+    if ('css' in hint && hint.css) {
+      const result = await this.queryByCss(hint.css, frameId);
+      if (result) return result;
+    }
+
+    if ('xpath' in hint && hint.xpath) {
+      const result = await this.queryByXPath(hint.xpath, frameId);
+      if (result) return result;
+    }
+
+    // Strategy 2: Accessibility attributes (role, label, name)
+    if ('role' in hint || 'label' in hint || 'name' in hint) {
+      const result = await this.queryByAccessibility(hint, frameId);
+      if (result) return result;
+    }
+
+    // Strategy 3: Bounding box (find element at coordinates)
+    if ('bbox' in hint && hint.bbox) {
+      const result = await this.queryByBoundingBox(hint.bbox, frameId);
+      if (result) return result;
+    }
+
+    return null;
+  }
+
+  /**
+   * Query element by CSS selector
+   */
+  private async queryByCss(css: string, _frameId: string): Promise<number | null> {
+    try {
+      const result = await this.cdpBridge.executeDevToolsMethod<DomQueryResult>(
+        'DOM.querySelector',
+        {
+          nodeId: await this.getDocumentNodeId(),
+          selector: css,
+        },
+      );
+      return result.nodeId || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Query element by XPath
+   */
+  private async queryByXPath(xpath: string, _frameId: string): Promise<number | null> {
+    try {
+      // Use Runtime.evaluate to execute XPath
+      const result = await this.cdpBridge.executeDevToolsMethod<{
+        result: { objectId?: string };
+      }>('Runtime.evaluate', {
+        expression: `
+          (function() {
+            const result = document.evaluate(
+              ${JSON.stringify(xpath)},
+              document,
+              null,
+              XPathResult.FIRST_ORDERED_NODE_TYPE,
+              null
+            );
+            return result.singleNodeValue;
+          })()
+        `,
+        returnByValue: false,
+      });
+
+      if (result.result.objectId) {
+        // Get nodeId from objectId
+        const nodeInfo = await this.cdpBridge.executeDevToolsMethod<{ node: { nodeId: number } }>(
+          'DOM.describeNode',
+          { objectId: result.result.objectId },
+        );
+        return nodeInfo.node.nodeId;
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+
+  /**
+   * Query element by accessibility attributes (role, label, name)
+   */
+  private async queryByAccessibility(
+    hint: LocatorHint,
+    _frameId: string,
+  ): Promise<number | null> {
+    try {
+      // Build a selector based on accessibility attributes
+      const conditions: string[] = [];
+
+      if ('role' in hint && hint.role) {
+        conditions.push(`element.getAttribute('role') === ${JSON.stringify(hint.role)}`);
+      }
+
+      if ('label' in hint && hint.label) {
+        conditions.push(
+          `(element.getAttribute('aria-label') === ${JSON.stringify(hint.label)} || element.textContent?.trim() === ${JSON.stringify(hint.label)})`,
+        );
+      }
+
+      if ('name' in hint && hint.name) {
+        conditions.push(
+          `(element.getAttribute('name') === ${JSON.stringify(hint.name)} || element.getAttribute('aria-labelledby') === ${JSON.stringify(hint.name)})`,
+        );
+      }
+
+      const expression = `
+        (function() {
+          const elements = Array.from(document.querySelectorAll('*'));
+          return elements.find(element => ${conditions.join(' && ')});
+        })()
+      `;
+
+      const result = await this.cdpBridge.executeDevToolsMethod<{
+        result: { objectId?: string };
+      }>('Runtime.evaluate', {
+        expression,
+        returnByValue: false,
+      });
+
+      if (result.result.objectId) {
+        const nodeInfo = await this.cdpBridge.executeDevToolsMethod<{ node: { nodeId: number } }>(
+          'DOM.describeNode',
+          { objectId: result.result.objectId },
+        );
+        return nodeInfo.node.nodeId;
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+
+  /**
+   * Query element by bounding box (find element at center of bbox)
+   */
+  private async queryByBoundingBox(bbox: BBox, _frameId: string): Promise<number | null> {
+    try {
+      const centerX = bbox.x + bbox.w / 2;
+      const centerY = bbox.y + bbox.h / 2;
+
+      const result = await this.cdpBridge.executeDevToolsMethod<{
+        result: { objectId?: string };
+      }>('Runtime.evaluate', {
+        expression: `document.elementFromPoint(${centerX}, ${centerY})`,
+        returnByValue: false,
+      });
+
+      if (result.result.objectId) {
+        const nodeInfo = await this.cdpBridge.executeDevToolsMethod<{ node: { nodeId: number } }>(
+          'DOM.describeNode',
+          { objectId: result.result.objectId },
+        );
+        return nodeInfo.node.nodeId;
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+
+  /**
+   * Build comprehensive selectors for an element
+   */
+  private async buildSelectors(
+    nodeId: number,
+    hint: LocatorHint,
+    frameId: string,
+  ): Promise<Selectors> {
+    // Start with any selectors provided in the hint
+    const selectors: Selectors = {};
+
+    if ('css' in hint && hint.css) {
+      selectors.css = hint.css;
+    }
+    if ('xpath' in hint && hint.xpath) {
+      selectors.xpath = hint.xpath;
+    }
+    if ('ax' in hint && hint.ax) {
+      selectors.ax = hint.ax;
+    }
+
+    // Generate missing selectors using the selector builder
+    const generated = await this.selectorBuilder.buildSelectors(nodeId, frameId);
+
+    return {
+      css: selectors.css || generated.css,
+      xpath: selectors.xpath || generated.xpath,
+      ax: selectors.ax || generated.ax,
+    };
+  }
+
+  /**
+   * Get bounding box for an element
+   */
+  private async getBoundingBox(nodeId: number): Promise<BBox | undefined> {
+    try {
+      const result = await this.cdpBridge.executeDevToolsMethod<BoxModelResult>(
+        'DOM.getBoxModel',
+        { nodeId },
+      );
+
+      const quad = result.model.content;
+      const x = Math.min(quad[0], quad[2], quad[4], quad[6]);
+      const y = Math.min(quad[1], quad[3], quad[5], quad[7]);
+      const w = result.model.width;
+      const h = result.model.height;
+
+      return { x, y, w, h };
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Get accessibility metadata (role, label, name)
+   */
+  private async getAccessibilityMetadata(
+    nodeId: number,
+  ): Promise<{ role?: string; label?: string; name?: string }> {
+    try {
+      // Get element attributes
+      const attrResult = await this.cdpBridge.executeDevToolsMethod<NodeAttributesResult>(
+        'DOM.getAttributes',
+        { nodeId },
+      );
+
+      const attributes = this.parseAttributes(attrResult.attributes);
+
+      return {
+        role: attributes.role || attributes['aria-role'],
+        label: attributes['aria-label'] || attributes['aria-labelledby'],
+        name: attributes.name || attributes['aria-name'],
+      };
+    } catch {
+      return {};
+    }
+  }
+
+  /**
+   * Parse CDP attributes array to key-value pairs
+   */
+  private parseAttributes(attrs: string[]): Record<string, string> {
+    const result: Record<string, string> = {};
+    for (let i = 0; i < attrs.length; i += 2) {
+      result[attrs[i]] = attrs[i + 1];
+    }
+    return result;
+  }
+
+  /**
+   * Get the document nodeId
+   */
+  private async getDocumentNodeId(): Promise<number> {
+    const result = await this.cdpBridge.executeDevToolsMethod<{
+      root: { nodeId: number };
+    }>('DOM.getDocument', { depth: 0 });
+    return result.root.nodeId;
+  }
+
+  /**
+   * Validate that an ElementRef still exists in the DOM
+   */
+  private async validateElementRef(element: ElementRef): Promise<ElementRef> {
+    // If we have a nodeId, verify it still exists
+    if (element.nodeId) {
+      try {
+        await this.cdpBridge.executeDevToolsMethod('DOM.resolveNode', {
+          nodeId: element.nodeId,
+        });
+        return element; // Node still exists
+      } catch {
+        // Node is stale, try to re-resolve using selectors
+      }
+    }
+
+    // Try to re-resolve using selectors
+    if (element.selectors.css || element.selectors.xpath) {
+      return this.resolve(
+        {
+          css: element.selectors.css,
+          xpath: element.selectors.xpath,
+        },
+        element.frameId,
+      );
+    }
+
+    return element;
+  }
+
+  /**
+   * Type guard to check if a value is an ElementRef
+   */
+  private isElementRef(value: ElementRef | LocatorHint): value is ElementRef {
+    return (value as ElementRef).selectors !== undefined;
+  }
+}

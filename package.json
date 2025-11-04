@@ -3,22 +3,27 @@
   "version": "1.0.0",
   "description": "MCP server for browser automation via Qt + CEF",
   "type": "module",
-  "main": "dist/browser-automation-mcp-server.js",
+  "main": "dist/src/index.js",
   "bin": {
-    "browser-automation-mcp": "./dist/browser-automation-mcp-server.js"
+    "browser-automation-mcp": "./dist/src/index.js"
   },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "start": "node dist/browser-automation-mcp-server.js",
-    "mcp:inspect": "npx @modelcontextprotocol/inspector node dist/browser-automation-mcp-server.js",
+    "start": "node dist/src/index.js",
+    "mcp:inspect": "npx @modelcontextprotocol/inspector node dist/src/index.js",
     "prepare": "npm run build",
     "type-check": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,js,json,md}\"",
-    "check": "npm run type-check && npm run lint && npm run format:check"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "check": "npm run type-check && npm run lint && npm run format:check && npm run test"
   },
   "keywords": [
     "mcp",
@@ -39,12 +44,14 @@
     "@types/chrome-remote-interface": "^0.31.14",
     "@types/eslint__js": "^8.42.3",
     "@types/node": "^20.0.0",
+    "@vitest/coverage-v8": "^1.0.0",
     "eslint": "^9.39.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
     "prettier": "^3.6.2",
     "typescript": "^5.0.0",
-    "typescript-eslint": "^8.46.2"
+    "typescript-eslint": "^8.46.2",
+    "vitest": "^1.0.0"
   },
   "engines": {
     "node": ">=18.0.0"
