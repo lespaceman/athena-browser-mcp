@@ -110,9 +110,11 @@ export interface FormDetectParams {
 }
 
 export interface FormDetectResponse {
-  fields: FormField[];
-  submitButtons: SubmitButton[];
-  formElement?: ElementRef;
+  forms: {
+    element: ElementRef;
+    fields: FormField[];
+    submitButton?: SubmitButton;
+  }[];
 }
 
 export interface FormFillParams {

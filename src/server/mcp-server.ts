@@ -16,17 +16,56 @@ import * as InteractionSchemas from '../domains/interaction/interaction.schemas.
 import * as NavigationSchemas from '../domains/navigation/navigation.schemas.js';
 import * as SessionSchemas from '../domains/session/session.schemas.js';
 
+// Import error handling and logging
+import {
+  createSuccessResponse,
+  createErrorResponse,
+  type McpToolResponse,
+} from '../shared/errors/index.js';
+import {
+  getLogger,
+  type LogLevel,
+  type McpNotificationSender,
+} from '../shared/services/logging.service.js';
+import { SetLevelRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+
 /**
  * Helper function to wrap handler output for MCP
+ * Now returns McpToolResponse type
  */
-function wrapOutput(output: unknown): {
-  content: { type: 'text'; text: string }[];
-  structuredContent: Record<string, unknown>;
-} {
-  return {
-    content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
-    structuredContent: output as Record<string, unknown>,
-  };
+function wrapOutput(output: unknown): McpToolResponse {
+  return createSuccessResponse(output);
+}
+
+/**
+ * Helper function to wrap handler execution with error handling and logging
+ */
+async function executeWithLogging<T>(
+  toolName: string,
+  handler: () => Promise<T>,
+): Promise<McpToolResponse> {
+  const logger = getLogger();
+  const startTime = Date.now();
+
+  console.error(`[executeWithLogging] Starting execution of tool: ${toolName}`);
+
+  try {
+    logger.debug(`Executing tool: ${toolName}`);
+    const result = await handler();
+    const executionTime = Date.now() - startTime;
+    console.error(`[executeWithLogging] Tool ${toolName} completed in ${executionTime}ms`);
+    logger.debug(`Tool ${toolName} completed in ${executionTime}ms`);
+    return createSuccessResponse(result);
+  } catch (error) {
+    const executionTime = Date.now() - startTime;
+    console.error(`[executeWithLogging] Tool ${toolName} FAILED:`, error);
+    logger.error(
+      `Tool ${toolName} failed after ${executionTime}ms`,
+      error instanceof Error ? error : undefined,
+      { toolName },
+    );
+    return createErrorResponse(error);
+  }
 }
 
 /**
@@ -35,7 +74,7 @@ function wrapOutput(output: unknown): {
  * Modern implementation using McpServer with native Zod integration
  * and structured output support
  */
-export class BrowserAutomationServer {
+export class BrowserAutomationServer implements McpNotificationSender {
   private server: McpServer;
   private transport: StdioServerTransport;
 
@@ -43,17 +82,63 @@ export class BrowserAutomationServer {
     private readonly config: ServerConfig,
     private readonly handlers: Handlers,
   ) {
-    // Create modern MCP server instance
+    // Create modern MCP server instance with capabilities
     this.server = new McpServer({
       name: config.name,
       version: config.version,
+    }, {
+      capabilities: config.capabilities,
     });
 
     // Create stdio transport
     this.transport = new StdioServerTransport();
 
+    // Register logging request handler
+    this.registerLoggingHandlers();
+
     // Register all tools with native Zod support
     this.registerAllTools();
+
+    // Wire up logging service to MCP server
+    const logger = getLogger();
+    logger.setMcpServer(this);
+  }
+
+  /**
+   * Send logging message notification via MCP protocol
+   * Implements McpNotificationSender interface
+   */
+  async sendLoggingMessage(params: {
+    level: LogLevel;
+    logger?: string;
+    data: Record<string, unknown>;
+  }): Promise<void> {
+    // Send notifications/message notification
+    await this.server.server.notification({
+      method: 'notifications/message',
+      params: {
+        level: params.level,
+        logger: params.logger,
+        data: params.data,
+      },
+    });
+  }
+
+  /**
+   * Register logging request handlers
+   */
+  private registerLoggingHandlers(): void {
+    // Handle logging/setLevel requests
+    this.server.server.setRequestHandler(
+      SetLevelRequestSchema,
+      (request) => {
+        const logger = getLogger();
+        const { level } = request.params;
+        logger.setMinLevel(level as LogLevel);
+        logger.info(`Log level set to: ${level}`);
+        return {}; // Empty result as per spec
+      },
+    );
   }
 
   /**
@@ -86,7 +171,7 @@ export class BrowserAutomationServer {
         inputSchema: PerceptionSchemas.DomGetTreeInputSchema.shape,
         outputSchema: PerceptionSchemas.DomGetTreeOutputSchema.shape,
       },
-      async (input) => wrapOutput(await this.handlers.domTree.handle(input)),
+      async (input) => executeWithLogging('dom_get_tree', () => this.handlers.domTree.handle(input)),
     );
 
     // ax_get_tree
@@ -183,7 +268,19 @@ export class BrowserAutomationServer {
       'targets_resolve',
       {
         title: 'Resolve Target',
-        description: 'Resolve a locator hint to a specific element reference with selectors',
+        description: `Resolve a locator hint to a specific element reference with selectors.
+
+IMPORTANT USAGE GUIDELINES:
+- ALWAYS use concrete selectors (css, xpath, ax) rather than semantic hints alone
+- Semantic hints (role, label, name) by themselves are unreliable and may fail
+- Use nearText ONLY when combined with a concrete selector like css or xpath
+- Avoid attribute selectors for implicit HTML attributes (e.g., button[type='submit'])
+
+Examples:
+✅ {css: "a", nearText: "Learn more"} - concrete selector + proximity
+✅ {xpath: "//button"} - simple, reliable
+❌ {role: "link", nearText: "Learn more"} - semantic only, unreliable
+❌ {css: "button[type='submit']"} - implicit attribute, may fail`,
         inputSchema: InteractionSchemas.TargetsResolveInputSchema.shape,
         outputSchema: InteractionSchemas.TargetsResolveOutputSchema.shape,
       },
@@ -195,7 +292,18 @@ export class BrowserAutomationServer {
       'act_click',
       {
         title: 'Click Element',
-        description: 'Click an element using multiple strategies (accessibility, DOM, or bounding box)',
+        description: `Click an element using multiple strategies (accessibility, DOM, or bounding box).
+
+TARGET SELECTION:
+- Use concrete CSS/XPath selectors for reliability
+- Avoid attribute selectors for implicit HTML attributes
+- Can combine concrete selectors with nearText for disambiguation
+
+Examples:
+✅ {css: "button.submit"} - reliable
+✅ {css: "a", nearText: "Learn more"} - selector + proximity
+❌ {role: "button"} - semantic alone, unreliable
+❌ {css: "button[type='submit']"} - implicit attribute`,
         inputSchema: InteractionSchemas.ActClickInputSchema.shape,
         outputSchema: InteractionSchemas.ActClickOutputSchema.shape,
       },
@@ -207,7 +315,18 @@ export class BrowserAutomationServer {
       'act_type',
       {
         title: 'Type Text',
-        description: 'Type text into an input field with optional clearing and Enter key support',
+        description: `Type text into an input field with optional clearing and Enter key support.
+
+TARGET SELECTION:
+- Use concrete CSS/XPath selectors to identify input fields
+- Avoid attribute selectors for implicit HTML attributes
+- ID and name selectors work well for form fields
+
+Examples:
+✅ {css: "input[name='email']"} - explicit name attribute
+✅ {css: "#username"} - ID selector
+✅ {xpath: "//textarea[@name='message']"}
+❌ {role: "textbox", label: "Email"} - semantic only`,
         inputSchema: InteractionSchemas.ActTypeInputSchema.shape,
         outputSchema: InteractionSchemas.ActTypeOutputSchema.shape,
       },
@@ -219,7 +338,17 @@ export class BrowserAutomationServer {
       'act_scroll_into_view',
       {
         title: 'Scroll Into View',
-        description: 'Scroll an element into the viewport, optionally centering it',
+        description: `Scroll an element into the viewport, optionally centering it.
+
+SELECTOR GUIDELINES:
+- Use concrete CSS/XPath selectors (e.g., 'button', 'a.nav-link')
+- Avoid attribute selectors for implicit HTML attributes
+- Prefer simple selectors over complex ones with implicit attributes
+
+Examples:
+✅ {css: "button"} - works reliably
+✅ {css: "#submit-btn"} - specific and reliable
+❌ {css: "button[type='submit']"} - may fail if type is implicit`,
         inputSchema: InteractionSchemas.ActScrollIntoViewInputSchema.shape,
         outputSchema: InteractionSchemas.ActScrollIntoViewOutputSchema.shape,
       },

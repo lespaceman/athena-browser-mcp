@@ -59,10 +59,17 @@ export class CEFBridge extends EventEmitter {
       console.error(`[CEF Bridge] Connecting to CDP at ${this.host}:${this.port}`);
 
       // Connect to CDP
-      this.cdpClient = await CDP({
+      const client = await CDP({
         host: this.host,
         port: this.port,
       });
+
+      client.on('disconnect', () => {
+        console.error('[CEF Bridge] Disconnected from CDP server');
+        this.handleDisconnect();
+      });
+
+      this.cdpClient = client;
 
       console.error('[CEF Bridge] Connected successfully');
       this.reconnectAttempts = 0;
@@ -170,6 +177,15 @@ export class CEFBridge extends EventEmitter {
     TResult = unknown,
     TParams extends Record<string, unknown> = Record<string, unknown>,
   >(method: string, params: TParams): Promise<TResult> {
+    return this.executeWithConnection(method, params);
+  }
+
+  private async executeWithConnection<
+    TResult = unknown,
+    TParams extends Record<string, unknown> = Record<string, unknown>,
+  >(method: string, params: TParams): Promise<TResult> {
+    await this.ensureConnected();
+
     if (!this.cdpClient) {
       throw new Error('[CEF Bridge] Not connected to CDP server');
     }
@@ -397,13 +413,6 @@ export class CEFBridge extends EventEmitter {
     return regex.test(url);
   }
 
-  private ensureRecord(value: unknown): Record<string, unknown> {
-    if (typeof value === 'object' && value !== null) {
-      return value as Record<string, unknown>;
-    }
-    return {};
-  }
-
   /**
    * Close connection to CDP server
    */
@@ -422,5 +431,75 @@ export class CEFBridge extends EventEmitter {
     }
 
     this.emit('closed');
+  }
+
+  private async ensureConnected(): Promise<void> {
+    if (this.cdpClient) {
+      return;
+    }
+
+    if (this.isClosing) {
+      throw new Error('[CEF Bridge] Bridge is closing');
+    }
+
+    if (!this.isConnecting) {
+      try {
+        await this.connect();
+      } catch (error) {
+        this.scheduleReconnect();
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`[CEF Bridge] Unable to connect to CDP server: ${message}`);
+      }
+    }
+
+    if (this.cdpClient) {
+      return;
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error('[CEF Bridge] Timed out waiting for CDP connection'));
+      }, this.reconnectDelay * 2);
+
+      const onConnected = () => {
+        cleanup();
+        resolve();
+      };
+
+      const onDisconnected = (reason?: Error) => {
+        cleanup();
+        reject(reason ?? new Error('[CEF Bridge] Connection attempt failed'));
+      };
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+        this.off('connected', onConnected);
+        this.off('disconnected', onDisconnected);
+      };
+
+      this.once('connected', onConnected);
+      this.once('disconnected', onDisconnected);
+    });
+  }
+
+  private handleDisconnect(): void {
+    this.cdpClient = undefined;
+    this.isConnecting = false;
+
+    if (this.isClosing) {
+      this.emit('disconnected');
+      return;
+    }
+
+    this.emit('disconnected');
+    this.scheduleReconnect();
+  }
+
+  private ensureRecord(value: unknown): Record<string, unknown> {
+    if (typeof value === 'object' && value !== null) {
+      return value as Record<string, unknown>;
+    }
+    return {};
   }
 }

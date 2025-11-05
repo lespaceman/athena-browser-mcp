@@ -116,6 +116,7 @@ function initializeServer(): BrowserAutomationServer {
       version: '2.0.0',
       capabilities: {
         tools: {},
+        logging: {}, // Enable logging capability for observability
       },
     },
     handlers,

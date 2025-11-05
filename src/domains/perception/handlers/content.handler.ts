@@ -20,11 +20,12 @@ export class ContentHandler {
 
   /**
    * Extract content from the page
+   * Returns 'text' field to match ContentGetTextOutputSchema
    */
   async extract(params: {
     selector?: string;
     format?: 'text' | 'html' | 'markdown';
-  }): Promise<{ content: string }> {
+  }): Promise<{ text: string }> {
     const selector = params.selector ?? 'body';
     const format = params.format ?? 'text';
 
@@ -37,7 +38,7 @@ export class ContentHandler {
     });
 
     if (!result.nodeId) {
-      return { content: '' };
+      return { text: '' };
     }
 
     // Get the outer HTML
@@ -51,17 +52,17 @@ export class ContentHandler {
     const sourceHtml = html.outerHTML ?? '';
 
     // Format the content
-    let content = '';
+    let text = '';
     if (format === 'text') {
-      content = this.htmlToText(sourceHtml, 'html-text');
+      text = this.htmlToText(sourceHtml, 'html-text');
     } else if (format === 'html') {
-      content = sourceHtml;
+      text = sourceHtml;
     } else if (format === 'markdown') {
       // PLACEHOLDER: Would convert HTML to markdown
-      content = this.htmlToText(sourceHtml, 'html-text');
+      text = this.htmlToText(sourceHtml, 'html-text');
     }
 
-    return { content };
+    return { text };
   }
 
   /**

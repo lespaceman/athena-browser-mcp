@@ -316,10 +316,11 @@ export class ActionHandler {
    * This is useful for debugging and testing element resolution
    */
   async resolve(params: TargetsResolveParams): Promise<TargetsResolveResponse> {
-    // Workaround: MCP SDK sometimes serializes object params as JSON strings
-    const normalizedParams = this.deserializeParams(params);
+    // Debug logging
+    console.error('[ActionHandler.resolve] Raw params:', JSON.stringify(params, null, 2));
+    console.error('[ActionHandler.resolve] Hint value:', JSON.stringify(params.hint, null, 2));
 
-    const element = await this.elementResolver.resolve(normalizedParams.hint, normalizedParams.frameId);
+    const element = await this.elementResolver.resolve(params.hint, params.frameId);
     return { element };
   }
 

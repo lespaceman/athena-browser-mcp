@@ -48,6 +48,24 @@ export class ElementResolverService {
    * 5. Retrieves bbox, role, label, name
    */
   async resolve(hint: ElementRef | LocatorHint, frameId = 'main'): Promise<ElementRef> {
+    // Write to file for debugging since stderr isn't visible through MCP
+    try {
+      await import('fs/promises').then(fs =>
+        fs.appendFile('/tmp/mcp-debug.log',
+          `[${new Date().toISOString()}] ElementResolver.resolve\n` +
+          `  hint: ${JSON.stringify(hint, null, 2)}\n` +
+          `  type: ${typeof hint}\n` +
+          `  keys: ${JSON.stringify(Object.keys(hint || {}))}\n\n`
+        )
+      );
+    } catch {
+      /* ignore file write errors */
+    }
+
+    console.error('[ElementResolver.resolve] Received hint:', JSON.stringify(hint, null, 2));
+    console.error('[ElementResolver.resolve] Hint type:', typeof hint);
+    console.error('[ElementResolver.resolve] Hint keys:', Object.keys(hint || {}));
+
     // If already an ElementRef, validate and return
     if (this.isElementRef(hint)) {
       return this.validateElementRef(hint);
@@ -165,13 +183,78 @@ export class ElementResolverService {
 
   /**
    * Query element by accessibility attributes (role, label, name)
+   *
+   * Uses the Accessibility tree API to find elements by their computed accessible
+   * name and role, which is more reliable than DOM attribute matching.
    */
   private async queryByAccessibility(
     hint: LocatorHint,
     _frameId: string,
   ): Promise<number | null> {
     try {
-      // Build a selector based on accessibility attributes
+      // First, get the full accessibility tree
+      // CDP returns role and name as either string or {type, value} objects
+      const axTree = await this.cdpBridge.executeDevToolsMethod<{
+        nodes: {
+          nodeId: string;
+          role?: string | { type: string; value: string };
+          name?: string | { type: string; value: string };
+          backendDOMNodeId?: number;
+        }[];
+      }>('Accessibility.getFullAXTree', {});
+
+      // Find matching node in accessibility tree
+      for (const node of axTree.nodes) {
+        let matches = true;
+
+        // Check role match - extract string value from CDP format
+        if ('role' in hint && hint.role) {
+          const nodeRole = this.extractAxValue(node.role);
+          if (!nodeRole || nodeRole !== hint.role) {
+            matches = false;
+          }
+        }
+
+        // Check name match (accessible name from ui_discover)
+        if ('name' in hint && hint.name && matches) {
+          const nodeName = this.extractAxValue(node.name);
+          if (!nodeName || nodeName !== hint.name) {
+            matches = false;
+          }
+        }
+
+        // Check label match (similar to name)
+        if ('label' in hint && hint.label && matches) {
+          const nodeName = this.extractAxValue(node.name);
+          if (!nodeName || nodeName !== hint.label) {
+            matches = false;
+          }
+        }
+
+        // If all conditions match, get the DOM nodeId
+        if (matches && node.backendDOMNodeId) {
+          // Push the node to get its nodeId
+          const pushResult = await this.cdpBridge.executeDevToolsMethod<{
+            nodeId: number;
+          }>('DOM.pushNodeByBackendIdToFrontend', {
+            backendNodeId: node.backendDOMNodeId,
+          });
+          return pushResult.nodeId;
+        }
+      }
+    } catch {
+      // Fallback to DOM-based query if accessibility tree is not available
+      return this.queryByAccessibilityFallback(hint);
+    }
+    return null;
+  }
+
+  /**
+   * Fallback method for accessibility queries using DOM attributes
+   * Also handles nearText proximity matching
+   */
+  private async queryByAccessibilityFallback(hint: LocatorHint): Promise<number | null> {
+    try {
       const conditions: string[] = [];
 
       if ('role' in hint && hint.role) {
@@ -186,8 +269,20 @@ export class ElementResolverService {
 
       if ('name' in hint && hint.name) {
         conditions.push(
-          `(element.getAttribute('name') === ${JSON.stringify(hint.name)} || element.getAttribute('aria-labelledby') === ${JSON.stringify(hint.name)})`,
+          `(element.getAttribute('name') === ${JSON.stringify(hint.name)} || element.getAttribute('aria-label') === ${JSON.stringify(hint.name)})`,
         );
+      }
+
+      if ('nearText' in hint && hint.nearText) {
+        // Match elements that contain or are near the specified text
+        conditions.push(
+          `(element.textContent?.includes(${JSON.stringify(hint.nearText)}) || element.getAttribute('aria-label')?.includes(${JSON.stringify(hint.nearText)}))`,
+        );
+      }
+
+      // If no conditions, cannot proceed
+      if (conditions.length === 0) {
+        return null;
       }
 
       const expression = `
@@ -372,6 +467,17 @@ export class ElementResolverService {
     }
 
     return element;
+  }
+
+  /**
+   * Extract string value from CDP accessibility value
+   * CDP can return values as either string or {type, value} object
+   */
+  private extractAxValue(value: string | { type: string; value: string } | undefined): string | undefined {
+    if (!value) return undefined;
+    if (typeof value === 'string') return value;
+    if (typeof value === 'object' && 'value' in value) return value.value;
+    return undefined;
   }
 
   /**

@@ -5,7 +5,11 @@
  */
 
 import { z } from 'zod';
-import { ElementRefSchema, LocatorHintSchema } from '../../shared/schemas/index.js';
+import {
+  ElementRefSchema,
+  LocatorHintSchema,
+  ElementRefOrLocatorHintSchema,
+} from '../../shared/schemas/index.js';
 
 // ===== TARGET RESOLUTION =====
 
@@ -21,7 +25,7 @@ export const TargetsResolveOutputSchema = z.object({
 // ===== ACTIONS =====
 
 export const ActClickInputSchema = z.object({
-  target: z.union([ElementRefSchema, LocatorHintSchema]).describe('Target element to click'),
+  target: ElementRefOrLocatorHintSchema.describe('Target element to click'),
   strategy: z.enum(['ax', 'dom', 'bbox']).optional().describe('Click strategy to use'),
   frameId: z.string().optional().describe('Frame identifier'),
   waitAfterMs: z.number().optional().describe('Milliseconds to wait after click'),
@@ -34,7 +38,7 @@ export const ActClickOutputSchema = z.object({
 });
 
 export const ActTypeInputSchema = z.object({
-  target: z.union([ElementRefSchema, LocatorHintSchema]).describe('Target input element'),
+  target: ElementRefOrLocatorHintSchema.describe('Target input element'),
   text: z.string().describe('Text to type'),
   submit: z.enum(['Enter', 'Tab']).nullable().optional().describe('Key to press after typing'),
   clearFirst: z.boolean().optional().default(false).describe('Clear existing text first'),
@@ -65,7 +69,7 @@ export const ActSelectOutputSchema = z.object({
 });
 
 export const ActScrollIntoViewInputSchema = z.object({
-  target: z.union([ElementRefSchema, LocatorHintSchema]).describe('Target element to scroll into view'),
+  target: ElementRefOrLocatorHintSchema.describe('Target element to scroll into view'),
   center: z.boolean().optional().default(true).describe('Center element in viewport'),
   frameId: z.string().optional().describe('Frame identifier'),
 });
@@ -77,7 +81,7 @@ export const ActScrollIntoViewOutputSchema = z.object({
 });
 
 export const ActUploadInputSchema = z.object({
-  target: z.union([ElementRefSchema, LocatorHintSchema]).describe('Target file input element'),
+  target: ElementRefOrLocatorHintSchema.describe('Target file input element'),
   files: z.array(z.string()).describe('File paths to upload'),
   frameId: z.string().optional().describe('Frame identifier'),
 });
@@ -103,7 +107,8 @@ export const FormFieldSchema = z.object({
 
 export const SubmitButtonSchema = z.object({
   element: ElementRefSchema.describe('Submit button element reference'),
-  text: z.string().describe('Button text'),
+  text: z.string().optional().describe('Button text'),
+  type: z.string().describe('Button type'),
 });
 
 export const FormDetectInputSchema = z.object({
@@ -131,7 +136,16 @@ export const FormFillInputSchema = z.object({
 
 export const FormFillOutputSchema = z.object({
   success: z.boolean().describe('Whether form fill succeeded'),
-  filledFields: z.array(z.string()).describe('Names of successfully filled fields'),
+  results: z
+    .array(
+      z.object({
+        field: z.string().describe('Field name'),
+        success: z.boolean().describe('Whether this field was filled successfully'),
+        error: z.string().optional().describe('Error message if field fill failed'),
+      }),
+    )
+    .optional()
+    .describe('Results for each field'),
   error: z.string().optional().describe('Error message if failed'),
 });
 

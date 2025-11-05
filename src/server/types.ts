@@ -26,6 +26,7 @@ export interface ServerConfig {
     tools?: Record<string, unknown>;
     prompts?: Record<string, unknown>;
     resources?: Record<string, unknown>;
+    logging?: Record<string, unknown>;
   };
 }
 
