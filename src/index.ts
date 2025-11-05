@@ -7,8 +7,8 @@
  */
 
 import { CEFBridge } from './bridge/cef-bridge.js';
-import { MCPServer } from './server/mcp-server.js';
-import { ToolRegistry } from './server/tool-registry.js';
+import { BrowserAutomationServer } from './server/mcp-server.js';
+import type { Handlers } from './server/tool-registry.js';
 
 // Services
 import { ElementResolverService } from './shared/services/element-resolver.service.js';
@@ -44,17 +44,14 @@ import { SessionHandler } from './domains/session/handlers/session.handler.js';
 /**
  * Initialize all services and handlers
  */
-async function initializeServer(): Promise<MCPServer> {
+async function initializeServer(): Promise<BrowserAutomationServer> {
   // Step 1: Create CDP bridge
   const cdpBridge = new CEFBridge();
 
   // Step 2: Create shared services
   const selectorBuilder = new SelectorBuilderService(cdpBridge);
   const visibilityChecker = new VisibilityCheckerService(cdpBridge);
-  const elementResolver = new ElementResolverService(
-    cdpBridge,
-    selectorBuilder,
-  );
+  const elementResolver = new ElementResolverService(cdpBridge, selectorBuilder);
   const domTransformer = new DomTransformerService();
   const elementFusion = new ElementFusionService(elementResolver, selectorBuilder);
   const formDetector = new FormDetectorService(cdpBridge, selectorBuilder, visibilityChecker);
@@ -62,11 +59,7 @@ async function initializeServer(): Promise<MCPServer> {
   // Step 3: Create perception handlers
   const domTreeHandler = new DomTreeHandler(cdpBridge, domTransformer);
   const axTreeHandler = new AxTreeHandler(cdpBridge);
-  const uiDiscoverHandler = new UiDiscoverHandler(
-    domTreeHandler,
-    axTreeHandler,
-    elementFusion,
-  );
+  const uiDiscoverHandler = new UiDiscoverHandler(domTreeHandler, axTreeHandler, elementFusion);
   const layoutHandler = new LayoutHandler(cdpBridge, elementResolver, visibilityChecker);
   const visionHandler = new VisionHandler(cdpBridge);
   const contentHandler = new ContentHandler(cdpBridge);
@@ -84,12 +77,7 @@ async function initializeServer(): Promise<MCPServer> {
     domStrategy,
     bboxStrategy,
   );
-  const formHandler = new FormHandler(
-    formDetector,
-    domTreeHandler,
-    axTreeHandler,
-    actionHandler,
-  );
+  const formHandler = new FormHandler(formDetector, domTreeHandler, axTreeHandler, actionHandler);
   const keyboardHandler = new KeyboardHandler(cdpBridge);
 
   // Step 5: Create navigation handlers
@@ -98,8 +86,8 @@ async function initializeServer(): Promise<MCPServer> {
   // Step 6: Create session handlers
   const sessionHandler = new SessionHandler(cdpBridge, navigationHandler);
 
-  // Step 7: Create tool registry
-  const toolRegistry = new ToolRegistry({
+  // Step 7: Create handlers collection
+  const handlers: Handlers = {
     // Perception
     domTree: domTreeHandler,
     axTree: axTreeHandler,
@@ -119,10 +107,10 @@ async function initializeServer(): Promise<MCPServer> {
 
     // Session
     session: sessionHandler,
-  });
+  };
 
-  // Step 8: Create MCP server
-  const server = new MCPServer(
+  // Step 8: Create MCP server with modern McpServer implementation
+  const server = new BrowserAutomationServer(
     {
       name: 'browser-automation-mcp-server',
       version: '2.0.0',
@@ -130,7 +118,7 @@ async function initializeServer(): Promise<MCPServer> {
         tools: {},
       },
     },
-    toolRegistry,
+    handlers,
   );
 
   return server;
