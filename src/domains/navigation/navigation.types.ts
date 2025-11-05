@@ -19,12 +19,12 @@ export interface NavGotoResponse {
   error?: string;
 }
 
+type EmptyParams = Record<string, never>;
+
 /**
  * nav_back tool - Go back in history
  */
-export interface NavBackParams {
-  // No parameters needed
-}
+export type NavBackParams = EmptyParams;
 
 export interface NavBackResponse {
   success: boolean;
@@ -35,9 +35,7 @@ export interface NavBackResponse {
 /**
  * nav_forward tool - Go forward in history
  */
-export interface NavForwardParams {
-  // No parameters needed
-}
+export type NavForwardParams = EmptyParams;
 
 export interface NavForwardResponse {
   success: boolean;
@@ -61,9 +59,7 @@ export interface NavReloadResponse {
 /**
  * nav_get_url tool - Get current URL
  */
-export interface NavGetUrlParams {
-  // No parameters needed
-}
+export type NavGetUrlParams = EmptyParams;
 
 export interface NavGetUrlResponse {
   url: string;

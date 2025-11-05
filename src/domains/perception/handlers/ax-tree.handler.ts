@@ -20,7 +20,7 @@ interface CdpAxTreeNode {
   role?: string | { type: string; value: string };
   name?: string | { type: string; value: string };
   value?: { type: string; value: string };
-  properties?: Array<{ name: string; value: unknown }>;
+  properties?: { name: string; value: unknown }[];
   childIds?: string[];
   backendDOMNodeId?: number;
 }
@@ -33,7 +33,7 @@ export class AxTreeHandler {
    *
    * This implementation is already working in the original server
    */
-  async handle(params: AxGetTreeParams): Promise<AxGetTreeResponse> {
+  async handle(_params: AxGetTreeParams): Promise<AxGetTreeResponse> {
     // CDP Accessibility.getFullAXTree doesn't take parameters for the main frame
     // If a specific frameId is provided, we'd need to get the actual CDP frameId first
     // For now, we'll just call it without parameters to get the full tree

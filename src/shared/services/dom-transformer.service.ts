@@ -84,7 +84,7 @@ export class DomTransformerService {
 
     // For element nodes (nodeType === 1)
     if (cdpNode.nodeType === 1) {
-      const attributesArray = cdpNode.attributes || [];
+      const attributesArray = cdpNode.attributes ?? [];
       const attributesMap = this.parseAttributes(attributesArray);
 
       // Skip if visibleOnly is true and element has display:none or visibility:hidden
@@ -95,7 +95,10 @@ export class DomTransformerService {
       const node: DomTreeNode = {
         id: `node-${cdpNode.nodeId}`,
         nodeId: cdpNode.nodeId,
-        tag: cdpNode.localName || cdpNode.nodeName.toLowerCase(),
+        tag:
+          cdpNode.localName && cdpNode.localName.length > 0
+            ? cdpNode.localName
+            : cdpNode.nodeName.toLowerCase(),
         attrs: attributesArray,
         children: [],
       };

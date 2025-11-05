@@ -39,7 +39,7 @@ export class DomTreeHandler {
    * Get DOM tree structure
    */
   async handle(params: DomGetTreeParams): Promise<DomGetTreeResponse> {
-    const frameId = params.frameId || 'main';
+    const frameId = params.frameId ?? 'main';
     const depth = params.depth ?? -1; // -1 means infinite depth
     const visibleOnly = params.visibleOnly ?? false;
 

@@ -124,7 +124,7 @@ export interface FormFillParams {
 
 export interface FormFillResponse {
   success: boolean;
-  results?: Array<{ field: string; success: boolean; error?: string }>;
+  results?: { field: string; success: boolean; error?: string }[];
   error?: string;
 }
 
@@ -141,7 +141,7 @@ export interface FormSubmitResponse {
 export interface KbPressParams {
   key: string;
   code?: string;
-  modifiers?: Array<'Alt' | 'Ctrl' | 'Meta' | 'Shift'>;
+  modifiers?: ('Alt' | 'Ctrl' | 'Meta' | 'Shift')[];
   delayMs?: number;
 }
 

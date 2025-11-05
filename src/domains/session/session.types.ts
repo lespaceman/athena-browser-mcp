@@ -21,7 +21,7 @@ export interface SessionCookiesGetResponse {
  * session_cookies_set tool - Set cookies
  */
 export interface SessionCookiesSetParams {
-  cookies: Array<{
+  cookies: {
     name: string;
     value: string;
     url?: string;
@@ -31,7 +31,7 @@ export interface SessionCookiesSetParams {
     httpOnly?: boolean;
     sameSite?: 'Strict' | 'Lax' | 'None';
     expires?: number;
-  }>;
+  }[];
 }
 
 export interface SessionCookiesSetResponse {
@@ -42,9 +42,7 @@ export interface SessionCookiesSetResponse {
 /**
  * session_state_get tool - Get current session state
  */
-export interface SessionStateGetParams {
-  // No parameters
-}
+export type SessionStateGetParams = Record<string, never>;
 
 export interface SessionStateGetResponse {
   state: SessionState;

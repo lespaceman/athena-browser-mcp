@@ -280,7 +280,7 @@ export class ActionHandler {
         }
 
         // Check if it's type="file"
-        const attributes = nodeInfo.node.attributes || [];
+        const attributes = nodeInfo.node.attributes ?? [];
         const typeIndex = attributes.indexOf('type');
         if (typeIndex === -1 || attributes[typeIndex + 1] !== 'file') {
           throw new Error('Target input is not a file input (type="file")');
@@ -337,8 +337,11 @@ export class ActionHandler {
    * instead of native objects. This method handles both cases.
    */
   private deserializeParams<T>(params: T): T {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = { ...params } as any;
+    if (params === null || typeof params !== 'object') {
+      return params;
+    }
+
+    const result: Record<string, unknown> = { ...(params as Record<string, unknown>) };
 
     // Check each parameter that should be an object
     for (const key of Object.keys(result)) {
@@ -347,7 +350,8 @@ export class ActionHandler {
       // If it's a string that looks like JSON, try to parse it
       if (typeof value === 'string' && (value.startsWith('{') || value.startsWith('['))) {
         try {
-          result[key] = JSON.parse(value);
+          const parsedValue: unknown = JSON.parse(value) as unknown;
+          result[key] = parsedValue;
         } catch {
           // If parsing fails, keep the original string value
           // This is intentional - some strings legitimately start with { or [

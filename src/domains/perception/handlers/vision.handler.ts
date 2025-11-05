@@ -62,14 +62,14 @@ export class VisionHandler {
    * Perform OCR on a screenshot
    * PLACEHOLDER: In production, integrate Tesseract.js or cloud OCR service
    */
-  private async performOCR(_screenshot: string, region?: BBox): Promise<VisionOcrResponse> {
+  private performOCR(_screenshot: string, region?: BBox): Promise<VisionOcrResponse> {
     // This is a placeholder implementation
     // In production, you would:
     // 1. Decode base64 screenshot
     // 2. Run through Tesseract.js or cloud OCR
     // 3. Parse results into spans with bboxes
 
-    return {
+    return Promise.resolve({
       text: '[OCR not implemented - placeholder]',
       spans: [
         {
@@ -78,7 +78,7 @@ export class VisionHandler {
           confidence: 0,
         },
       ],
-    };
+    });
   }
 
   /**

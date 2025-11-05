@@ -44,7 +44,7 @@ import { SessionHandler } from './domains/session/handlers/session.handler.js';
 /**
  * Initialize all services and handlers
  */
-async function initializeServer(): Promise<BrowserAutomationServer> {
+function initializeServer(): BrowserAutomationServer {
   // Step 1: Create CDP bridge
   const cdpBridge = new CEFBridge();
 
@@ -129,21 +129,25 @@ async function initializeServer(): Promise<BrowserAutomationServer> {
  */
 async function main(): Promise<void> {
   try {
-    const server = await initializeServer();
+    const server = initializeServer();
     await server.start();
 
     // Handle shutdown gracefully
-    process.on('SIGINT', async () => {
-      console.error('Shutting down...');
-      await server.stop();
-      process.exit(0);
-    });
+    const shutdown = (signal: NodeJS.Signals) => {
+      console.error(`Shutting down... (${signal})`);
+      void (async () => {
+        try {
+          await server.stop();
+          process.exit(0);
+        } catch (shutdownError) {
+          console.error('Error during shutdown:', shutdownError);
+          process.exit(1);
+        }
+      })();
+    };
 
-    process.on('SIGTERM', async () => {
-      console.error('Shutting down...');
-      await server.stop();
-      process.exit(0);
-    });
+    process.on('SIGINT', () => shutdown('SIGINT'));
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);
@@ -151,4 +155,4 @@ async function main(): Promise<void> {
 }
 
 // Start server
-main();
+void main();

@@ -22,13 +22,14 @@ import type {
   SessionCloseResponse,
 } from '../session.types.js';
 import type { BrowserCookie, SessionState } from '../../../shared/types/index.js';
+import type { NavGetUrlParams } from '../../navigation/navigation.types.js';
 
 interface CdpBridge {
   executeDevToolsMethod<T>(method: string, params?: unknown): Promise<T>;
 }
 
 interface NavigationHandler {
-  getUrl(params: {}): Promise<{ url: string; title?: string }>;
+  getUrl(params: NavGetUrlParams): Promise<{ url: string; title?: string }>;
 }
 
 /**
@@ -58,7 +59,7 @@ export class SessionHandler {
       });
 
       return {
-        cookies: result.cookies || [],
+        cookies: result.cookies ?? [],
       };
     } catch (error) {
       console.error('Failed to get cookies:', error);
@@ -82,10 +83,10 @@ export class SessionHandler {
           value: cookie.value,
           url: cookie.url,
           domain: cookie.domain,
-          path: cookie.path || '/',
-          secure: cookie.secure || false,
-          httpOnly: cookie.httpOnly || false,
-          sameSite: cookie.sameSite || 'Lax',
+          path: cookie.path ?? '/',
+          secure: cookie.secure ?? false,
+          httpOnly: cookie.httpOnly ?? false,
+          sameSite: cookie.sameSite ?? 'Lax',
           expires: cookie.expires,
         });
       }
@@ -106,7 +107,7 @@ export class SessionHandler {
    *
    * Get current session state (URL, cookies, localStorage)
    */
-  async getState(params: SessionStateGetParams): Promise<SessionStateGetResponse> {
+  async getState(_params: SessionStateGetParams): Promise<SessionStateGetResponse> {
     try {
       // Get current URL
       const urlInfo = await this.navigationHandler.getUrl({});
@@ -152,7 +153,7 @@ export class SessionHandler {
       return {
         state,
       };
-    } catch (error) {
+    } catch {
       // Return minimal state
       return {
         state: {
@@ -184,7 +185,7 @@ export class SessionHandler {
             path: c.path,
             secure: c.secure,
             httpOnly: c.httpOnly,
-            sameSite: c.sameSite as 'Strict' | 'Lax' | 'None',
+            sameSite: c.sameSite,
             expires: c.expires,
           })),
         });

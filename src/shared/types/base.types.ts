@@ -55,7 +55,7 @@ export interface AxTreeNode {
   role?: string;
   name?: string;
   value?: { type: string; value: string };
-  properties?: Array<{ name: string; value: unknown }>;
+  properties?: { name: string; value: unknown }[];
   childIds?: string[];
   backendDOMNodeId?: number;
 }

@@ -67,18 +67,18 @@ export class KeyboardHandler {
       await this.cdpBridge.executeDevToolsMethod('Input.dispatchKeyEvent', {
         type: 'keyDown',
         key: params.key,
-        code: params.code || this.keyToCode(params.key),
+        code: params.code ?? this.keyToCode(params.key),
         modifiers,
       });
 
       // Small delay to simulate human typing
-      await this.sleep(params.delayMs || 50);
+      await this.sleep(params.delayMs ?? 50);
 
       // Release key
       await this.cdpBridge.executeDevToolsMethod('Input.dispatchKeyEvent', {
         type: 'keyUp',
         key: params.key,
-        code: params.code || this.keyToCode(params.key),
+        code: params.code ?? this.keyToCode(params.key),
         modifiers,
       });
 

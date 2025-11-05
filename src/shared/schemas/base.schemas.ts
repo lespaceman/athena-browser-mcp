@@ -71,7 +71,7 @@ export type LocatorHint = z.infer<typeof LocatorHintSchema>;
 
 // ===== DOM TREE NODE =====
 
-export const DomTreeNodeSchema: z.ZodType<any> = z.lazy(() =>
+export const DomTreeNodeSchema = z.lazy(() =>
   z.object({
     id: z.string().describe('Unique identifier'),
     nodeId: z.number().optional().describe('CDP node ID'),

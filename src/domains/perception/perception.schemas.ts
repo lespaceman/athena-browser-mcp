@@ -11,7 +11,6 @@ import {
   LocatorHintSchema,
   DomTreeNodeSchema,
   AxTreeNodeSchema,
-  NetworkEventSchema,
 } from '../../shared/schemas/index.js';
 
 // ===== DOM TREE =====

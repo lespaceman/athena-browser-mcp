@@ -61,7 +61,7 @@ export class ToolRegistry {
    * Get all tools - deprecated, kept for compatibility
    * @deprecated
    */
-  getAllTools(): any[] {
+  getAllTools(): unknown[] {
     return [];
   }
 
@@ -69,7 +69,7 @@ export class ToolRegistry {
    * Get tool by name - deprecated, kept for compatibility
    * @deprecated
    */
-  getTool(name: string): any {
+  getTool(_name: string): unknown {
     return undefined;
   }
 
@@ -77,7 +77,7 @@ export class ToolRegistry {
    * Check if tool exists - deprecated, kept for compatibility
    * @deprecated
    */
-  hasTool(name: string): boolean {
+  hasTool(_name: string): boolean {
     return false;
   }
 }

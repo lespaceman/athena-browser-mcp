@@ -18,7 +18,7 @@ export class AccessibilityClickStrategy implements ClickStrategy {
    * Check if this strategy can handle the target
    */
   canHandle(target: ElementRef): boolean {
-    return !!(target.selectors.ax || target.label || target.role);
+    return Boolean(target.selectors.ax ?? target.label ?? target.role);
   }
 
   /**

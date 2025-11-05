@@ -5,6 +5,19 @@
 import { describe, it, expect } from 'vitest';
 import { DomTransformerService } from '../../../src/shared/services/dom-transformer.service.js';
 
+const attrsToMap = (attrs?: string[]): Record<string, string> => {
+  const result: Record<string, string> = {};
+  if (!attrs) return result;
+  for (let i = 0; i < attrs.length; i += 2) {
+    const key = attrs[i];
+    const value = attrs[i + 1];
+    if (key) {
+      result[key] = value ?? '';
+    }
+  }
+  return result;
+};
+
 describe('DomTransformerService', () => {
   const service = new DomTransformerService();
 
@@ -72,8 +85,9 @@ describe('DomTransformerService', () => {
       // Find the div element (could be nested)
       const div = service.filterByTag(result.nodes, 'div')[0];
       expect(div).toBeDefined();
-      expect(div?.attrs.id).toBe('main');
-      expect(div?.attrs.class).toBe('container');
+      const divAttrs = attrsToMap(div?.attrs);
+      expect(divAttrs.id).toBe('main');
+      expect(divAttrs.class).toBe('container');
     });
 
     it('should respect depth parameter', () => {
@@ -169,17 +183,17 @@ describe('DomTransformerService', () => {
         {
           id: 'node-1',
           tag: 'div',
-          attrs: {},
+          attrs: [],
           children: [
             {
               id: 'node-2',
               tag: 'span',
-              attrs: {},
+              attrs: [],
               children: [
                 {
                   id: 'node-3',
                   tag: 'a',
-                  attrs: {},
+                  attrs: [],
                   children: [],
                 },
               ],
@@ -203,18 +217,18 @@ describe('DomTransformerService', () => {
         {
           id: 'node-1',
           tag: 'div',
-          attrs: {},
+          attrs: [],
           children: [
             {
               id: 'node-2',
               tag: 'button',
-              attrs: {},
+              attrs: [],
               children: [],
             },
             {
               id: 'node-3',
               tag: 'input',
-              attrs: {},
+              attrs: [],
               children: [],
             },
           ],
@@ -222,7 +236,7 @@ describe('DomTransformerService', () => {
         {
           id: 'node-4',
           tag: 'button',
-          attrs: {},
+          attrs: [],
           children: [],
         },
       ];
@@ -241,13 +255,13 @@ describe('DomTransformerService', () => {
         {
           id: 'node-1',
           tag: 'input',
-          attrs: { type: 'text', name: 'username' },
+          attrs: ['type', 'text', 'name', 'username'],
           children: [],
         },
         {
           id: 'node-2',
           tag: 'input',
-          attrs: { type: 'password' },
+          attrs: ['type', 'password'],
           children: [],
         },
       ];
@@ -263,13 +277,13 @@ describe('DomTransformerService', () => {
         {
           id: 'node-1',
           tag: 'input',
-          attrs: { type: 'text' },
+          attrs: ['type', 'text'],
           children: [],
         },
         {
           id: 'node-2',
           tag: 'input',
-          attrs: { type: 'password' },
+          attrs: ['type', 'password'],
           children: [],
         },
       ];

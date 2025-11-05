@@ -35,8 +35,8 @@ interface CdpBridge {
  * Uses CDP Page domain to control navigation
  */
 export class NavigationHandler {
-  private currentUrl: string = '';
-  private currentTitle: string = '';
+  private currentUrl = '';
+  private currentTitle = '';
 
   constructor(private readonly cdpBridge: CdpBridge) {}
 
@@ -53,18 +53,11 @@ export class NavigationHandler {
       });
 
       // Wait for navigation if requested
-      if (params.waitUntil) {
-        await this.waitForNavigation({
-          waitUntil: params.waitUntil,
-          timeout: params.timeout,
-        });
-      } else {
-        // Default: wait for load event
-        await this.waitForNavigation({
-          waitUntil: 'load',
-          timeout: params.timeout || 30000,
-        });
-      }
+      const waitUntil = params.waitUntil ?? 'load';
+      await this.waitForNavigation({
+        waitUntil,
+        timeout: params.timeout ?? 30000,
+      });
 
       // Update current URL
       this.currentUrl = params.url;
@@ -86,12 +79,12 @@ export class NavigationHandler {
    *
    * Go back in browser history
    */
-  async back(params: NavBackParams): Promise<NavBackResponse> {
+  async back(_params: NavBackParams): Promise<NavBackResponse> {
     try {
       // Get navigation history
       const history = await this.cdpBridge.executeDevToolsMethod<{
         currentIndex: number;
-        entries: Array<{ id: number; url: string; title: string }>;
+        entries: { id: number; url: string; title: string }[];
       }>('Page.getNavigationHistory', {});
 
       if (history.currentIndex <= 0) {
@@ -129,12 +122,12 @@ export class NavigationHandler {
    *
    * Go forward in browser history
    */
-  async forward(params: NavForwardParams): Promise<NavForwardResponse> {
+  async forward(_params: NavForwardParams): Promise<NavForwardResponse> {
     try {
       // Get navigation history
       const history = await this.cdpBridge.executeDevToolsMethod<{
         currentIndex: number;
-        entries: Array<{ id: number; url: string; title: string }>;
+        entries: { id: number; url: string; title: string }[];
       }>('Page.getNavigationHistory', {});
 
       if (history.currentIndex >= history.entries.length - 1) {
@@ -175,7 +168,7 @@ export class NavigationHandler {
   async reload(params: NavReloadParams): Promise<NavReloadResponse> {
     try {
       await this.cdpBridge.executeDevToolsMethod('Page.reload', {
-        ignoreCache: params.ignoreCache || false,
+        ignoreCache: params.ignoreCache ?? false,
       });
 
       // Wait for reload
@@ -198,7 +191,7 @@ export class NavigationHandler {
    *
    * Get current URL and title
    */
-  async getUrl(params: NavGetUrlParams): Promise<NavGetUrlResponse> {
+  async getUrl(_params: NavGetUrlParams): Promise<NavGetUrlResponse> {
     // Try to get URL from Runtime.evaluate
     try {
       const result = await this.cdpBridge.executeDevToolsMethod<{
@@ -231,8 +224,8 @@ export class NavigationHandler {
    */
   async waitForNavigation(params: NavWaitForNavigationParams): Promise<NavWaitForNavigationResponse> {
     try {
-      const waitUntil = params.waitUntil || 'load';
-      const timeout = params.timeout || 30000;
+      const waitUntil = params.waitUntil ?? 'load';
+      const timeout = params.timeout ?? 30000;
 
       // Enable page lifecycle events
       await this.cdpBridge.executeDevToolsMethod('Page.enable', {});

@@ -18,7 +18,7 @@ export class DomClickStrategy implements ClickStrategy {
    * Check if this strategy can handle the target
    */
   canHandle(target: ElementRef): boolean {
-    return !!(target.selectors.css || target.selectors.xpath || target.nodeId);
+    return Boolean(target.selectors.css ?? target.selectors.xpath ?? target.nodeId);
   }
 
   /**

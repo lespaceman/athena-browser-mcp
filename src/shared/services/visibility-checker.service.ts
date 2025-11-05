@@ -19,7 +19,7 @@ interface BoxModelResult {
 }
 
 interface ComputedStyleResult {
-  computedStyle: Array<{ name: string; value: string }>;
+  computedStyle: { name: string; value: string }[];
 }
 
 export class VisibilityCheckerService {
@@ -51,9 +51,9 @@ export class VisibilityCheckerService {
         return true; // If we can't get styles, assume visible
       }
 
-      const display = styles.display || '';
-      const visibility = styles.visibility || '';
-      const opacity = parseFloat(styles.opacity || '1');
+      const display = styles.display ?? '';
+      const visibility = styles.visibility ?? '';
+      const opacity = parseFloat(styles.opacity ?? '1');
 
       if (display === 'none') {
         return false;

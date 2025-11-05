@@ -9,18 +9,6 @@
 
 import type { ElementRef, AxTreeNode, DomTreeNode, LocatorHint, Selectors } from '../types/index.js';
 
-interface CdpBridge {
-  executeDevToolsMethod<T>(method: string, params?: unknown): Promise<T>;
-}
-
-interface BoxModelResult {
-  model: {
-    content: number[];
-    width: number;
-    height: number;
-  };
-}
-
 /**
  * Interactive roles that should be discovered
  */
@@ -94,9 +82,7 @@ export class ElementFusionService {
     const uniqueElements = this.deduplicateElements(elements);
 
     // Strategy 4: Filter by scope if provided
-    const filteredElements = scope
-      ? await this.filterByScope(uniqueElements, scope)
-      : uniqueElements;
+    const filteredElements = scope ? this.filterByScope(uniqueElements, scope) : uniqueElements;
 
     // Strategy 5: Enrich with layout information
     // TODO: Enrich with layout information (bounding boxes)
@@ -159,19 +145,19 @@ export class ElementFusionService {
       }
 
       // Check for elements with click handlers (onclick, @click, etc.)
-      if (
-        this.getAttr(node, 'onclick') ||
-        this.getAttr(node, '@click') ||
-        this.getAttr(node, 'v-on:click') ||
-        this.getAttr(node, 'ng-click')
-      ) {
+      const hasClickHandler = ['onclick', '@click', 'v-on:click', 'ng-click'].some(
+        (attribute) => this.getAttr(node, attribute) !== undefined,
+      );
+
+      if (hasClickHandler) {
         const nodeId = this.extractNodeIdFromDomNode(node);
         if (nodeId) {
+          const roleAttr = this.getAttr(node, 'role');
           const element: ElementRef = {
             frameId: 'main',
             nodeId,
             selectors: await this.buildSelectorsForNode(nodeId),
-            role: this.getAttr(node, 'role') || 'clickable',
+            role: roleAttr && roleAttr.length > 0 ? roleAttr : 'clickable',
             label: this.getAttr(node, 'aria-label'),
             name: this.getAttr(node, 'name'),
           };
@@ -227,7 +213,7 @@ export class ElementFusionService {
    */
   private extractNodeIdLegacy(node: DomTreeNode): number | null {
     // The node.id is in format "node-123" where 123 is the CDP nodeId
-    const match = node.id.match(/^node-(\d+)$/);
+    const match = /^node-(\d+)$/.exec(node.id);
     if (match) {
       return parseInt(match[1], 10);
     }
@@ -267,10 +253,7 @@ export class ElementFusionService {
   /**
    * Filter elements by scope hint
    */
-  private async filterByScope(
-    elements: ElementRef[],
-    scope: LocatorHint,
-  ): Promise<ElementRef[]> {
+  private filterByScope(elements: ElementRef[], scope: LocatorHint): ElementRef[] {
     // If scope has role filter
     if ('role' in scope && scope.role) {
       return elements.filter((el) => el.role === scope.role);
@@ -304,12 +287,12 @@ export class ElementFusionService {
     // 3. Return elements within a threshold distance
 
     // For now, just return elements that have matching label or name
-    return elements.filter(
-      (el) =>
-        el.label?.includes(text) ||
-        el.name?.includes(text) ||
-        el.selectors.ax?.includes(text),
-    );
+    return elements.filter((el) => {
+      const labelMatches = el.label?.includes(text) ?? false;
+      const nameMatches = el.name?.includes(text) ?? false;
+      const axMatches = el.selectors.ax?.includes(text) ?? false;
+      return labelMatches || nameMatches || axMatches;
+    });
   }
 
 

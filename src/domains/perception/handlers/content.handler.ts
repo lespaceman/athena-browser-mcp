@@ -80,7 +80,7 @@ export class ContentHandler {
 
     // Run through content extraction algorithm
     const mode = params.mode ?? 'readability';
-    const result = await this.extractMainContent(sourceHtml, mode);
+    const result = this.extractMainContent(sourceHtml, mode);
 
     return result;
   }
@@ -88,11 +88,11 @@ export class ContentHandler {
   /**
    * Convert HTML to plain text
    */
-  async toText(params: ContentToTextParams): Promise<ContentToTextResponse> {
+  toText(params: ContentToTextParams): Promise<ContentToTextResponse> {
     const mode = params.mode ?? 'html-text';
     const text = this.htmlToText(params.html, mode);
 
-    return { text };
+    return Promise.resolve({ text });
   }
 
   /**
@@ -100,10 +100,10 @@ export class ContentHandler {
    *
    * PLACEHOLDER: In production, integrate @mozilla/readability or trafilatura
    */
-  private async extractMainContent(
+  private extractMainContent(
     html: string,
-    mode: 'readability' | 'trafilatura',
-  ): Promise<ContentExtractMainResponse> {
+    _mode: 'readability' | 'trafilatura',
+  ): ContentExtractMainResponse {
     // This is a placeholder implementation
     // In production, you would:
     // 1. Use @mozilla/readability for JavaScript implementation
@@ -121,23 +121,22 @@ export class ContentHandler {
    */
   private simpleContentExtraction(html: string): ContentExtractMainResponse {
     // Extract title
-    const titleMatch = html.match(/<title>(.*?)<\/title>/i);
-    const title = titleMatch ? titleMatch[1] : '';
+    const titleMatch = /<title>(.*?)<\/title>/i.exec(html);
+    const title = titleMatch?.[1] ?? '';
 
     // Extract meta description as excerpt
-    const descMatch = html.match(
-      /<meta\s+name=["']description["']\s+content=["'](.*?)["']/i,
-    );
-    const excerpt = descMatch ? descMatch[1] : '';
+    const descRegex = /<meta\s+name=["']description["']\s+content=["'](.*?)["']/i;
+    const descMatch = descRegex.exec(html);
+    const excerpt = descMatch?.[1] ?? '';
 
     // Extract main content (very simplified - just get <main>, <article>, or <body>)
     let content = '';
     let textContent = '';
 
     const mainMatch =
-      html.match(/<main[^>]*>([\s\S]*?)<\/main>/i) ||
-      html.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ||
-      html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+      /<main[^>]*>([\s\S]*?)<\/main>/i.exec(html) ??
+      /<article[^>]*>([\s\S]*?)<\/article>/i.exec(html) ??
+      /<body[^>]*>([\s\S]*?)<\/body>/i.exec(html);
 
     if (mainMatch) {
       content = mainMatch[1];

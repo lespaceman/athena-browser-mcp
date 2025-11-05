@@ -79,6 +79,7 @@ export class NetworkHandler {
         }
       }
 
+      await Promise.resolve();
       yield event;
     }
   }

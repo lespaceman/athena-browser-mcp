@@ -24,12 +24,12 @@ interface DomTreeHandler {
 
 interface AxTreeHandler {
   handle(params: { frameId?: string }): Promise<{
-    nodes: Array<{
+    nodes: {
       nodeId?: string;
       role?: string;
       name?: string;
-      properties?: Array<{ name: string; value: unknown }>;
-    }>;
+      properties?: { name: string; value: unknown }[];
+    }[];
   }>;
 }
 
@@ -97,7 +97,7 @@ export class FormHandler {
    * Fills multiple form fields at once using a key-value map
    */
   async fill(params: FormFillParams): Promise<FormFillResponse> {
-    const results: Array<{ field: string; success: boolean; error?: string }> = [];
+    const results: { field: string; success: boolean; error?: string }[] = [];
 
     try {
       // Step 1: Detect all form fields
@@ -144,8 +144,6 @@ export class FormHandler {
 
       // Step 4: Click submit button if requested
       if (params.submit && detection.submitButtons.length > 0) {
-        // Click the first submit button
-        const submitButton = detection.submitButtons[0];
         // Note: We'd need to import and use ActionHandler's click method here
         // For now, we'll just record that we found a submit button
         results.push({

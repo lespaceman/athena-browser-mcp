@@ -42,7 +42,7 @@ export class SelectorBuilderService {
   private async buildCssSelector(nodeId: number): Promise<string | undefined> {
     try {
       const nodeInfo = await this.getNodeDescription(nodeId);
-      const attributes = this.parseAttributes(nodeInfo.node.attributes || []);
+      const attributes = this.parseAttributes(nodeInfo.node.attributes ?? []);
 
       // Strategy 1: Use ID (most specific)
       if (attributes.id) {
@@ -118,7 +118,7 @@ export class SelectorBuilderService {
       while (currentNodeId) {
         const nodeInfo = await this.getNodeDescription(currentNodeId);
         const tagName = nodeInfo.node.localName.toLowerCase();
-        const attributes = this.parseAttributes(nodeInfo.node.attributes || []);
+        const attributes = this.parseAttributes(nodeInfo.node.attributes ?? []);
 
         // Use ID if available
         if (attributes.id) {
@@ -154,9 +154,9 @@ export class SelectorBuilderService {
   private async buildAccessibilitySelector(nodeId: number): Promise<string | undefined> {
     try {
       const nodeInfo = await this.getNodeDescription(nodeId);
-      const attributes = this.parseAttributes(nodeInfo.node.attributes || []);
+      const attributes = this.parseAttributes(nodeInfo.node.attributes ?? []);
 
-      const role = attributes.role || attributes['aria-role'];
+      const role = attributes.role ?? attributes['aria-role'];
       const label = attributes['aria-label'];
       const name = attributes.name;
 
@@ -194,7 +194,7 @@ export class SelectorBuilderService {
         node: { parentId?: number };
       }>('DOM.requestNode', { objectId: nodeId.toString() });
 
-      return result.node.parentId || null;
+      return result.node.parentId ?? null;
     } catch {
       // Alternative approach: use Runtime.evaluate
       try {
@@ -226,7 +226,7 @@ export class SelectorBuilderService {
   /**
    * Get the nth-child position of a node among its siblings
    */
-  private async getNthChildPosition(nodeId: number): Promise<number> {
+  private async getNthChildPosition(_nodeId: number): Promise<number> {
     try {
       // Use Runtime.evaluate to calculate position
       const result = await this.cdpBridge.executeDevToolsMethod<{
@@ -240,7 +240,7 @@ export class SelectorBuilderService {
         returnByValue: true,
       });
 
-      return result.result.value || 1;
+      return result.result.value ?? 1;
     } catch {
       return 1;
     }

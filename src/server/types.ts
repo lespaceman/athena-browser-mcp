@@ -12,8 +12,8 @@ import type { z } from 'zod';
 export interface ToolDefinition {
   name: string;
   description: string;
-  inputSchema: z.ZodType<any>;
-  handler: (params: any) => Promise<any>;
+  inputSchema: z.ZodType<unknown>;
+  handler: (params: unknown) => Promise<unknown>;
 }
 
 /**
@@ -23,9 +23,9 @@ export interface ServerConfig {
   name: string;
   version: string;
   capabilities: {
-    tools?: {};
-    prompts?: {};
-    resources?: {};
+    tools?: Record<string, unknown>;
+    prompts?: Record<string, unknown>;
+    resources?: Record<string, unknown>;
   };
 }
 

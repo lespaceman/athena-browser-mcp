@@ -4,18 +4,16 @@
 
 import type { AxTreeNode, BBox, NetworkEvent } from '../../src/shared/types/index.js';
 
-export interface CdpMethodResult {
-  [key: string]: unknown;
-}
+export type CdpMethodResult = Record<string, unknown>;
 
 export class MockCefBridge {
-  private mockResponses: Map<string, unknown> = new Map();
-  private methodCalls: Array<{ method: string; params?: unknown }> = [];
+  private mockResponses: Map<string, unknown> = new Map<string, unknown>();
+  private methodCalls: { method: string; params?: unknown }[] = [];
 
   /**
    * Mock implementation of executeDevToolsMethod
    */
-  async executeDevToolsMethod<T = CdpMethodResult>(
+  executeDevToolsMethod<T = CdpMethodResult>(
     method: string,
     params?: unknown,
   ): Promise<T> {
@@ -23,11 +21,11 @@ export class MockCefBridge {
 
     const mockResponse = this.mockResponses.get(method);
     if (mockResponse !== undefined) {
-      return mockResponse as T;
+      return Promise.resolve(mockResponse as T);
     }
 
     // Default mock responses for common methods
-    return this.getDefaultResponse<T>(method, params);
+    return Promise.resolve(this.getDefaultResponse<T>(method, params));
   }
 
   /**
@@ -40,14 +38,14 @@ export class MockCefBridge {
   /**
    * Get all method calls made during test
    */
-  getMethodCalls(): Array<{ method: string; params?: unknown }> {
+  getMethodCalls(): { method: string; params?: unknown }[] {
     return [...this.methodCalls];
   }
 
   /**
    * Get method calls filtered by method name
    */
-  getMethodCallsByName(method: string): Array<{ method: string; params?: unknown }> {
+  getMethodCallsByName(method: string): { method: string; params?: unknown }[] {
     return this.methodCalls.filter((call) => call.method === method);
   }
 
@@ -62,7 +60,7 @@ export class MockCefBridge {
   /**
    * Get default mock responses for common CDP methods
    */
-  private getDefaultResponse<T>(method: string, params?: unknown): T {
+  private getDefaultResponse<T>(method: string, _params?: unknown): T {
     const defaults: Record<string, unknown> = {
       'Accessibility.getFullAXTree': {
         nodes: [
@@ -124,26 +122,27 @@ export class MockCefBridge {
 
   // Additional helper methods
 
-  async captureScreenshot(_region?: BBox): Promise<string> {
-    return 'mock-base64-screenshot-data';
+  captureScreenshot(_region?: BBox): Promise<string> {
+    return Promise.resolve('mock-base64-screenshot-data');
   }
 
   getObservedNetworkEvents(): NetworkEvent[] {
     return [];
   }
 
-  async readFileForUpload(_path: string): Promise<string> {
-    return 'mock-base64-file-data';
+  readFileForUpload(_path: string): Promise<string> {
+    return Promise.resolve('mock-base64-file-data');
   }
 
-  async getSafetyPolicy(): Promise<Record<string, unknown>> {
-    return {
+  getSafetyPolicy(): Promise<Record<string, unknown>> {
+    return Promise.resolve({
       allowedDomains: ['example.com'],
       blockedDomains: [],
-    };
+    });
   }
 
-  async setSafetyPolicy(_policy: Record<string, unknown>): Promise<void> {
+  setSafetyPolicy(_policy: Record<string, unknown>): Promise<void> {
     // Mock implementation
+    return Promise.resolve();
   }
 }

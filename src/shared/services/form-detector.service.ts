@@ -82,7 +82,7 @@ export class FormDetectorService {
     domTree: { nodes: DomTreeNode[] },
     axTree: { nodes: AxTreeNode[] },
     scope?: LocatorHint,
-    visibleOnly: boolean = true,
+    visibleOnly = true,
   ): Promise<FormDetectionResult> {
     // Step 1: Find all form elements
     const formElements = this.findFormElements(domTree.nodes);
@@ -228,7 +228,7 @@ export class FormDetectorService {
       const selectors = await this.selectorBuilder.buildSelectors(node.nodeId, 'main');
 
       // Get attributes
-      const type = this.getAttribute(node, 'type') || 'text';
+      const type = this.getAttribute(node, 'type') ?? 'text';
       const name = this.getAttribute(node, 'name');
       const placeholder = this.getAttribute(node, 'placeholder');
       const required = this.hasAttribute(node, 'required');
@@ -383,7 +383,7 @@ export class FormDetectorService {
 
     const textNodes = node.children.filter((child) => child.tag === '#text');
     if (textNodes.length > 0) {
-      return textNodes.map((n) => n.text || '').join(' ').trim();
+      return textNodes.map((n) => n.text ?? '').join(' ').trim();
     }
 
     return undefined;

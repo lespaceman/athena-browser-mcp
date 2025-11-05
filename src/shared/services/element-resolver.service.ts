@@ -47,10 +47,7 @@ export class ElementResolverService {
    * 4. Gets the nodeId for CDP operations
    * 5. Retrieves bbox, role, label, name
    */
-  async resolve(
-    hint: ElementRef | LocatorHint,
-    frameId: string = 'main',
-  ): Promise<ElementRef> {
+  async resolve(hint: ElementRef | LocatorHint, frameId = 'main'): Promise<ElementRef> {
     // If already an ElementRef, validate and return
     if (this.isElementRef(hint)) {
       return this.validateElementRef(hint);
@@ -122,7 +119,7 @@ export class ElementResolverService {
           selector: css,
         },
       );
-      return result.nodeId || null;
+      return result.nodeId ?? null;
     } catch {
       return null;
     }
@@ -273,9 +270,9 @@ export class ElementResolverService {
     const generated = await this.selectorBuilder.buildSelectors(nodeId, frameId);
 
     return {
-      css: selectors.css || generated.css,
-      xpath: selectors.xpath || generated.xpath,
-      ax: selectors.ax || generated.ax,
+      css: selectors.css ?? generated.css,
+      xpath: selectors.xpath ?? generated.xpath,
+      ax: selectors.ax ?? generated.ax,
     };
   }
 
@@ -317,9 +314,9 @@ export class ElementResolverService {
       const attributes = this.parseAttributes(attrResult.attributes);
 
       return {
-        role: attributes.role || attributes['aria-role'],
-        label: attributes['aria-label'] || attributes['aria-labelledby'],
-        name: attributes.name || attributes['aria-name'],
+        role: attributes.role ?? attributes['aria-role'],
+        label: attributes['aria-label'] ?? attributes['aria-labelledby'],
+        name: attributes.name ?? attributes['aria-name'],
       };
     } catch {
       return {};
