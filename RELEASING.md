@@ -32,6 +32,7 @@ This project uses three GitHub Actions workflows:
 **Triggers**: Push to main/develop/feature branches, Pull Requests
 
 **What it does**:
+
 - Runs tests on Node.js 18, 20, and 22
 - Performs type checking with TypeScript
 - Runs linting (ESLint)
@@ -45,9 +46,10 @@ This project uses three GitHub Actions workflows:
 
 ### 2. Release Workflow (`.github/workflows/release.yml`)
 
-**Triggers**: When a version tag (v*.*.*) is pushed
+**Triggers**: When a version tag (v*.*.\*) is pushed
 
 **What it does**:
+
 - Validates the tag format (semver)
 - Verifies package.json version matches the tag
 - Runs full test suite and build
@@ -56,6 +58,7 @@ This project uses three GitHub Actions workflows:
 - Uploads package tarball as artifact
 
 **Publishing Logic**:
+
 - Stable versions (e.g., v1.2.3) → published with `latest` tag
 - Pre-release versions (e.g., v1.2.3-beta.1) → published with `next` tag
 
@@ -64,6 +67,7 @@ This project uses three GitHub Actions workflows:
 **Triggers**: Manual workflow dispatch (GitHub Actions UI)
 
 **What it does**:
+
 - Automatically bumps the version in package.json
 - Updates package-lock.json
 - Generates changelog
@@ -89,6 +93,7 @@ This project uses three GitHub Actions workflows:
 5. Click "Run workflow"
 
 The workflow will:
+
 - Bump the version
 - Update changelog
 - Create and push the tag
@@ -97,12 +102,14 @@ The workflow will:
 ### Method 2: Manual Version Bump
 
 1. Ensure you're on the main branch and it's up to date:
+
    ```bash
    git checkout main
    git pull origin main
    ```
 
 2. Bump the version using npm:
+
    ```bash
    # For patch version (1.0.0 → 1.0.1)
    npm version patch
@@ -126,6 +133,7 @@ The workflow will:
    - Create a git tag
 
 3. Push the commit and tag:
+
    ```bash
    git push origin main --tags
    ```
@@ -180,31 +188,40 @@ Before releasing a new version:
 Follow [Semantic Versioning (semver)](https://semver.org/):
 
 ### MAJOR version (X.0.0)
+
 Increment when you make incompatible API changes:
+
 - Removing or renaming tools
 - Changing tool parameters in non-backward-compatible ways
 - Removing features
 
 ### MINOR version (0.X.0)
+
 Increment when you add functionality in a backward-compatible manner:
+
 - Adding new tools
 - Adding optional parameters to existing tools
 - Adding new features
 
 ### PATCH version (0.0.X)
+
 Increment when you make backward-compatible bug fixes:
+
 - Bug fixes
 - Performance improvements
 - Documentation updates
 - Internal refactoring
 
 ### Pre-release versions (0.0.0-beta.X)
+
 Use for testing before official release:
+
 - **alpha**: Early testing, may be unstable
 - **beta**: Feature complete, testing for bugs
 - **rc**: Release candidate, final testing
 
 Examples:
+
 - `1.0.0-alpha.1` → Early testing
 - `1.0.0-beta.1` → Beta testing
 - `1.0.0-rc.1` → Release candidate
@@ -215,16 +232,19 @@ Examples:
 If you need to rollback a release:
 
 ### 1. Deprecate the bad version on npm
+
 ```bash
 npm deprecate browser-automation-mcp-server@<version> "This version has critical bugs, please upgrade to <fixed-version>"
 ```
 
 ### 2. Release a new fixed version
+
 - Don't delete or unpublish versions (npm policies discourage this)
 - Instead, release a new patch version with the fix
 - Update the deprecation message to point to the fixed version
 
 ### 3. Update GitHub Release
+
 - Edit the GitHub release
 - Add a warning about the issues
 - Link to the fixed version
@@ -260,12 +280,14 @@ npm deprecate browser-automation-mcp-server@<version> "This version has critical
 Before releasing a major version, consider:
 
 1. **Create a pre-release version**:
+
    ```bash
    npm version prerelease --preid=beta
    git push origin main --tags
    ```
 
 2. **Test in real projects**:
+
    ```bash
    npm install browser-automation-mcp-server@next
    ```
@@ -281,6 +303,7 @@ Before releasing a major version, consider:
 ## Continuous Deployment
 
 This project uses tag-based deployment:
+
 - Tags starting with `v` trigger the release workflow
 - The workflow automatically publishes to npm
 - No manual npm publish commands needed
@@ -289,6 +312,7 @@ This project uses tag-based deployment:
 ## Support
 
 For questions about the release process:
+
 - Open an issue on GitHub
 - Contact the maintainers
 - Check GitHub Actions logs for error details
