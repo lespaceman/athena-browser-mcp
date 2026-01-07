@@ -8,7 +8,7 @@
     "athena-browser-mcp": "./dist/src/index.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc --project tsconfig.build.json",
     "dev": "tsc --watch",
     "start": "node dist/src/index.js",
     "mcp:inspect": "npx @modelcontextprotocol/inspector node dist/src/index.js",
@@ -50,7 +50,9 @@
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.21.0",
-    "chrome-remote-interface": "^0.33.3"
+    "chrome-remote-interface": "^0.33.3",
+    "playwright": "^1.40.0",
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
