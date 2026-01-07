@@ -57,7 +57,11 @@ export class PlaywrightCdpClient implements CdpClient {
     const domain = method.split('.')[0];
 
     // Auto-enable domain if needed (except for *.enable and *.disable methods)
-    if (!this.enabledDomains.has(domain) && !method.endsWith('.enable') && !method.endsWith('.disable')) {
+    if (
+      !this.enabledDomains.has(domain) &&
+      !method.endsWith('.enable') &&
+      !method.endsWith('.disable')
+    ) {
       await this.enableDomain(domain);
     }
 
@@ -88,7 +92,10 @@ export class PlaywrightCdpClient implements CdpClient {
         this.enabledDomains.clear();
       }
 
-      this.logger.error(`CDP command failed: ${method}`, error instanceof Error ? error : undefined);
+      this.logger.error(
+        `CDP command failed: ${method}`,
+        error instanceof Error ? error : undefined
+      );
       throw error;
     } finally {
       // Clear timeout to prevent memory leak
@@ -186,10 +193,11 @@ export class PlaywrightCdpClient implements CdpClient {
       this.logger.debug(`Enabled CDP domain: ${domain}`);
     } catch {
       // Some domains may not support enable or may already be enabled
-      this.logger.debug(`Could not enable domain ${domain} (may not support enable or already enabled)`);
+      this.logger.debug(
+        `Could not enable domain ${domain} (may not support enable or already enabled)`
+      );
       // Still mark as enabled to avoid repeated attempts
       this.enabledDomains.add(domain);
     }
   }
-
 }

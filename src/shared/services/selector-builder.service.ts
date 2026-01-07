@@ -4,11 +4,8 @@
  * Generates CSS, XPath, and accessibility selectors for DOM elements
  */
 
+import type { CdpClient } from '../../cdp/cdp-client.interface.js';
 import type { Selectors } from '../types/index.js';
-
-interface CdpBridge {
-  executeDevToolsMethod<T>(method: string, params?: unknown): Promise<T>;
-}
 
 interface NodeDescription {
   node: {
@@ -20,7 +17,7 @@ interface NodeDescription {
 }
 
 export class SelectorBuilderService {
-  constructor(private readonly cdpBridge: CdpBridge) {}
+  constructor(private readonly cdpClient: CdpClient) {}
 
   /**
    * Build comprehensive selectors for a given node
@@ -180,7 +177,7 @@ export class SelectorBuilderService {
    * Get node description from CDP
    */
   private async getNodeDescription(nodeId: number): Promise<NodeDescription> {
-    return this.cdpBridge.executeDevToolsMethod<NodeDescription>('DOM.describeNode', {
+    return this.cdpClient.send<NodeDescription>('DOM.describeNode', {
       nodeId,
     });
   }
@@ -190,7 +187,7 @@ export class SelectorBuilderService {
    */
   private async getParentNode(nodeId: number): Promise<number | null> {
     try {
-      const resolved = await this.cdpBridge.executeDevToolsMethod<{
+      const resolved = await this.cdpClient.send<{
         object: { objectId?: string };
       }>('DOM.resolveNode', { nodeId });
       const objectId = resolved.object?.objectId;
@@ -198,7 +195,7 @@ export class SelectorBuilderService {
         return null;
       }
 
-      const parentResult = await this.cdpBridge.executeDevToolsMethod<{
+      const parentResult = await this.cdpClient.send<{
         result: { objectId?: string };
       }>('Runtime.callFunctionOn', {
         objectId,
@@ -211,7 +208,7 @@ export class SelectorBuilderService {
         return null;
       }
 
-      const parentNode = await this.cdpBridge.executeDevToolsMethod<{
+      const parentNode = await this.cdpClient.send<{
         node: { nodeId: number };
       }>('DOM.describeNode', {
         objectId: parentObjectId,
@@ -228,13 +225,13 @@ export class SelectorBuilderService {
    */
   private async getNthChildPosition(nodeId: number): Promise<number> {
     try {
-      const resolved = await this.cdpBridge.executeDevToolsMethod<{
+      const resolved = await this.cdpClient.send<{
         object: { objectId?: string };
       }>('DOM.resolveNode', { nodeId });
       const objectId = resolved.object?.objectId;
       if (!objectId) return 1;
 
-      const result = await this.cdpBridge.executeDevToolsMethod<{
+      const result = await this.cdpClient.send<{
         result: { value?: number };
       }>('Runtime.callFunctionOn', {
         objectId,
@@ -264,7 +261,7 @@ export class SelectorBuilderService {
    */
   private async isSelectorUnique(selector: string): Promise<boolean> {
     try {
-      const result = await this.cdpBridge.executeDevToolsMethod<{
+      const result = await this.cdpClient.send<{
         result: { value?: number };
       }>('Runtime.evaluate', {
         expression: `document.querySelectorAll(${JSON.stringify(selector)}).length`,

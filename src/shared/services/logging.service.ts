@@ -5,7 +5,16 @@
  * Implements logging capability from MCP specification
  */
 
-import { ErrorSeverity } from '../errors/error-codes.js';
+/**
+ * Error severity levels (for compatibility with error handling)
+ */
+export enum ErrorSeverity {
+  DEBUG = 'debug',
+  INFO = 'info',
+  WARNING = 'warning',
+  ERROR = 'error',
+  CRITICAL = 'critical',
+}
 
 /**
  * Log level type matching MCP specification (RFC 5424)

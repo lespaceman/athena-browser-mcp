@@ -376,7 +376,15 @@ export function isInteractiveNode(node: ReadableNode): boolean {
  * Type guard for readable content nodes.
  */
 export function isReadableNode(node: ReadableNode): boolean {
-  const readableKinds: NodeKind[] = ['heading', 'paragraph', 'list', 'listitem', 'image', 'media', 'table'];
+  const readableKinds: NodeKind[] = [
+    'heading',
+    'paragraph',
+    'list',
+    'listitem',
+    'image',
+    'media',
+    'table',
+  ];
   return readableKinds.includes(node.kind);
 }
 

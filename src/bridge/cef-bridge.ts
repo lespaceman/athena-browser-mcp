@@ -21,6 +21,14 @@ interface SafetyPolicy {
 /**
  * CEFBridge connects to CEF's Chrome DevTools Protocol server
  * and provides methods to execute CDP commands.
+ *
+ * @deprecated This class is deprecated and will be removed in a future version.
+ * Use SessionManager with PlaywrightCdpClient instead for browser automation.
+ *
+ * Migration guide:
+ * - Replace CEFBridge with SessionManager for browser lifecycle
+ * - Use PlaywrightCdpClient for CDP communication
+ * - See src/browser/session-manager.ts for the new implementation
  */
 export class CEFBridge extends EventEmitter {
   private cdpClient?: Client;
@@ -34,8 +42,18 @@ export class CEFBridge extends EventEmitter {
   private isClosing = false;
   private networkEventsBuffer: NetworkEvent[] = [];
 
+  /**
+   * @deprecated CEFBridge is deprecated. Use SessionManager instead.
+   */
   constructor() {
     super();
+
+    // Deprecation warning
+    console.warn(
+      '[DEPRECATED] CEFBridge is deprecated and will be removed in a future version. ' +
+        'Use SessionManager with PlaywrightCdpClient instead.'
+    );
+
     this.host = process.env.CEF_BRIDGE_HOST ?? '127.0.0.1';
     this.port = Number(process.env.CEF_BRIDGE_PORT ?? '9223');
 
@@ -104,6 +122,11 @@ export class CEFBridge extends EventEmitter {
         await this.cdpClient.Page.enable();
       }
 
+      // Enable Log domain so downstream services can capture console output
+      if (this.cdpClient.Log?.enable) {
+        await this.cdpClient.Log.enable();
+      }
+
       // DOM domain is enabled on-demand
       // Network domain is enabled on-demand
 
@@ -138,6 +161,12 @@ export class CEFBridge extends EventEmitter {
     if (this.cdpClient.Page) {
       this.cdpClient.on('Page.loadEventFired', eventHandler('Page.loadEventFired'));
       this.cdpClient.on('Page.frameNavigated', eventHandler('Page.frameNavigated'));
+      this.cdpClient.on('Page.lifecycleEvent', eventHandler('Page.lifecycleEvent'));
+    }
+
+    // Log events (console warnings/errors)
+    if (this.cdpClient.Log) {
+      this.cdpClient.on('Log.entryAdded', eventHandler('Log.entryAdded'));
     }
   }
 
