@@ -44,8 +44,14 @@ export class PageRegistry {
    * @param page - Playwright Page instance
    * @param cdp - CDP client for the page
    * @returns PageHandle with unique page_id
+   * @throws Error if page is already closed
    */
   register(page: Page, cdp: CdpClient): PageHandle {
+    // Validate page is not closed
+    if (page.isClosed()) {
+      throw new Error('Cannot register a closed page');
+    }
+
     const page_id = `page-${randomUUID()}`;
 
     const handle: PageHandle = {
@@ -53,7 +59,7 @@ export class PageRegistry {
       page,
       cdp,
       created_at: new Date(),
-      url: page.url?.() ?? undefined,
+      url: page.url?.(),
     };
 
     this.pages.set(page_id, handle);
@@ -134,6 +140,53 @@ export class PageRegistry {
     }
     if (metadata.title !== undefined) {
       handle.title = metadata.title;
+    }
+
+    return true;
+  }
+
+  /**
+   * Find a handle by its Playwright Page instance
+   *
+   * @param page - Playwright Page instance to find
+   * @returns PageHandle if found, undefined otherwise
+   */
+  findByPage(page: Page): PageHandle | undefined {
+    return this.list().find((h) => h.page === page);
+  }
+
+  /**
+   * Find all handles with a matching URL
+   *
+   * @param url - URL to search for
+   * @returns Array of matching PageHandle objects
+   */
+  findByUrl(url: string): PageHandle[] {
+    return this.list().filter((h) => h.url === url);
+  }
+
+  /**
+   * Check if a page handle is still valid (page not closed, CDP active)
+   *
+   * Use this to detect stale handles before performing operations.
+   *
+   * @param page_id - The page identifier
+   * @returns true if the handle exists and both page and CDP session are active
+   */
+  isValid(page_id: string): boolean {
+    const handle = this.pages.get(page_id);
+    if (!handle) {
+      return false;
+    }
+
+    // Check if page is closed
+    if (handle.page.isClosed()) {
+      return false;
+    }
+
+    // Check if CDP session is still active
+    if (!handle.cdp.isActive()) {
+      return false;
     }
 
     return true;
