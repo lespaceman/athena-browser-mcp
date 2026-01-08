@@ -68,10 +68,7 @@ const GROUPING_ROLES = new Set([
  * @param axNode - AX node
  * @returns true if this node is a grouping container
  */
-function isGroupingContainer(
-  domNode?: RawDomNode,
-  axNode?: RawAxNode
-): boolean {
+function isGroupingContainer(domNode?: RawDomNode, axNode?: RawAxNode): boolean {
   // Check AX role
   if (axNode?.role && GROUPING_ROLES.has(axNode.role.toLowerCase())) {
     return true;
@@ -99,16 +96,14 @@ function isGroupingContainer(
  * @returns Group ID string
  */
 function generateGroupId(domNode?: RawDomNode, axNode?: RawAxNode): string {
-  const role = axNode?.role?.toLowerCase() ??
-               domNode?.attributes?.role?.toLowerCase() ??
-               domNode?.nodeName?.toLowerCase() ??
-               'group';
+  const role =
+    axNode?.role?.toLowerCase() ??
+    domNode?.attributes?.role?.toLowerCase() ??
+    domNode?.nodeName?.toLowerCase() ??
+    'group';
 
   // Use name, aria-label, or id as identifier
-  const name = axNode?.name ??
-               domNode?.attributes?.['aria-label'] ??
-               domNode?.attributes?.id ??
-               '';
+  const name = axNode?.name ?? domNode?.attributes?.['aria-label'] ?? domNode?.attributes?.id ?? '';
 
   if (name) {
     return `${role}-${name}`;
@@ -131,10 +126,9 @@ function generateGroupId(domNode?: RawDomNode, axNode?: RawAxNode): string {
  * @returns Group name or undefined
  */
 function getGroupName(domNode?: RawDomNode, axNode?: RawAxNode): string | undefined {
-  return axNode?.name ??
-         domNode?.attributes?.['aria-label'] ??
-         domNode?.attributes?.title ??
-         undefined;
+  return (
+    axNode?.name ?? domNode?.attributes?.['aria-label'] ?? domNode?.attributes?.title ?? undefined
+  );
 }
 
 /**

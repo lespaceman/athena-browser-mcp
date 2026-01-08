@@ -210,8 +210,8 @@ export function extractAttributes(
   const attrs: NodeAttributes = {};
   const domAttrs = domNode.attributes ?? {};
 
-  // Input type (only for input kind)
-  if (kind === 'input' && domAttrs.type) {
+  // Input type (for input and combobox kinds)
+  if ((kind === 'input' || kind === 'combobox') && domAttrs.type) {
     attrs.input_type = domAttrs.type;
   }
 

@@ -9,13 +9,14 @@ import {
   extractAttributes,
   sanitizeUrl,
 } from '../../../../src/snapshot/extractors/attribute-extractor.js';
-import type { RawDomNode, RawAxNode, AxProperty } from '../../../../src/snapshot/extractors/types.js';
+import type {
+  RawDomNode,
+  RawAxNode,
+  AxProperty,
+} from '../../../../src/snapshot/extractors/types.js';
 
 // Helper to create a minimal DOM node
-function createDomNode(
-  nodeName: string,
-  attributes: Record<string, string> = {}
-): RawDomNode {
+function createDomNode(nodeName: string, attributes: Record<string, string> = {}): RawDomNode {
   return {
     nodeId: 1,
     backendNodeId: 1,
@@ -440,9 +441,7 @@ describe('sanitizeUrl', () => {
   });
 
   it('should remove access_token parameter', () => {
-    expect(sanitizeUrl('https://example.com?access_token=bearer123')).toBe(
-      'https://example.com/'
-    );
+    expect(sanitizeUrl('https://example.com?access_token=bearer123')).toBe('https://example.com/');
   });
 
   it('should handle multiple sensitive params', () => {

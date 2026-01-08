@@ -115,10 +115,16 @@ export class PlaywrightCdpClient implements CdpClient {
         this.enabledDomains.clear();
       }
 
-      this.logger.error(
-        `CDP command failed: ${method}`,
-        error instanceof Error ? error : undefined
-      );
+      // Use debug level for expected failures (e.g., box model for hidden elements)
+      const isExpectedFailure = this.isExpectedCdpFailure(method, errorMessage);
+      if (isExpectedFailure) {
+        this.logger.debug(`CDP command expected failure: ${method} - ${errorMessage}`);
+      } else {
+        this.logger.error(
+          `CDP command failed: ${method}`,
+          error instanceof Error ? error : undefined
+        );
+      }
       throw error;
     } finally {
       // Clear timeout to prevent memory leak
@@ -187,6 +193,22 @@ export class PlaywrightCdpClient implements CdpClient {
         this.eventHandlers.clear();
       }
     }
+  }
+
+  /**
+   * Check if a CDP failure is expected (not worth logging as error).
+   * Some CDP commands fail for valid reasons (e.g., box model for hidden elements).
+   */
+  private isExpectedCdpFailure(method: string, errorMessage: string): boolean {
+    // DOM.getBoxModel fails for non-rendered elements
+    if (method === 'DOM.getBoxModel' && errorMessage.includes('Could not compute box model')) {
+      return true;
+    }
+    // CSS.getComputedStyleForNode may fail for detached nodes
+    if (method === 'CSS.getComputedStyleForNode' && errorMessage.includes('not found')) {
+      return true;
+    }
+    return false;
   }
 
   /**

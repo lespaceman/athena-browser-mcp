@@ -38,21 +38,13 @@ export { extractDom } from './dom-extractor.js';
 export { extractAx, classifyAxRole, type RoleClassification } from './ax-extractor.js';
 
 // Layout Extractor
-export {
-  extractLayout,
-  computeScreenZone,
-  computeVisibility,
-} from './layout-extractor.js';
+export { extractLayout, computeScreenZone, computeVisibility } from './layout-extractor.js';
 
 // State Extractor
 export { extractState } from './state-extractor.js';
 
 // Label Resolver
-export {
-  resolveLabel,
-  type LabelResolution,
-  type LabelSource,
-} from './label-resolver.js';
+export { resolveLabel, type LabelResolution, type LabelSource } from './label-resolver.js';
 
 // Region Resolver
 export { resolveRegion } from './region-resolver.js';

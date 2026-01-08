@@ -64,10 +64,7 @@ const TEST_ID_ATTRS = ['data-testid', 'data-test', 'data-cy', 'data-test-id'];
  * @param name - Attribute name
  * @returns Normalized attribute value or undefined if empty
  */
-function getAttr(
-  attributes: Record<string, string> | undefined,
-  name: string
-): string | undefined {
+function getAttr(attributes: Record<string, string> | undefined, name: string): string | undefined {
   if (!attributes) return undefined;
   const value = attributes[name];
   if (!value) return undefined;
@@ -80,11 +77,13 @@ function getAttr(
  *
  * @param domNode - Raw DOM node data (optional)
  * @param axNode - Raw AX node data (optional)
+ * @param idMap - Map of DOM ID to RawDomNode (optional, for aria-labelledby)
  * @returns LabelResolution with label text and source
  */
 export function resolveLabel(
   domNode: RawDomNode | undefined,
-  axNode: RawAxNode | undefined
+  axNode: RawAxNode | undefined,
+  idMap?: Map<string, RawDomNode>
 ): LabelResolution {
   const attributes = domNode?.attributes;
   const nodeName = domNode?.nodeName?.toUpperCase();
@@ -100,7 +99,41 @@ export function resolveLabel(
     }
   }
 
-  // 2. aria-label
+  // 2. aria-labelledby
+  const labelledBy = getAttr(attributes, 'aria-labelledby');
+  if (labelledBy && idMap) {
+    const ids = labelledBy.split(/\s+/);
+    const parts: string[] = [];
+
+    for (const id of ids) {
+      const refNode = idMap.get(id);
+      if (refNode) {
+        // Try to get text from referenced node
+        // Priority: aria-label > nodeValue (text) > first child text
+        const refLabel = getAttr(refNode.attributes, 'aria-label');
+        if (refLabel) {
+          parts.push(refLabel);
+        } else if (refNode.nodeValue) {
+          parts.push(refNode.nodeValue);
+        } else if (refNode.childNodeIds && refNode.childNodeIds.length > 0) {
+          // Check first child for text (simplistic but handles <label>Text</label>)
+          // Note: we can't easily look up child by ID here without the full tree map
+          // But we don't have the full tree map passed as 'idMap' (it's id -> node).
+          // We can't lookup child by backendNodeId unless we have that map too.
+          // For now, skip deep traversal to avoid complexity/perf cost.
+        }
+      }
+    }
+
+    if (parts.length > 0) {
+      return {
+        label: truncate(parts.join(' '), MAX_LABEL_LENGTH),
+        source: 'labelledby',
+      };
+    }
+  }
+
+  // 3. aria-label
   const ariaLabel = getAttr(attributes, 'aria-label');
   if (ariaLabel) {
     return {
@@ -108,10 +141,6 @@ export function resolveLabel(
       source: 'aria-label',
     };
   }
-
-  // 3. aria-labelledby (would require DOM lookup - partial support)
-  // Currently we don't have the full DOM to resolve references
-  // This would be implemented in a more complete version
 
   // 4. title attribute
   const title = getAttr(attributes, 'title');

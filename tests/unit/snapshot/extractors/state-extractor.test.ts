@@ -6,7 +6,11 @@
 
 import { describe, it, expect } from 'vitest';
 import { extractState } from '../../../../src/snapshot/extractors/state-extractor.js';
-import type { RawDomNode, RawAxNode, NodeLayoutInfo } from '../../../../src/snapshot/extractors/types.js';
+import type {
+  RawDomNode,
+  RawAxNode,
+  NodeLayoutInfo,
+} from '../../../../src/snapshot/extractors/types.js';
 
 describe('State Extractor', () => {
   describe('extractState', () => {
@@ -48,9 +52,7 @@ describe('State Extractor', () => {
         nodeId: 'ax-1',
         backendDOMNodeId: 100,
         role: 'checkbox',
-        properties: [
-          { name: 'checked', value: { type: 'tristate', value: 'true' } },
-        ],
+        properties: [{ name: 'checked', value: { type: 'tristate', value: 'true' } }],
       };
 
       const layout: NodeLayoutInfo = {
@@ -68,9 +70,7 @@ describe('State Extractor', () => {
         nodeId: 'ax-1',
         backendDOMNodeId: 100,
         role: 'checkbox',
-        properties: [
-          { name: 'checked', value: { type: 'tristate', value: 'false' } },
-        ],
+        properties: [{ name: 'checked', value: { type: 'tristate', value: 'false' } }],
       };
 
       const state = extractState(undefined, axNode, undefined);
@@ -83,9 +83,7 @@ describe('State Extractor', () => {
         nodeId: 'ax-1',
         backendDOMNodeId: 100,
         role: 'checkbox',
-        properties: [
-          { name: 'checked', value: { type: 'tristate', value: 'mixed' } },
-        ],
+        properties: [{ name: 'checked', value: { type: 'tristate', value: 'mixed' } }],
       };
 
       const state = extractState(undefined, axNode, undefined);
@@ -100,9 +98,7 @@ describe('State Extractor', () => {
         nodeId: 'ax-1',
         backendDOMNodeId: 100,
         role: 'button',
-        properties: [
-          { name: 'disabled', value: { type: 'boolean', value: true } },
-        ],
+        properties: [{ name: 'disabled', value: { type: 'boolean', value: true } }],
       };
 
       const state = extractState(undefined, axNode, undefined);
@@ -143,9 +139,7 @@ describe('State Extractor', () => {
         nodeId: 'ax-1',
         backendDOMNodeId: 100,
         role: 'button',
-        properties: [
-          { name: 'expanded', value: { type: 'boolean', value: true } },
-        ],
+        properties: [{ name: 'expanded', value: { type: 'boolean', value: true } }],
       };
 
       const state = extractState(undefined, axNode, undefined);
@@ -158,9 +152,7 @@ describe('State Extractor', () => {
         nodeId: 'ax-1',
         backendDOMNodeId: 100,
         role: 'tab',
-        properties: [
-          { name: 'selected', value: { type: 'boolean', value: true } },
-        ],
+        properties: [{ name: 'selected', value: { type: 'boolean', value: true } }],
       };
 
       const state = extractState(undefined, axNode, undefined);
@@ -173,9 +165,7 @@ describe('State Extractor', () => {
         nodeId: 'ax-1',
         backendDOMNodeId: 100,
         role: 'textbox',
-        properties: [
-          { name: 'focused', value: { type: 'boolean', value: true } },
-        ],
+        properties: [{ name: 'focused', value: { type: 'boolean', value: true } }],
       };
 
       const state = extractState(undefined, axNode, undefined);
@@ -216,9 +206,7 @@ describe('State Extractor', () => {
         nodeId: 'ax-1',
         backendDOMNodeId: 100,
         role: 'textbox',
-        properties: [
-          { name: 'invalid', value: { type: 'token', value: 'true' } },
-        ],
+        properties: [{ name: 'invalid', value: { type: 'token', value: 'true' } }],
       };
 
       const state = extractState(undefined, axNode, undefined);
@@ -324,9 +312,7 @@ describe('State Extractor', () => {
         nodeId: 'ax-1',
         backendDOMNodeId: 100,
         role: 'checkbox',
-        properties: [
-          { name: 'checked', value: { type: 'boolean', value: true } },
-        ],
+        properties: [{ name: 'checked', value: { type: 'boolean', value: true } }],
       };
 
       const state = extractState(undefined, axNode, undefined);

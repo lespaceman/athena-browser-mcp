@@ -25,8 +25,25 @@ export const BrowserLaunchOutputSchema = z.object({
   page_id: z.string(),
   /** Current URL of the page */
   url: z.string(),
+  /** Page title */
+  title: z.string(),
   /** Connection mode used */
   mode: z.enum(['launched', 'connected']),
+  /** Snapshot ID for the captured page state */
+  snapshot_id: z.string(),
+  /** Total nodes captured */
+  node_count: z.number(),
+  /** Interactive nodes captured */
+  interactive_count: z.number(),
+  /** Summary of interactive nodes */
+  nodes: z.array(
+    z.object({
+      node_id: z.string(),
+      kind: z.string(),
+      label: z.string(),
+      selector: z.string(),
+    })
+  ),
 });
 
 export type BrowserLaunchInput = z.infer<typeof BrowserLaunchInputSchema>;
@@ -50,6 +67,21 @@ export const BrowserNavigateOutputSchema = z.object({
   url: z.string(),
   /** Page title */
   title: z.string(),
+  /** Snapshot ID for the captured page state */
+  snapshot_id: z.string(),
+  /** Total nodes captured */
+  node_count: z.number(),
+  /** Interactive nodes captured */
+  interactive_count: z.number(),
+  /** Summary of interactive nodes */
+  nodes: z.array(
+    z.object({
+      node_id: z.string(),
+      kind: z.string(),
+      label: z.string(),
+      selector: z.string(),
+    })
+  ),
 });
 
 export type BrowserNavigateInput = z.infer<typeof BrowserNavigateInputSchema>;
@@ -134,3 +166,95 @@ export const ActionClickOutputSchema = z.object({
 
 export type ActionClickInput = z.infer<typeof ActionClickInputSchema>;
 export type ActionClickOutput = z.infer<typeof ActionClickOutputSchema>;
+
+// ============================================================================
+// get_node_details
+// ============================================================================
+
+export const GetNodeDetailsInputSchema = z.object({
+  /** Page ID */
+  page_id: z.string(),
+  /** Node ID to get details for */
+  node_id: z.string(),
+});
+
+/** Full node details including location, layout, state, and attributes */
+export const NodeDetailsSchema = z.object({
+  /** Unique node identifier */
+  node_id: z.string(),
+  /** Semantic node type */
+  kind: z.string(),
+  /** Human-readable label */
+  label: z.string(),
+  /** Location information */
+  where: z.object({
+    region: z.string(),
+    group_id: z.string().optional(),
+    group_path: z.array(z.string()).optional(),
+    heading_context: z.string().optional(),
+  }),
+  /** Layout information */
+  layout: z.object({
+    bbox: z.object({
+      x: z.number(),
+      y: z.number(),
+      w: z.number(),
+      h: z.number(),
+    }),
+    display: z.string().optional(),
+    screen_zone: z.string().optional(),
+  }),
+  /** Element state */
+  state: z
+    .object({
+      visible: z.boolean().optional(),
+      enabled: z.boolean().optional(),
+      checked: z.boolean().optional(),
+      expanded: z.boolean().optional(),
+      selected: z.boolean().optional(),
+      focused: z.boolean().optional(),
+      required: z.boolean().optional(),
+      invalid: z.boolean().optional(),
+      readonly: z.boolean().optional(),
+    })
+    .optional(),
+  /** Locator strategies */
+  find: z
+    .object({
+      primary: z.string(),
+      alternates: z.array(z.string()).optional(),
+    })
+    .optional(),
+  /** Additional attributes */
+  attributes: z
+    .object({
+      input_type: z.string().optional(),
+      placeholder: z.string().optional(),
+      value: z.string().optional(),
+      href: z.string().optional(),
+      alt: z.string().optional(),
+      src: z.string().optional(),
+      heading_level: z.number().optional(),
+      action: z.string().optional(),
+      method: z.string().optional(),
+      autocomplete: z.string().optional(),
+      role: z.string().optional(),
+      test_id: z.string().optional(),
+    })
+    .optional(),
+});
+
+export const GetNodeDetailsOutputSchema = z.object({
+  /** Page ID */
+  page_id: z.string(),
+  /** Snapshot ID the details are from */
+  snapshot_id: z.string(),
+  /** Requested node details */
+  nodes: z.array(NodeDetailsSchema),
+  /** Node IDs that were not found */
+  not_found: z.array(z.string()).optional(),
+});
+
+export type GetNodeDetailsInput = z.infer<typeof GetNodeDetailsInputSchema>;
+export type GetNodeDetailsOutput = z.infer<typeof GetNodeDetailsOutputSchema>;
+export type NodeDetails = z.infer<typeof NodeDetailsSchema>;

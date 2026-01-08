@@ -10,12 +10,7 @@
  * - Accessibility.getPartialAXTree: Targeted extraction (optimization)
  */
 
-import type {
-  ExtractorContext,
-  AxExtractionResult,
-  RawAxNode,
-  AxProperty,
-} from './types.js';
+import type { ExtractorContext, AxExtractionResult, RawAxNode, AxProperty } from './types.js';
 import { INTERACTIVE_AX_ROLES, READABLE_AX_ROLES, STRUCTURAL_AX_ROLES } from './types.js';
 
 /**

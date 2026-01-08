@@ -32,9 +32,7 @@
       "ignored": false,
       "role": { "type": "role", "value": "heading" },
       "name": { "type": "computedString", "value": "Sign In" },
-      "properties": [
-        { "name": "level", "value": { "type": "integer", "value": 1 } }
-      ],
+      "properties": [{ "name": "level", "value": { "type": "integer", "value": 1 } }],
       "childIds": [],
       "backendDOMNodeId": 9
     },

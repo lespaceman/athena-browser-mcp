@@ -120,11 +120,7 @@ export function computeScreenZone(bbox: BBox, viewport: Viewport): ScreenZone {
  * @param visibility - CSS visibility value
  * @returns true if element is visible
  */
-export function computeVisibility(
-  bbox: BBox,
-  display?: string,
-  visibility?: string
-): boolean {
+export function computeVisibility(bbox: BBox, display?: string, visibility?: string): boolean {
   // Check CSS display
   if (display === 'none') {
     return false;
@@ -218,9 +214,12 @@ type NodeIdLookup = Map<number, { nodeId: number; backendNodeId?: number }>;
 /**
  * Extract layout information for multiple nodes.
  *
+ * Uses a batch strategy via Runtime.evaluate to minimize roundtrips.
+ * Falls back to individual CDP calls for nodes that cannot be resolved via batch (e.g. inside closed shadow roots).
+ *
  * @param ctx - Extractor context with CDP client and options
  * @param backendNodeIds - Array of backend node IDs to extract layout for
- * @param domNodes - Optional map of backendNodeId to DOM node (for nodeId lookup)
+ * @param domNodes - Map of backendNodeId to DOM node
  * @returns LayoutExtractionResult with layouts map
  */
 export async function extractLayout(
@@ -234,16 +233,250 @@ export async function extractLayout(
     return { layouts };
   }
 
-  // Extract layout for each node
-  // Note: Could be optimized with batching/parallelization for large node counts
-  for (const backendNodeId of backendNodeIds) {
+  // Identify nodes that need fallback
+  const processedIds = new Set<number>();
+  const fallbackIds: number[] = [];
+
+  // Try batch extraction if we have the DOM tree
+  if (domNodes instanceof Map) {
+    try {
+      const batchResults = await extractLayoutBatch(
+        ctx,
+        backendNodeIds,
+        domNodes as Map<number, RawDomNode>
+      );
+
+      for (const { backendNodeId, layout } of batchResults) {
+        if (layout?.bbox) {
+          // Compute derived fields that weren't in the batch script
+          const isVisible = computeVisibility(layout.bbox, layout.display, layout.visibility);
+          const screenZone = isVisible ? computeScreenZone(layout.bbox, ctx.viewport) : undefined;
+
+          layouts.set(backendNodeId, {
+            ...layout,
+            bbox: layout.bbox, // Explicitly set bbox to satisfy TS
+            isVisible,
+            screenZone,
+          });
+          processedIds.add(backendNodeId);
+        }
+      }
+    } catch {
+      // If batch fails entirely, we will fallback for all because processedIds is empty
+      // console.warn('Batch layout extraction failed:', err);
+    }
+  }
+
+  // Identify fallback candidates (either batch failed or wasn't tried)
+  for (const id of backendNodeIds) {
+    if (!processedIds.has(id)) {
+      fallbackIds.push(id);
+    }
+  }
+
+  // Process fallbacks
+  for (const backendNodeId of fallbackIds) {
     // Look up ephemeral nodeId from DOM nodes map
-    const domNode = domNodes?.get(backendNodeId);
-    const nodeId = domNode?.nodeId;
+    // We handle both possible Map types (NodeIdLookup or Map<number, RawDomNode>)
+    // RawDomNode has .nodeId, NodeIdLookup values have .nodeId
+    const nodeData = domNodes?.get(backendNodeId);
+    // Use type assertion or check properties since types overlap on .nodeId
+    const nodeId = (nodeData as { nodeId: number })?.nodeId;
 
     const layout = await extractNodeLayout(ctx, backendNodeId, nodeId);
     layouts.set(backendNodeId, layout);
   }
 
   return { layouts };
+}
+
+/**
+ * Result from batch layout extraction script
+ */
+interface BatchLayoutResult {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  display: string;
+  visibility: string;
+}
+
+/**
+ * Helper to build a selector path for a node.
+ * Returns array of selector segments (splitting at shadow/frame boundaries).
+ */
+function buildPath(nodeId: number, domNodes: Map<number, RawDomNode>): string[] | undefined {
+  const path: string[] = [];
+  let currentSegment = '';
+  let currentId: number | undefined = nodeId;
+
+  // Safety break
+  let depth = 0;
+  const MAX_DEPTH = 100;
+
+  while (currentId !== undefined && depth < MAX_DEPTH) {
+    const node = domNodes.get(currentId);
+    if (!node) return undefined;
+
+    // Check parent
+    const parentId = node.parentId;
+
+    // If no parent, we are at root (or detached)
+    if (parentId === undefined) {
+      if (node.nodeName === '#document') {
+        // Root document, we are done with this segment
+        if (currentSegment) {
+          path.unshift(currentSegment);
+        }
+        break;
+      }
+      // Detached node?
+      return undefined;
+    }
+
+    const parent = domNodes.get(parentId);
+    if (!parent) return undefined;
+
+    // Handle Node Types
+    if (node.nodeType === 1) {
+      // ELEMENT_NODE
+      // Calculate nth-child index among ELEMENT siblings
+      let index = 1;
+      if (parent.childNodeIds) {
+        for (const childId of parent.childNodeIds) {
+          if (childId === currentId) break;
+          const sibling = domNodes.get(childId);
+          if (sibling?.nodeType === 1) {
+            index++;
+          }
+        }
+      }
+
+      const segment = `${node.nodeName.toLowerCase()}:nth-child(${index})`;
+      currentSegment = currentSegment ? `${segment} > ${currentSegment}` : segment;
+    } else if (node.nodeType === 11) {
+      // DOCUMENT_FRAGMENT_NODE (Shadow Root)
+      // Boundary reached. Push current segment.
+      if (currentSegment) {
+        path.unshift(currentSegment);
+        currentSegment = '';
+      }
+      // Next iteration will handle the HOST (parent of shadow root)
+      // The parent of shadow root in RawDomNode tree is the host element.
+    } else if (node.nodeType === 9) {
+      // DOCUMENT_NODE (in Iframe)
+      // Boundary reached. Push current segment.
+      if (currentSegment) {
+        path.unshift(currentSegment);
+        currentSegment = '';
+      }
+      // Parent is the iframe element
+    }
+
+    currentId = parentId;
+    depth++;
+  }
+
+  return path;
+}
+
+/**
+ * Execute batch extraction via Runtime.evaluate
+ */
+async function extractLayoutBatch(
+  ctx: ExtractorContext,
+  backendNodeIds: number[],
+  domNodes: Map<number, RawDomNode>
+): Promise<{ backendNodeId: number; layout?: Partial<NodeLayoutInfo> }[]> {
+  const paths: { id: number; path: string[] }[] = [];
+
+  for (const id of backendNodeIds) {
+    const path = buildPath(id, domNodes);
+    if (path) {
+      paths.push({ id, path });
+    }
+  }
+
+  if (paths.length === 0) return [];
+
+  // Script to resolve paths and get layout
+  const expression = `
+    (function(items) {
+      function resolve(path) {
+        let ctx = document;
+        for (const segment of path) {
+          if (!ctx) return null;
+          
+          if (ctx instanceof HTMLIFrameElement) {
+             try {
+               ctx = ctx.contentDocument;
+             } catch (e) { return null; }
+          } else if (ctx.shadowRoot) {
+             ctx = ctx.shadowRoot;
+          }
+          
+          if (!ctx) return null;
+          
+          ctx = ctx.querySelector(segment);
+        }
+        return ctx;
+      }
+
+      return items.map(item => {
+        try {
+          const node = resolve(item.path);
+          if (!node || node.nodeType !== 1) return null;
+          
+          const rect = node.getBoundingClientRect();
+          const style = window.getComputedStyle(node);
+          
+          return {
+            x: rect.x,
+            y: rect.y,
+            w: rect.width,
+            h: rect.height,
+            display: style.display,
+            visibility: style.visibility
+          };
+        } catch (e) {
+          return null;
+        }
+      });
+    })(${JSON.stringify(paths)})
+  `;
+
+  try {
+    const response = await ctx.cdp.send<{ result: { value: (BatchLayoutResult | null)[] } }>(
+      'Runtime.evaluate',
+      {
+        expression,
+        returnByValue: true,
+        awaitPromise: false,
+      }
+    );
+
+    const results = response.result.value;
+
+    if (!Array.isArray(results) || results.length !== paths.length) {
+      return [];
+    }
+
+    return paths.map((item, index) => {
+      const res = results[index];
+      if (!res) return { backendNodeId: item.id };
+
+      return {
+        backendNodeId: item.id,
+        layout: {
+          bbox: { x: res.x, y: res.y, w: res.w, h: res.h },
+          display: res.display,
+          visibility: res.visibility,
+        },
+      };
+    });
+  } catch {
+    // console.error('Batch eval failed', e);
+    return [];
+  }
 }

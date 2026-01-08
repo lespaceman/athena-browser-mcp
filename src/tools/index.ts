@@ -13,6 +13,7 @@ export {
   browserClose,
   snapshotCapture,
   actionClick,
+  getNodeDetails,
 } from './browser-tools.js';
 
 // Schemas
@@ -44,4 +45,11 @@ export {
   ActionClickOutputSchema,
   type ActionClickInput,
   type ActionClickOutput,
+  // get_node_details
+  GetNodeDetailsInputSchema,
+  GetNodeDetailsOutputSchema,
+  NodeDetailsSchema,
+  type GetNodeDetailsInput,
+  type GetNodeDetailsOutput,
+  type NodeDetails,
 } from './tool-schemas.js';

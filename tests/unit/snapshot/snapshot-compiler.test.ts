@@ -92,7 +92,14 @@ function setupCdpMocks(mockCdp: MockCdpClient): void {
                           backendNodeId: 10,
                           nodeType: 1,
                           nodeName: 'INPUT',
-                          attributes: ['type', 'text', 'name', 'username', 'placeholder', 'Username'],
+                          attributes: [
+                            'type',
+                            'text',
+                            'name',
+                            'username',
+                            'placeholder',
+                            'Username',
+                          ],
                           children: [],
                         },
                         {
@@ -132,9 +139,7 @@ function setupCdpMocks(mockCdp: MockCdpClient): void {
         role: { value: 'link' },
         name: { value: 'About' },
         ignored: false,
-        properties: [
-          { name: 'focusable', value: { value: true } },
-        ],
+        properties: [{ name: 'focusable', value: { value: true } }],
       },
       {
         nodeId: 'ax-8',
@@ -142,9 +147,7 @@ function setupCdpMocks(mockCdp: MockCdpClient): void {
         role: { value: 'heading' },
         name: { value: 'Welcome' },
         ignored: false,
-        properties: [
-          { name: 'level', value: { value: 1 } },
-        ],
+        properties: [{ name: 'level', value: { value: 1 } }],
       },
       {
         nodeId: 'ax-10',
@@ -152,9 +155,7 @@ function setupCdpMocks(mockCdp: MockCdpClient): void {
         role: { value: 'textbox' },
         name: { value: 'Username' },
         ignored: false,
-        properties: [
-          { name: 'focusable', value: { value: true } },
-        ],
+        properties: [{ name: 'focusable', value: { value: true } }],
       },
       {
         nodeId: 'ax-11',
@@ -162,9 +163,7 @@ function setupCdpMocks(mockCdp: MockCdpClient): void {
         role: { value: 'button' },
         name: { value: 'Submit' },
         ignored: false,
-        properties: [
-          { name: 'focusable', value: { value: true } },
-        ],
+        properties: [{ name: 'focusable', value: { value: true } }],
       },
     ],
   });
@@ -214,8 +213,8 @@ describe('SnapshotCompiler', () => {
       const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
 
       // Should include button, link, and textbox
-      const interactiveNodes = snapshot.nodes.filter(
-        (n) => ['button', 'link', 'input', 'combobox'].includes(n.kind)
+      const interactiveNodes = snapshot.nodes.filter((n) =>
+        ['button', 'link', 'input', 'combobox'].includes(n.kind)
       );
       expect(interactiveNodes.length).toBeGreaterThanOrEqual(2);
     });
@@ -245,9 +244,7 @@ describe('SnapshotCompiler', () => {
       const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
 
       // Check that regions are populated
-      const nodesWithRegion = snapshot.nodes.filter(
-        (n) => n.where.region !== 'unknown'
-      );
+      const nodesWithRegion = snapshot.nodes.filter((n) => n.where.region !== 'unknown');
       // Mock data has HEADER, NAV, MAIN elements, so at least some nodes should have detected regions
       // If no nodes have regions, the assertion will fail and expose region detection issues
       expect(nodesWithRegion.length).toBeGreaterThan(0);
@@ -258,8 +255,8 @@ describe('SnapshotCompiler', () => {
       const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
 
       // Interactive nodes should have locators
-      const interactiveNodes = snapshot.nodes.filter(
-        (n) => ['button', 'link', 'input'].includes(n.kind)
+      const interactiveNodes = snapshot.nodes.filter((n) =>
+        ['button', 'link', 'input'].includes(n.kind)
       );
       for (const node of interactiveNodes) {
         expect(node.find).toBeDefined();
@@ -324,8 +321,8 @@ describe('SnapshotCompiler', () => {
       const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
 
       // Should only have interactive nodes
-      const readableNodes = snapshot.nodes.filter(
-        (n) => ['heading', 'paragraph', 'list', 'image'].includes(n.kind)
+      const readableNodes = snapshot.nodes.filter((n) =>
+        ['heading', 'paragraph', 'list', 'image'].includes(n.kind)
       );
       expect(readableNodes.length).toBe(0);
     });

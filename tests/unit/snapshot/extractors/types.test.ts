@@ -124,9 +124,7 @@ describe('Extractor Types', () => {
         backendDOMNodeId: 100,
         role: 'button',
         name: 'Submit',
-        properties: [
-          { name: 'focusable', value: { type: 'boolean', value: true } },
-        ],
+        properties: [{ name: 'focusable', value: { type: 'boolean', value: true } }],
         ignored: false,
         childIds: ['ax-2', 'ax-3'],
       };

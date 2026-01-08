@@ -5,7 +5,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { resolveLabel, type LabelSource } from '../../../../src/snapshot/extractors/label-resolver.js';
+import {
+  resolveLabel,
+  type LabelSource,
+} from '../../../../src/snapshot/extractors/label-resolver.js';
 import type { RawDomNode, RawAxNode } from '../../../../src/snapshot/extractors/types.js';
 
 describe('Label Resolver', () => {

@@ -38,17 +38,15 @@ export {
 } from './snapshot-store.js';
 
 // Element resolver
-export { resolveLocator, parseLocatorString, type ParsedLocator } from './element-resolver.js';
-
-// Snapshot extractor (legacy, kept for compatibility)
-export { extractSnapshot, mapAxRoleToNodeKind } from './snapshot-extractor.js';
-
-// Snapshot compiler (new modular implementation)
 export {
-  SnapshotCompiler,
-  compileSnapshot,
-  type CompileOptions,
-} from './snapshot-compiler.js';
+  resolveLocator,
+  parseLocatorString,
+  clickByBackendNodeId,
+  type ParsedLocator,
+} from './element-resolver.js';
+
+// Snapshot compiler
+export { SnapshotCompiler, compileSnapshot, type CompileOptions } from './snapshot-compiler.js';
 
 // Extractors (advanced usage)
 export * from './extractors/index.js';

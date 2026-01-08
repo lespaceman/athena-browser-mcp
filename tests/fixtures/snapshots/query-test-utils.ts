@@ -13,12 +13,16 @@ import type {
 } from '../../../src/snapshot/snapshot.types.js';
 import type { FindElementsResponse } from '../../../src/query/types/query.types.js';
 
+// Counter for generating unique backend node IDs in tests
+let testBackendNodeIdCounter = 10000;
+
 /**
  * Create a minimal ReadableNode for testing
  */
 export function createTestNode(overrides: Partial<ReadableNode> = {}): ReadableNode {
   return {
     node_id: 'test-node',
+    backend_node_id: testBackendNodeIdCounter++,
     kind: 'generic',
     label: 'Test',
     where: { region: 'main' },
@@ -89,10 +93,7 @@ export function createInputNode(
 /**
  * Create a link node
  */
-export function createLinkNode(
-  label: string,
-  overrides: Partial<ReadableNode> = {}
-): ReadableNode {
+export function createLinkNode(label: string, overrides: Partial<ReadableNode> = {}): ReadableNode {
   return createTestNode({
     node_id: `link-${label.toLowerCase().replace(/\s+/g, '-')}`,
     kind: 'link',

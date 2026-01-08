@@ -10,7 +10,12 @@
  * - Disambiguation suggestions
  */
 
-import type { BaseSnapshot, ReadableNode, NodeKind, SemanticRegion } from '../snapshot/snapshot.types.js';
+import type {
+  BaseSnapshot,
+  ReadableNode,
+  NodeKind,
+  SemanticRegion,
+} from '../snapshot/snapshot.types.js';
 import type {
   FindElementsRequest,
   FindElementsResponse,

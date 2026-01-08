@@ -20,10 +20,7 @@ import dialogOverlayAx from '../fixtures/cdp-responses/dialog-overlay-ax.json' w
 /**
  * Create a mock Playwright Page
  */
-function createMockPage(
-  url = 'https://example.com',
-  title = 'Test Page'
-): Page {
+function createMockPage(url = 'https://example.com', title = 'Test Page'): Page {
   return {
     url: () => url,
     title: () => Promise.resolve(title),
@@ -142,9 +139,7 @@ describe('Snapshot Compiler Integration', () => {
       const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
 
       // Find the submit button
-      const submitButton = snapshot.nodes.find(
-        (n) => n.kind === 'button' && n.label === 'Sign In'
-      );
+      const submitButton = snapshot.nodes.find((n) => n.kind === 'button' && n.label === 'Sign In');
       expect(submitButton).toBeDefined();
       expect(submitButton?.find?.primary).toBeDefined();
     });
@@ -286,9 +281,7 @@ describe('Snapshot Compiler Integration', () => {
       const compiler = new SnapshotCompiler();
       const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
 
-      const contactLink = snapshot.nodes.find(
-        (n) => n.kind === 'link' && n.label === 'Contact Us'
-      );
+      const contactLink = snapshot.nodes.find((n) => n.kind === 'link' && n.label === 'Contact Us');
       expect(contactLink).toBeDefined();
       expect(contactLink?.where.region).toBe('footer');
     });
@@ -364,12 +357,8 @@ describe('Snapshot Compiler Integration', () => {
       const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
 
       // Find dialog buttons
-      const cancelBtn = snapshot.nodes.find(
-        (n) => n.kind === 'button' && n.label === 'Cancel'
-      );
-      const confirmBtn = snapshot.nodes.find(
-        (n) => n.kind === 'button' && n.label === 'Confirm'
-      );
+      const cancelBtn = snapshot.nodes.find((n) => n.kind === 'button' && n.label === 'Cancel');
+      const confirmBtn = snapshot.nodes.find((n) => n.kind === 'button' && n.label === 'Confirm');
 
       expect(cancelBtn).toBeDefined();
       expect(confirmBtn).toBeDefined();
@@ -461,7 +450,11 @@ describe('Snapshot Compiler Integration', () => {
       const snapshotWithHidden = await compilerWithHidden.compile(mockCdp, mockPage, 'page-1');
 
       const compilerWithoutHidden = new SnapshotCompiler({ include_hidden: false });
-      const snapshotWithoutHidden = await compilerWithoutHidden.compile(mockCdp, mockPage, 'page-1');
+      const snapshotWithoutHidden = await compilerWithoutHidden.compile(
+        mockCdp,
+        mockPage,
+        'page-1'
+      );
 
       expect(snapshotWithHidden.nodes.length).toBeGreaterThanOrEqual(
         snapshotWithoutHidden.nodes.length
@@ -486,7 +479,16 @@ describe('Snapshot Compiler Integration', () => {
           const nodeId = params?.backendNodeId as number;
           return Promise.resolve({
             model: {
-              content: [0, nodeId * 50, 100, nodeId * 50, 100, nodeId * 50 + 40, 0, nodeId * 50 + 40],
+              content: [
+                0,
+                nodeId * 50,
+                100,
+                nodeId * 50,
+                100,
+                nodeId * 50 + 40,
+                0,
+                nodeId * 50 + 40,
+              ],
               width: 100,
               height: 40,
             },
@@ -556,7 +558,18 @@ describe('Snapshot Compiler Integration', () => {
       const compiler = new SnapshotCompiler();
       const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
 
-      const interactiveKinds = ['button', 'link', 'input', 'checkbox', 'radio', 'select', 'slider', 'switch', 'tab', 'menuitem'];
+      const interactiveKinds = [
+        'button',
+        'link',
+        'input',
+        'checkbox',
+        'radio',
+        'select',
+        'slider',
+        'switch',
+        'tab',
+        'menuitem',
+      ];
       const expectedInteractiveCount = snapshot.nodes.filter((n) =>
         interactiveKinds.includes(n.kind)
       ).length;

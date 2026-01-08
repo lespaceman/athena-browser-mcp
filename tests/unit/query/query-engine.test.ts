@@ -103,10 +103,7 @@ describe('QueryEngine', () => {
       });
 
       it('should return empty when no nodes match kind', () => {
-        const snapshot = createTestSnapshot([
-          createButtonNode('Submit'),
-          createInputNode('Email'),
-        ]);
+        const snapshot = createTestSnapshot([createButtonNode('Submit'), createInputNode('Email')]);
         const engine = new QueryEngine(snapshot);
 
         const result = engine.find({ kind: 'checkbox' });

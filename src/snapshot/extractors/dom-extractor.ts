@@ -11,11 +11,7 @@
  * - DOM.requestChildNodes: Expand children (for incremental loading)
  */
 
-import type {
-  ExtractorContext,
-  DomExtractionResult,
-  RawDomNode,
-} from './types.js';
+import type { ExtractorContext, DomExtractionResult, RawDomNode } from './types.js';
 
 /**
  * CDP DOM node structure (as returned by DOM.getDocument)

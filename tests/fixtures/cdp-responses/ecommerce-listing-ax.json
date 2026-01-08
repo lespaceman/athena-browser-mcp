@@ -83,9 +83,7 @@
       "ignored": false,
       "role": { "type": "role", "value": "heading" },
       "name": { "type": "computedString", "value": "Our Products" },
-      "properties": [
-        { "name": "level", "value": { "type": "integer", "value": 1 } }
-      ],
+      "properties": [{ "name": "level", "value": { "type": "integer", "value": 1 } }],
       "childIds": [],
       "backendDOMNodeId": 19
     },
@@ -121,9 +119,7 @@
       "ignored": false,
       "role": { "type": "role", "value": "heading" },
       "name": { "type": "computedString", "value": "Blue T-Shirt" },
-      "properties": [
-        { "name": "level", "value": { "type": "integer", "value": 2 } }
-      ],
+      "properties": [{ "name": "level", "value": { "type": "integer", "value": 2 } }],
       "childIds": [],
       "backendDOMNodeId": 24
     },
@@ -170,9 +166,7 @@
       "ignored": false,
       "role": { "type": "role", "value": "heading" },
       "name": { "type": "computedString", "value": "Red Sneakers" },
-      "properties": [
-        { "name": "level", "value": { "type": "integer", "value": 2 } }
-      ],
+      "properties": [{ "name": "level", "value": { "type": "integer", "value": 2 } }],
       "childIds": [],
       "backendDOMNodeId": 32
     },

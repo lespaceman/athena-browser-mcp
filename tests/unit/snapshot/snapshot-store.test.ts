@@ -207,13 +207,8 @@ describe('SnapshotStore', () => {
 
   describe('statistics', () => {
     it('should track store statistics', () => {
-      const snapshot1 = createTestSnapshot('snap-1', [
-        { node_id: 'n1' },
-        { node_id: 'n2' },
-      ]);
-      const snapshot2 = createTestSnapshot('snap-2', [
-        { node_id: 'n3' },
-      ]);
+      const snapshot1 = createTestSnapshot('snap-1', [{ node_id: 'n1' }, { node_id: 'n2' }]);
+      const snapshot2 = createTestSnapshot('snap-2', [{ node_id: 'n3' }]);
 
       store.store('page-1', snapshot1);
       store.store('page-2', snapshot2);

@@ -140,7 +140,20 @@
                             "localName": "input",
                             "nodeValue": "",
                             "childNodeCount": 0,
-                            "attributes": ["type", "email", "id", "email", "name", "email", "required", "", "autocomplete", "email", "data-testid", "email-input"]
+                            "attributes": [
+                              "type",
+                              "email",
+                              "id",
+                              "email",
+                              "name",
+                              "email",
+                              "required",
+                              "",
+                              "autocomplete",
+                              "email",
+                              "data-testid",
+                              "email-input"
+                            ]
                           }
                         ]
                       },
@@ -182,7 +195,20 @@
                             "localName": "input",
                             "nodeValue": "",
                             "childNodeCount": 0,
-                            "attributes": ["type", "password", "id", "password", "name", "password", "required", "", "autocomplete", "current-password", "data-testid", "password-input"]
+                            "attributes": [
+                              "type",
+                              "password",
+                              "id",
+                              "password",
+                              "name",
+                              "password",
+                              "required",
+                              "",
+                              "autocomplete",
+                              "current-password",
+                              "data-testid",
+                              "password-input"
+                            ]
                           }
                         ]
                       },
@@ -236,7 +262,14 @@
                         "localName": "button",
                         "nodeValue": "",
                         "childNodeCount": 1,
-                        "attributes": ["type", "submit", "class", "btn btn-primary", "data-testid", "login-button"],
+                        "attributes": [
+                          "type",
+                          "submit",
+                          "class",
+                          "btn btn-primary",
+                          "data-testid",
+                          "login-button"
+                        ],
                         "children": [
                           {
                             "nodeId": 24,

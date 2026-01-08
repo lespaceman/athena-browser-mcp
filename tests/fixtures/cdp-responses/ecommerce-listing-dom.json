@@ -240,7 +240,16 @@
                             "localName": "img",
                             "nodeValue": "",
                             "childNodeCount": 0,
-                            "attributes": ["src", "/images/product1.jpg", "alt", "Blue T-Shirt", "width", "200", "height", "200"]
+                            "attributes": [
+                              "src",
+                              "/images/product1.jpg",
+                              "alt",
+                              "Blue T-Shirt",
+                              "width",
+                              "200",
+                              "height",
+                              "200"
+                            ]
                           },
                           {
                             "nodeId": 24,
@@ -290,7 +299,12 @@
                             "localName": "button",
                             "nodeValue": "",
                             "childNodeCount": 1,
-                            "attributes": ["class", "add-to-cart", "data-testid", "add-cart-prod001"],
+                            "attributes": [
+                              "class",
+                              "add-to-cart",
+                              "data-testid",
+                              "add-cart-prod001"
+                            ],
                             "children": [
                               {
                                 "nodeId": 29,
@@ -322,7 +336,16 @@
                             "localName": "img",
                             "nodeValue": "",
                             "childNodeCount": 0,
-                            "attributes": ["src", "/images/product2.jpg", "alt", "Red Sneakers", "width", "200", "height", "200"]
+                            "attributes": [
+                              "src",
+                              "/images/product2.jpg",
+                              "alt",
+                              "Red Sneakers",
+                              "width",
+                              "200",
+                              "height",
+                              "200"
+                            ]
                           },
                           {
                             "nodeId": 32,
@@ -372,7 +395,12 @@
                             "localName": "button",
                             "nodeValue": "",
                             "childNodeCount": 1,
-                            "attributes": ["class", "add-to-cart", "data-testid", "add-cart-prod002"],
+                            "attributes": [
+                              "class",
+                              "add-to-cart",
+                              "data-testid",
+                              "add-cart-prod002"
+                            ],
                             "children": [
                               {
                                 "nodeId": 37,

@@ -175,9 +175,7 @@ function generateMockAxTree(nodeCount: number): Record<string, unknown> {
       ignored: false,
       role: { type: 'role', value: role },
       name: { type: 'computedString', value: name },
-      properties: [
-        { name: 'focusable', value: { type: 'booleanOrUndefined', value: true } },
-      ],
+      properties: [{ name: 'focusable', value: { type: 'booleanOrUndefined', value: true } }],
       childIds: [],
       backendDOMNodeId: currentBackendNodeId,
     });

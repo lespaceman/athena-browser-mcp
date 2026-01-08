@@ -6,7 +6,11 @@
 
 import { describe, it, expect } from 'vitest';
 import { resolveGrouping } from '../../../../src/snapshot/extractors/grouping-resolver.js';
-import type { RawDomNode, RawAxNode, RawNodeData } from '../../../../src/snapshot/extractors/types.js';
+import type {
+  RawDomNode,
+  RawAxNode,
+  RawNodeData,
+} from '../../../../src/snapshot/extractors/types.js';
 
 describe('Grouping Resolver', () => {
   describe('resolveGrouping', () => {
@@ -67,9 +71,7 @@ describe('Grouping Resolver', () => {
         [200, menuItemNode],
       ]);
 
-      const axTree = new Map<number, RawAxNode>([
-        [100, menuAxNode],
-      ]);
+      const axTree = new Map<number, RawAxNode>([[100, menuAxNode]]);
 
       const result = resolveGrouping(200, domTree, axTree, []);
 
@@ -223,9 +225,7 @@ describe('Grouping Resolver', () => {
         properties: [{ name: 'level', value: { type: 'integer', value: 2 } }],
       };
 
-      const axTree = new Map<number, RawAxNode>([
-        [200, headingAx],
-      ]);
+      const axTree = new Map<number, RawAxNode>([[200, headingAx]]);
 
       // All nodes including heading for context
       const allNodes: RawNodeData[] = [
@@ -301,9 +301,7 @@ describe('Grouping Resolver', () => {
         [200, listItemNode],
       ]);
 
-      const axTree = new Map<number, RawAxNode>([
-        [100, listAx],
-      ]);
+      const axTree = new Map<number, RawAxNode>([[100, listAx]]);
 
       const result = resolveGrouping(200, domTree, axTree, []);
 
@@ -349,9 +347,7 @@ describe('Grouping Resolver', () => {
         [200, inputNode],
       ]);
 
-      const axTree = new Map<number, RawAxNode>([
-        [100, fieldsetAx],
-      ]);
+      const axTree = new Map<number, RawAxNode>([[100, fieldsetAx]]);
 
       const result = resolveGrouping(200, domTree, axTree, []);
 
@@ -389,9 +385,7 @@ describe('Grouping Resolver', () => {
         [200, tabNode],
       ]);
 
-      const axTree = new Map<number, RawAxNode>([
-        [100, tablistAx],
-      ]);
+      const axTree = new Map<number, RawAxNode>([[100, tablistAx]]);
 
       const result = resolveGrouping(200, domTree, axTree, []);
 

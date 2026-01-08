@@ -10,11 +10,11 @@ import type { Page, Locator } from 'playwright';
 import type { SessionManager } from '../../../src/browser/session-manager.js';
 import type { PageHandle } from '../../../src/browser/page-registry.js';
 import type { BaseSnapshot } from '../../../src/snapshot/snapshot.types.js';
-import type { extractSnapshot as ExtractSnapshotType } from '../../../src/snapshot/snapshot-extractor.js';
+import type { compileSnapshot as CompileSnapshotType } from '../../../src/snapshot/snapshot-compiler.js';
 
 // Mock modules at the top level (hoisted)
 vi.mock('../../../src/browser/session-manager.js');
-vi.mock('../../../src/snapshot/snapshot-extractor.js');
+vi.mock('../../../src/snapshot/snapshot-compiler.js');
 
 describe('BrowserTools', () => {
   // Mock instances - defined inside beforeEach
@@ -36,7 +36,10 @@ describe('BrowserTools', () => {
 
   // Import the module after mocking
   let browserTools: typeof import('../../../src/tools/browser-tools.js');
-  let extractSnapshotMock: Mock<Parameters<typeof ExtractSnapshotType>, ReturnType<typeof ExtractSnapshotType>>;
+  let compileSnapshotMock: Mock<
+    Parameters<typeof CompileSnapshotType>,
+    ReturnType<typeof CompileSnapshotType>
+  >;
 
   beforeEach(async () => {
     vi.resetModules();
@@ -91,7 +94,7 @@ describe('BrowserTools', () => {
       () => mockSessionManager as unknown as SessionManager
     );
 
-    // Mock extractSnapshot
+    // Mock compileSnapshot
     const mockSnapshot: BaseSnapshot = {
       snapshot_id: 'snap-123',
       url: 'https://example.com',
@@ -101,6 +104,7 @@ describe('BrowserTools', () => {
       nodes: [
         {
           node_id: 'n1',
+          backend_node_id: 12345, // CDP backendNodeId for direct clicking
           kind: 'link',
           label: 'More information...',
           where: { region: 'main' },
@@ -111,12 +115,13 @@ describe('BrowserTools', () => {
       meta: { node_count: 1, interactive_count: 1 },
     };
 
-    extractSnapshotMock = vi.fn<Parameters<typeof ExtractSnapshotType>, ReturnType<typeof ExtractSnapshotType>>(
-      () => Promise.resolve(mockSnapshot)
-    );
+    compileSnapshotMock = vi.fn<
+      Parameters<typeof CompileSnapshotType>,
+      ReturnType<typeof CompileSnapshotType>
+    >(() => Promise.resolve(mockSnapshot));
 
-    const snapshotExtractorModule = await import('../../../src/snapshot/snapshot-extractor.js');
-    vi.mocked(snapshotExtractorModule.extractSnapshot).mockImplementation(extractSnapshotMock);
+    const snapshotCompilerModule = await import('../../../src/snapshot/snapshot-compiler.js');
+    vi.mocked(snapshotCompilerModule.compileSnapshot).mockImplementation(compileSnapshotMock);
 
     // Import browser tools (which will use the mocked modules)
     browserTools = await import('../../../src/tools/browser-tools.js');
@@ -189,7 +194,10 @@ describe('BrowserTools', () => {
         url: 'https://example.com/page',
       });
 
-      expect(mockSessionManager.navigateTo).toHaveBeenCalledWith('page-123', 'https://example.com/page');
+      expect(mockSessionManager.navigateTo).toHaveBeenCalledWith(
+        'page-123',
+        'https://example.com/page'
+      );
       expect(result.page_id).toBe('page-123');
       expect(result.title).toBe('Example Domain');
     });
@@ -223,7 +231,7 @@ describe('BrowserTools', () => {
     it('should capture snapshot and return node summaries', async () => {
       const result = await browserTools.snapshotCapture({ page_id: 'page-123' });
 
-      expect(extractSnapshotMock).toHaveBeenCalledWith(mockCdp, mockPage, 'page-123');
+      expect(compileSnapshotMock).toHaveBeenCalledWith(mockCdp, mockPage, 'page-123');
       expect(result.snapshot_id).toBe('snap-123');
       expect(result.url).toBe('https://example.com');
       expect(result.node_count).toBe(1);
@@ -246,9 +254,33 @@ describe('BrowserTools', () => {
   });
 
   describe('actionClick()', () => {
-    it('should click element by node_id', async () => {
+    it('should click element by node_id using CDP backendNodeId', async () => {
+      // Setup CDP mock for click sequence
+      mockCdp.send
+        .mockResolvedValueOnce(undefined) // DOM.scrollIntoViewIfNeeded
+        .mockResolvedValueOnce({
+          // DOM.getBoxModel - returns content quad coordinates
+          model: {
+            content: [100, 200, 250, 200, 250, 220, 100, 220], // x1,y1,x2,y2,x3,y3,x4,y4
+          },
+        })
+        .mockResolvedValueOnce(undefined) // Input.dispatchMouseEvent (mousePressed)
+        .mockResolvedValueOnce(undefined); // Input.dispatchMouseEvent (mouseReleased)
+
       // First capture a snapshot
       await browserTools.snapshotCapture({ page_id: 'page-123' });
+
+      // Reset CDP mock calls after snapshot capture (which also uses CDP)
+      mockCdp.send.mockClear();
+      mockCdp.send
+        .mockResolvedValueOnce(undefined) // DOM.scrollIntoViewIfNeeded
+        .mockResolvedValueOnce({
+          model: {
+            content: [100, 200, 250, 200, 250, 220, 100, 220],
+          },
+        })
+        .mockResolvedValueOnce(undefined) // Input.dispatchMouseEvent (mousePressed)
+        .mockResolvedValueOnce(undefined); // Input.dispatchMouseEvent (mouseReleased)
 
       // Then click
       const result = await browserTools.actionClick({
@@ -256,8 +288,32 @@ describe('BrowserTools', () => {
         node_id: 'n1',
       });
 
-      expect(mockPage.getByRole).toHaveBeenCalledWith('link', { name: 'More information...' });
-      expect(mockLocator.click).toHaveBeenCalled();
+      // Verify CDP was used (not Playwright locators)
+      expect(mockCdp.send).toHaveBeenCalledWith('DOM.scrollIntoViewIfNeeded', {
+        backendNodeId: 12345,
+      });
+      expect(mockCdp.send).toHaveBeenCalledWith('DOM.getBoxModel', {
+        backendNodeId: 12345,
+      });
+      expect(mockCdp.send).toHaveBeenCalledWith(
+        'Input.dispatchMouseEvent',
+        expect.objectContaining({
+          type: 'mousePressed',
+          button: 'left',
+        })
+      );
+      expect(mockCdp.send).toHaveBeenCalledWith(
+        'Input.dispatchMouseEvent',
+        expect.objectContaining({
+          type: 'mouseReleased',
+          button: 'left',
+        })
+      );
+
+      // Playwright locators should NOT be used
+      expect(mockPage.getByRole).not.toHaveBeenCalled();
+      expect(mockPage.locator).not.toHaveBeenCalled();
+
       expect(result.success).toBe(true);
       expect(result.node_id).toBe('n1');
       expect(result.clicked_element).toBe('More information...');
@@ -284,6 +340,92 @@ describe('BrowserTools', () => {
       await expect(
         browserTools.actionClick({ page_id: 'non-existent', node_id: 'n1' })
       ).rejects.toThrow('Page not found: non-existent');
+    });
+
+    it('should click element using CDP backendNodeId instead of Playwright locator', async () => {
+      // Mock a snapshot with backend_node_id (the new field we're adding)
+      const mockSnapshotWithBackendId: BaseSnapshot = {
+        snapshot_id: 'snap-456',
+        url: 'https://example.com',
+        title: 'Example Domain',
+        captured_at: new Date().toISOString(),
+        viewport: { width: 1280, height: 720 },
+        nodes: [
+          {
+            node_id: 'n1',
+            backend_node_id: 12345, // CDP backendNodeId - guaranteed unique
+            kind: 'button',
+            label: 'Yes',
+            where: { region: 'main' },
+            layout: { bbox: { x: 100, y: 200, w: 80, h: 40 } },
+            find: { primary: 'role=button[name="Yes"]' }, // This would match multiple elements!
+          },
+          {
+            node_id: 'n2',
+            backend_node_id: 12346, // Different backendNodeId - unique
+            kind: 'button',
+            label: 'Yes',
+            where: { region: 'dialog' },
+            layout: { bbox: { x: 300, y: 400, w: 80, h: 40 } },
+            find: { primary: 'role=button[name="Yes"]' }, // Same locator as n1!
+          },
+        ],
+        meta: { node_count: 2, interactive_count: 2 },
+      };
+
+      // Override compileSnapshot mock for this test
+      compileSnapshotMock.mockResolvedValueOnce(mockSnapshotWithBackendId);
+
+      // Setup CDP mock to handle the click sequence
+      mockCdp.send
+        .mockResolvedValueOnce(undefined) // DOM.scrollIntoViewIfNeeded
+        .mockResolvedValueOnce({
+          // DOM.getBoxModel - returns content quad coordinates
+          model: {
+            content: [100, 200, 180, 200, 180, 240, 100, 240], // x1,y1,x2,y2,x3,y3,x4,y4
+          },
+        })
+        .mockResolvedValueOnce(undefined) // Input.dispatchMouseEvent (mousePressed)
+        .mockResolvedValueOnce(undefined); // Input.dispatchMouseEvent (mouseReleased)
+
+      // Capture snapshot first
+      await browserTools.snapshotCapture({ page_id: 'page-123' });
+
+      // Click on first "Yes" button (n1)
+      const result = await browserTools.actionClick({
+        page_id: 'page-123',
+        node_id: 'n1',
+      });
+
+      // Verify CDP was used with the correct backendNodeId (not Playwright locator)
+      expect(mockCdp.send).toHaveBeenCalledWith('DOM.scrollIntoViewIfNeeded', {
+        backendNodeId: 12345,
+      });
+      expect(mockCdp.send).toHaveBeenCalledWith('DOM.getBoxModel', {
+        backendNodeId: 12345,
+      });
+      expect(mockCdp.send).toHaveBeenCalledWith(
+        'Input.dispatchMouseEvent',
+        expect.objectContaining({
+          type: 'mousePressed',
+          button: 'left',
+        })
+      );
+      expect(mockCdp.send).toHaveBeenCalledWith(
+        'Input.dispatchMouseEvent',
+        expect.objectContaining({
+          type: 'mouseReleased',
+          button: 'left',
+        })
+      );
+
+      // Verify Playwright locator was NOT used (since it would cause strict mode violation)
+      expect(mockPage.getByRole).not.toHaveBeenCalled();
+      expect(mockPage.locator).not.toHaveBeenCalled();
+
+      expect(result.success).toBe(true);
+      expect(result.node_id).toBe('n1');
+      expect(result.clicked_element).toBe('Yes');
     });
   });
 });

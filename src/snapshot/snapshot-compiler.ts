@@ -98,16 +98,25 @@ function mapRoleToKind(role: string | undefined): NodeKind | undefined {
     paragraph: 'paragraph',
     list: 'list',
     listitem: 'listitem',
+    tree: 'list',
+    treeitem: 'listitem',
     image: 'image',
     img: 'image',
     figure: 'image',
     table: 'table',
+    grid: 'table',
+    treegrid: 'table',
     // Structural
     form: 'form',
     dialog: 'dialog',
     alertdialog: 'dialog',
     navigation: 'navigation',
     region: 'section',
+    article: 'section',
+    main: 'section',
+    banner: 'section',
+    complementary: 'section',
+    contentinfo: 'section',
   };
 
   return kindMap[normalized];
@@ -162,11 +171,7 @@ export class SnapshotCompiler {
    * @param _pageId - Page identifier (for logging/tracking)
    * @returns Complete BaseSnapshot
    */
-  async compile(
-    cdp: CdpClient,
-    page: Page,
-    _pageId: string
-  ): Promise<BaseSnapshot> {
+  async compile(cdp: CdpClient, page: Page, _pageId: string): Promise<BaseSnapshot> {
     const startTime = Date.now();
     this.resetNodeCounter();
 
@@ -245,6 +250,17 @@ export class SnapshotCompiler {
       }
     }
 
+    // Build ID map for aria-labelledby resolution
+    const idMap = new Map<string, RawDomNode>();
+    if (domResult) {
+      for (const node of domResult.nodes.values()) {
+        const id = node.attributes?.id;
+        if (id) {
+          idMap.set(id, node);
+        }
+      }
+    }
+
     // Phase 4: Transform to ReadableNode[]
     const nodes: ReadableNode[] = [];
 
@@ -253,7 +269,8 @@ export class SnapshotCompiler {
         nodeData,
         domResult?.nodes ?? new Map<number, RawDomNode>(),
         axResult?.nodes ?? new Map<number, RawAxNode>(),
-        limitedNodes
+        limitedNodes,
+        idMap
       );
 
       // Filter by visibility (unless include_hidden)
@@ -265,7 +282,20 @@ export class SnapshotCompiler {
     // Phase 5: Build BaseSnapshot
     const duration = Date.now() - startTime;
     const interactiveCount = nodes.filter((n) =>
-      ['button', 'link', 'input', 'textarea', 'select', 'combobox', 'checkbox', 'radio', 'switch', 'slider', 'tab', 'menuitem'].includes(n.kind)
+      [
+        'button',
+        'link',
+        'input',
+        'textarea',
+        'select',
+        'combobox',
+        'checkbox',
+        'radio',
+        'switch',
+        'slider',
+        'tab',
+        'menuitem',
+      ].includes(n.kind)
     ).length;
 
     const meta: SnapshotMeta = {
@@ -318,7 +348,8 @@ export class SnapshotCompiler {
     nodeData: RawNodeData,
     domTree: Map<number, RawDomNode>,
     axTree: Map<number, RawAxNode>,
-    allNodes: RawNodeData[]
+    allNodes: RawNodeData[],
+    idMap: Map<string, RawDomNode>
   ): ReadableNode {
     const { domNode, axNode, layout, backendNodeId } = nodeData;
 
@@ -332,7 +363,7 @@ export class SnapshotCompiler {
     }
 
     // Resolve label
-    const labelResult = resolveLabel(domNode, axNode);
+    const labelResult = resolveLabel(domNode, axNode, idMap);
     const label = labelResult.label;
 
     // Resolve region
@@ -381,6 +412,7 @@ export class SnapshotCompiler {
     // Build the node
     const node: ReadableNode = {
       node_id: this.generateNodeId(),
+      backend_node_id: backendNodeId,
       kind,
       label,
       where,

@@ -43,6 +43,10 @@ export interface CdpMethodMap {
     params: Protocol.DOM.GetOuterHTMLRequest;
     result: Protocol.DOM.GetOuterHTMLResponse;
   };
+  'DOM.scrollIntoViewIfNeeded': {
+    params: Protocol.DOM.ScrollIntoViewIfNeededRequest;
+    result: void;
+  };
 
   // Page methods
   'Page.navigate': {

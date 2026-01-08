@@ -23,9 +23,7 @@
       "ignored": false,
       "role": { "type": "role", "value": "heading" },
       "name": { "type": "computedString", "value": "Main Content" },
-      "properties": [
-        { "name": "level", "value": { "type": "integer", "value": 1 } }
-      ],
+      "properties": [{ "name": "level", "value": { "type": "integer", "value": 1 } }],
       "childIds": [],
       "backendDOMNodeId": 8
     },
@@ -45,9 +43,7 @@
       "ignored": false,
       "role": { "type": "role", "value": "dialog" },
       "name": { "type": "computedString", "value": "Confirm Action" },
-      "properties": [
-        { "name": "modal", "value": { "type": "booleanOrUndefined", "value": true } }
-      ],
+      "properties": [{ "name": "modal", "value": { "type": "booleanOrUndefined", "value": true } }],
       "childIds": ["ax-6", "ax-7", "ax-8", "ax-9"],
       "backendDOMNodeId": 12
     },
@@ -56,9 +52,7 @@
       "ignored": false,
       "role": { "type": "role", "value": "heading" },
       "name": { "type": "computedString", "value": "Confirm Action" },
-      "properties": [
-        { "name": "level", "value": { "type": "integer", "value": 2 } }
-      ],
+      "properties": [{ "name": "level", "value": { "type": "integer", "value": 2 } }],
       "childIds": [],
       "backendDOMNodeId": 13
     },

@@ -86,8 +86,12 @@ export interface SnapshotMeta {
  * Captures essential information for both reading and interaction.
  */
 export interface ReadableNode {
-  /** Unique identifier within snapshot (e.g., "node-123") */
+  /** Unique identifier within snapshot (e.g., "n1", "n2") */
   node_id: string;
+
+  /** CDP backend node ID - stable within session, guaranteed unique per DOM element.
+   * Used for direct CDP interactions to avoid Playwright locator ambiguity. */
+  backend_node_id: number;
 
   /** Semantic classification */
   kind: NodeKind;

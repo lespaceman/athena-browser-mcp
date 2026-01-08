@@ -16,6 +16,7 @@ import {
   browserClose,
   snapshotCapture,
   actionClick,
+  getNodeDetails,
   BrowserLaunchInputSchema,
   BrowserLaunchOutputSchema,
   BrowserNavigateInputSchema,
@@ -26,6 +27,8 @@ import {
   SnapshotCaptureOutputSchema,
   ActionClickInputSchema,
   ActionClickOutputSchema,
+  GetNodeDetailsInputSchema,
+  GetNodeDetailsOutputSchema,
 } from './tools/index.js';
 
 // Singleton session manager (initialized lazily on first tool use)
@@ -121,6 +124,21 @@ function initializeServer(): BrowserAutomationServer {
       outputSchema: ActionClickOutputSchema.shape,
     },
     actionClick
+  );
+
+  // Register get_node_details tool
+  server.registerTool(
+    'get_node_details',
+    {
+      title: 'Get Node Details',
+      description:
+        'Get detailed information for specific node(s) from the current snapshot. ' +
+        'Returns full node info including layout, state, and attributes. ' +
+        'Use when you need more than the summary provided by navigate/launch.',
+      inputSchema: GetNodeDetailsInputSchema.shape,
+      outputSchema: GetNodeDetailsOutputSchema.shape,
+    },
+    (input) => Promise.resolve(getNodeDetails(input))
   );
 
   return server;

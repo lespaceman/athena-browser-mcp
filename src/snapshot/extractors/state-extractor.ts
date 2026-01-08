@@ -158,8 +158,10 @@ export function extractState(
   let invalid: boolean | undefined;
   if (axInvalid !== undefined) {
     // AX invalid can be 'true', 'false', 'grammar', 'spelling'
-    invalid = axInvalid === true || axInvalid === 'true' ||
-              (typeof axInvalid === 'string' && axInvalid !== 'false');
+    invalid =
+      axInvalid === true ||
+      axInvalid === 'true' ||
+      (typeof axInvalid === 'string' && axInvalid !== 'false');
   } else if (getAriaAttribute(attributes, 'aria-invalid') === 'true') {
     invalid = true;
   }
