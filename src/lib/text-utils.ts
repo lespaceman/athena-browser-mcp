@@ -101,6 +101,19 @@ export function escapeAttrSelectorValue(value: string): string {
 }
 
 /**
+ * Escape a name for use in Playwright-style role locators: role=button[name="..."]
+ * Only escapes quotes and backslashes - keeps control characters raw.
+ * Playwright's role engine matches against actual accessible names, not CSS.
+ *
+ * @param value - Raw accessible name
+ * @returns String safe for use in role=[name="value"] locators
+ */
+export function escapeRoleLocatorName(value: string): string {
+  if (!value) return '';
+  return value.replace(/["\\]/g, '\\$&');
+}
+
+/**
  * Escape a string for use in CSS selectors (CSS.escape() semantics).
  * Does NOT truncate or normalize - uses raw value.
  * Safe for ID selectors (#id), class selectors (.class), etc.

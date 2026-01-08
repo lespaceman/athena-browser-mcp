@@ -16,7 +16,12 @@
 
 import type { NodeLocators } from '../snapshot.types.js';
 import type { RawDomNode, RawAxNode } from './types.js';
-import { escapeAttrSelectorValue, cssEscape } from '../../lib/text-utils.js';
+import {
+  escapeAttrSelectorValue,
+  escapeRoleLocatorName,
+  cssEscape,
+  normalizeText,
+} from '../../lib/text-utils.js';
 
 /**
  * Test ID attributes to check (in priority order)
@@ -37,7 +42,8 @@ function attrSelector(attr: string, value: string): string {
 
 /**
  * Build a role-based locator using raw accessible name.
- * Uses escapeAttrSelectorValue for proper CSS string escaping without truncation.
+ * Uses escapeRoleLocatorName for Playwright-style role selectors
+ * (only escapes quotes/backslashes, keeps control chars raw).
  *
  * @param role - AX role
  * @param name - Raw accessible name (not normalized/truncated)
@@ -45,7 +51,7 @@ function attrSelector(attr: string, value: string): string {
  */
 function roleLocator(role: string, name?: string): string {
   if (name) {
-    return `role=${role}[name="${escapeAttrSelectorValue(name)}"]`;
+    return `role=${role}[name="${escapeRoleLocatorName(name)}"]`;
   }
   return `role=${role}`;
 }
@@ -124,9 +130,18 @@ export function buildLocators(
 
   // 2. Role + name locator - use RAW accessible name (not normalized label)
   if (role) {
-    // Prefer axNode.name (raw computed name from AX tree),
-    // fall back to aria-label attribute (also raw)
-    const rawName = axNode?.name ?? attributes['aria-label'];
+    // Prefer axNode.name if present and non-empty after trim
+    // For aria-label fallback, normalize whitespace to match typical AX behavior
+    let rawName: string | undefined;
+
+    if (axNode?.name?.trim()) {
+      // Use raw AX name as-is (preserves its original whitespace)
+      rawName = axNode.name;
+    } else if (attributes['aria-label']) {
+      // Fallback: normalize aria-label whitespace to match typical AX computed behavior
+      const normalized = normalizeText(attributes['aria-label']);
+      rawName = normalized || undefined;
+    }
 
     if (rawName) {
       const roleSelector = roleLocator(role, rawName);
