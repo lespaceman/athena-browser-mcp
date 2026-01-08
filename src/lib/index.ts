@@ -45,6 +45,8 @@ export {
   escapeXPathValue,
   tokenizeForMatching,
   fuzzyTokenMatch,
+  getTextContent,
+  type TextContentNode,
 } from './text-utils.js';
 
 // Selector building utilities

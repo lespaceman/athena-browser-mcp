@@ -44,6 +44,7 @@ import {
   type LayoutExtractionResult,
   type ExtractorContext,
 } from './extractors/index.js';
+import { getTextContent } from '../lib/text-utils.js';
 
 /**
  * Build DOM pre-order index by traversing the DOM tree.
@@ -105,30 +106,48 @@ function buildDomOrderIndex(domResult: DomExtractionResult): Map<number, number>
  *
  * @param domResult - DOM extraction result
  * @param axResult - AX extraction result for heading names
+ * @param idMap - Map of DOM ID to RawDomNode for aria-labelledby resolution
  * @returns Map of backendNodeId -> heading context string
  */
 function buildHeadingIndex(
   domResult: DomExtractionResult,
-  axResult: AxExtractionResult | undefined
+  axResult: AxExtractionResult | undefined,
+  idMap: Map<string, RawDomNode>
 ): Map<number, string> {
   const headingIndex = new Map<number, string>();
   const shadowHostSet = new Set(domResult.shadowRoots);
   let currentHeading: string | undefined;
 
-  // Helper to check if a node is a heading
+  // Helper to check if a node is a heading and resolve its name
   function isHeading(backendNodeId: number): { isHeading: boolean; name?: string } {
     const domNode = domResult.nodes.get(backendNodeId);
     const axNode = axResult?.nodes.get(backendNodeId);
 
     // Check AX role first
     if (axNode?.role === 'heading') {
-      return { isHeading: true, name: axNode.name };
+      // Priority: AX name -> resolveLabel -> DOM text content
+      let name = axNode.name;
+      if (!name && domNode) {
+        const labelResult = resolveLabel(domNode, axNode, idMap);
+        if (labelResult.source !== 'none') {
+          name = labelResult.label;
+        }
+      }
+      name ??= getTextContent(backendNodeId, domResult.nodes);
+      return { isHeading: true, name };
     }
 
     // Check DOM tag (H1-H6)
     if (domNode?.nodeName?.match(/^H[1-6]$/i)) {
-      // Try to get name from AX, fall back to label if available
-      const name = axNode?.name;
+      // Priority: AX name -> resolveLabel -> DOM text content
+      let name = axNode?.name;
+      if (!name) {
+        const labelResult = resolveLabel(domNode, axNode, idMap);
+        if (labelResult.source !== 'none') {
+          name = labelResult.label;
+        }
+      }
+      name ??= getTextContent(backendNodeId, domResult.nodes);
       return { isHeading: true, name };
     }
 
@@ -346,13 +365,24 @@ export class SnapshotCompiler {
       partial = true;
     }
 
+    // Build ID map for aria-labelledby resolution (needed by buildHeadingIndex)
+    const idMap = new Map<string, RawDomNode>();
+    if (domResult) {
+      for (const node of domResult.nodes.values()) {
+        const id = node.attributes?.id;
+        if (id) {
+          idMap.set(id, node);
+        }
+      }
+    }
+
     // Build DOM order index for deterministic ordering
     let domOrderIndex: Map<number, number> | undefined;
     let headingIndex: Map<number, string> | undefined;
 
     if (domResult) {
       domOrderIndex = buildDomOrderIndex(domResult);
-      headingIndex = buildHeadingIndex(domResult, axResult);
+      headingIndex = buildHeadingIndex(domResult, axResult, idMap);
       domOrderAvailable = true;
     } else {
       // Add warning about DOM order fallback
@@ -419,17 +449,6 @@ export class SnapshotCompiler {
     if (layoutResult) {
       for (const nodeData of limitedNodes) {
         nodeData.layout = layoutResult.layouts.get(nodeData.backendNodeId);
-      }
-    }
-
-    // Build ID map for aria-labelledby resolution
-    const idMap = new Map<string, RawDomNode>();
-    if (domResult) {
-      for (const node of domResult.nodes.values()) {
-        const id = node.attributes?.id;
-        if (id) {
-          idMap.set(id, node);
-        }
       }
     }
 

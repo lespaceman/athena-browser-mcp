@@ -1049,6 +1049,158 @@ describe('SnapshotCompiler', () => {
       expect(shadowBtn?.find?.shadow_path).toEqual(['20']); // Shadow host backendNodeId
     });
 
+    it('should use DOM text content when AX name is missing', async () => {
+      // H1 with text node child but no AX name
+      mockCdp.setResponse('DOM.getDocument', {
+        root: {
+          nodeId: 1,
+          backendNodeId: 1,
+          nodeType: 9,
+          nodeName: '#document',
+          children: [
+            {
+              nodeId: 2,
+              backendNodeId: 2,
+              nodeType: 1,
+              nodeName: 'HTML',
+              children: [
+                {
+                  nodeId: 3,
+                  backendNodeId: 3,
+                  nodeType: 1,
+                  nodeName: 'BODY',
+                  children: [
+                    {
+                      nodeId: 10,
+                      backendNodeId: 10,
+                      nodeType: 1,
+                      nodeName: 'H1',
+                      children: [
+                        {
+                          nodeId: 11,
+                          backendNodeId: 11,
+                          nodeType: 3, // TEXT_NODE
+                          nodeName: '#text',
+                          nodeValue: 'DOM Heading Text',
+                        },
+                      ],
+                    },
+                    {
+                      nodeId: 20,
+                      backendNodeId: 20,
+                      nodeType: 1,
+                      nodeName: 'BUTTON',
+                      children: [],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      // AX tree has heading but NO name
+      mockCdp.setResponse('Accessibility.getFullAXTree', {
+        nodes: [
+          {
+            nodeId: 'ax-10',
+            backendDOMNodeId: 10,
+            role: { value: 'heading' },
+            // name intentionally omitted
+            ignored: false,
+            properties: [{ name: 'level', value: { value: 1 } }],
+          },
+          {
+            nodeId: 'ax-20',
+            backendDOMNodeId: 20,
+            role: { value: 'button' },
+            name: { value: 'Click Me' },
+            ignored: false,
+          },
+        ],
+      });
+
+      const compiler = new SnapshotCompiler({ includeReadable: false });
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      // Button should have heading context from DOM text
+      const buttonNode = snapshot.nodes.find((n) => n.kind === 'button');
+      expect(buttonNode).toBeDefined();
+      expect(buttonNode?.where.heading_context).toBe('DOM Heading Text');
+    });
+
+    it('should use aria-label when AX name is missing', async () => {
+      mockCdp.setResponse('DOM.getDocument', {
+        root: {
+          nodeId: 1,
+          backendNodeId: 1,
+          nodeType: 9,
+          nodeName: '#document',
+          children: [
+            {
+              nodeId: 2,
+              backendNodeId: 2,
+              nodeType: 1,
+              nodeName: 'HTML',
+              children: [
+                {
+                  nodeId: 3,
+                  backendNodeId: 3,
+                  nodeType: 1,
+                  nodeName: 'BODY',
+                  children: [
+                    {
+                      nodeId: 10,
+                      backendNodeId: 10,
+                      nodeType: 1,
+                      nodeName: 'H1',
+                      attributes: ['aria-label', 'Aria Heading Label'],
+                      children: [], // No text children
+                    },
+                    {
+                      nodeId: 20,
+                      backendNodeId: 20,
+                      nodeType: 1,
+                      nodeName: 'BUTTON',
+                      children: [],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      // AX tree omits heading name
+      mockCdp.setResponse('Accessibility.getFullAXTree', {
+        nodes: [
+          {
+            nodeId: 'ax-10',
+            backendDOMNodeId: 10,
+            role: { value: 'heading' },
+            // name intentionally omitted
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-20',
+            backendDOMNodeId: 20,
+            role: { value: 'button' },
+            name: { value: 'Submit' },
+            ignored: false,
+          },
+        ],
+      });
+
+      const compiler = new SnapshotCompiler({ includeReadable: false });
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      const buttonNode = snapshot.nodes.find((n) => n.kind === 'button');
+      expect(buttonNode).toBeDefined();
+      expect(buttonNode?.where.heading_context).toBe('Aria Heading Label');
+    });
+
     it('should propagate heading context through shadow DOM', async () => {
       mockCdp.setResponse('DOM.getDocument', {
         root: {

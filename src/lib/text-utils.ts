@@ -188,3 +188,65 @@ export function fuzzyTokenMatch(text: string, query: string, minMatchTokens = 2)
 
   return matchCount >= Math.min(minMatchTokens, queryTokens.length);
 }
+
+/**
+ * Minimal DOM node interface for text content extraction.
+ * Compatible with RawDomNode from extractors.
+ */
+export interface TextContentNode {
+  /** Node type (3 = TEXT_NODE) */
+  nodeType: number;
+  /** Text content for text nodes */
+  nodeValue?: string;
+  /** Child node IDs (backendNodeIds) */
+  childNodeIds?: number[];
+}
+
+/** DOM node type constant for text nodes */
+const TEXT_NODE_TYPE = 3;
+
+/**
+ * Extract text content from a DOM node by concatenating text-node children.
+ * Uses depth-limited traversal to avoid performance issues.
+ *
+ * @param nodeId - Backend node ID of the element
+ * @param domNodes - Map of backendNodeId -> node with nodeType, nodeValue, childNodeIds
+ * @param maxDepth - Maximum depth to traverse (default: 2)
+ * @returns Normalized text content or undefined if none found
+ */
+export function getTextContent(
+  nodeId: number,
+  domNodes: Map<number, TextContentNode>,
+  maxDepth = 2
+): string | undefined {
+  const parts: string[] = [];
+
+  function traverse(currentNodeId: number, depth: number): void {
+    if (depth > maxDepth) return;
+
+    const node = domNodes.get(currentNodeId);
+    if (!node) return;
+
+    // Collect text from text nodes
+    if (node.nodeType === TEXT_NODE_TYPE && node.nodeValue) {
+      const trimmed = node.nodeValue.trim();
+      if (trimmed) {
+        parts.push(trimmed);
+      }
+    }
+
+    // Traverse children
+    if (node.childNodeIds) {
+      for (const childId of node.childNodeIds) {
+        traverse(childId, depth + 1);
+      }
+    }
+  }
+
+  traverse(nodeId, 0);
+
+  if (parts.length === 0) return undefined;
+
+  const result = normalizeText(parts.join(' '));
+  return result || undefined;
+}
