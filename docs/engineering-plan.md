@@ -75,6 +75,11 @@
 
 ### 3.5 Action (`action.execute`, `action.setState`)
 - Consume handles from any source (DOM or promoted visual/pointer).
+- **Click Implementation**: Use CDP's `backendNodeId` directly instead of Playwright locators to avoid strict mode violations when multiple elements match the same selector:
+  1. `DOM.scrollIntoViewIfNeeded({ backendNodeId })` - Ensure element is visible
+  2. `DOM.getBoxModel({ backendNodeId })` - Get element coordinates
+  3. `Input.dispatchMouseEvent` - Click at element center
+- This approach guarantees unique element targeting since `backendNodeId` is unique per DOM element within a CDP session.
 - Run verification before/after action to detect stale handles; if stale, attempt refresh (Region Resolver + selector builder) before failing.
 - For text inputs, use `aria-query` + AX metadata to decide between typing, selection, or slider drag.
 
