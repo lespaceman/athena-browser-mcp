@@ -1,0 +1,128 @@
+{
+  "snapshot_id": "test-001",
+  "url": "https://example.com",
+  "title": "Test Page",
+  "captured_at": "2024-01-01T00:00:00Z",
+  "viewport": { "width": 1280, "height": 720 },
+  "nodes": [
+    {
+      "node_id": "n1",
+      "kind": "heading",
+      "label": "Welcome to Example",
+      "where": { "region": "main" },
+      "layout": { "bbox": { "x": 100, "y": 50, "w": 400, "h": 40 } },
+      "attributes": { "heading_level": 1 }
+    },
+    {
+      "node_id": "n2",
+      "kind": "button",
+      "label": "Sign In",
+      "where": { "region": "header" },
+      "layout": { "bbox": { "x": 1100, "y": 20, "w": 80, "h": 36 } },
+      "state": { "visible": true, "enabled": true }
+    },
+    {
+      "node_id": "n3",
+      "kind": "button",
+      "label": "Sign Up",
+      "where": { "region": "header" },
+      "layout": { "bbox": { "x": 1000, "y": 20, "w": 80, "h": 36 } },
+      "state": { "visible": true, "enabled": true }
+    },
+    {
+      "node_id": "n4",
+      "kind": "input",
+      "label": "Email",
+      "where": { "region": "main", "group_id": "login-form", "heading_context": "Sign In" },
+      "layout": { "bbox": { "x": 100, "y": 120, "w": 300, "h": 40 } },
+      "state": { "visible": true, "enabled": true, "required": true },
+      "attributes": { "input_type": "email", "placeholder": "Enter your email" }
+    },
+    {
+      "node_id": "n5",
+      "kind": "input",
+      "label": "Password",
+      "where": { "region": "main", "group_id": "login-form", "heading_context": "Sign In" },
+      "layout": { "bbox": { "x": 100, "y": 180, "w": 300, "h": 40 } },
+      "state": { "visible": true, "enabled": true, "required": true },
+      "attributes": { "input_type": "password", "placeholder": "Enter your password" }
+    },
+    {
+      "node_id": "n6",
+      "kind": "checkbox",
+      "label": "Remember me",
+      "where": { "region": "main", "group_id": "login-form" },
+      "layout": { "bbox": { "x": 100, "y": 240, "w": 120, "h": 20 } },
+      "state": { "visible": true, "enabled": true, "checked": false }
+    },
+    {
+      "node_id": "n7",
+      "kind": "button",
+      "label": "Submit",
+      "where": { "region": "main", "group_id": "login-form" },
+      "layout": { "bbox": { "x": 100, "y": 280, "w": 100, "h": 40 } },
+      "state": { "visible": true, "enabled": true }
+    },
+    {
+      "node_id": "n8",
+      "kind": "link",
+      "label": "Forgot Password?",
+      "where": { "region": "main", "group_id": "login-form" },
+      "layout": { "bbox": { "x": 220, "y": 285, "w": 120, "h": 30 } },
+      "state": { "visible": true, "enabled": true },
+      "attributes": { "href": "/forgot-password" }
+    },
+    {
+      "node_id": "n9",
+      "kind": "link",
+      "label": "Home",
+      "where": { "region": "nav" },
+      "layout": { "bbox": { "x": 50, "y": 20, "w": 50, "h": 30 } },
+      "state": { "visible": true, "enabled": true },
+      "attributes": { "href": "/" }
+    },
+    {
+      "node_id": "n10",
+      "kind": "link",
+      "label": "About",
+      "where": { "region": "nav" },
+      "layout": { "bbox": { "x": 120, "y": 20, "w": 50, "h": 30 } },
+      "state": { "visible": true, "enabled": true },
+      "attributes": { "href": "/about" }
+    },
+    {
+      "node_id": "n11",
+      "kind": "link",
+      "label": "Contact",
+      "where": { "region": "nav" },
+      "layout": { "bbox": { "x": 190, "y": 20, "w": 60, "h": 30 } },
+      "state": { "visible": true, "enabled": true },
+      "attributes": { "href": "/contact" }
+    },
+    {
+      "node_id": "n12",
+      "kind": "paragraph",
+      "label": "Copyright 2024 Example Inc.",
+      "where": { "region": "footer" },
+      "layout": { "bbox": { "x": 100, "y": 680, "w": 200, "h": 20 } }
+    },
+    {
+      "node_id": "n13",
+      "kind": "button",
+      "label": "Disabled Button",
+      "where": { "region": "main" },
+      "layout": { "bbox": { "x": 450, "y": 280, "w": 120, "h": 40 } },
+      "state": { "visible": true, "enabled": false }
+    },
+    {
+      "node_id": "n14",
+      "kind": "input",
+      "label": "Search",
+      "where": { "region": "header", "group_id": "search-form" },
+      "layout": { "bbox": { "x": 500, "y": 20, "w": 200, "h": 36 } },
+      "state": { "visible": true, "enabled": true },
+      "attributes": { "input_type": "search", "placeholder": "Search..." }
+    }
+  ],
+  "meta": { "node_count": 14, "interactive_count": 12 }
+}
