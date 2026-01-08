@@ -46,6 +46,145 @@ import {
 } from './extractors/index.js';
 
 /**
+ * Build DOM pre-order index by traversing the DOM tree.
+ * Also traverses into shadow roots and iframe content documents.
+ *
+ * @param domResult - DOM extraction result with nodes and rootId
+ * @returns Map of backendNodeId -> DOM order index
+ */
+function buildDomOrderIndex(domResult: DomExtractionResult): Map<number, number> {
+  const orderIndex = new Map<number, number>();
+  const shadowHostSet = new Set(domResult.shadowRoots);
+  let index = 0;
+
+  function traverse(nodeId: number): void {
+    const node = domResult.nodes.get(nodeId);
+    if (!node) return;
+
+    orderIndex.set(nodeId, index++);
+
+    // 1. Process light DOM children first (pre-order DFS)
+    if (node.childNodeIds) {
+      for (const childId of node.childNodeIds) {
+        traverse(childId);
+      }
+    }
+
+    // 2. If this node hosts a shadow root, traverse shadow content
+    // Shadow roots have parentId = this node's backendNodeId and nodeName = '#document-fragment'
+    if (shadowHostSet.has(nodeId)) {
+      for (const [candidateId, candidateNode] of domResult.nodes) {
+        if (
+          candidateNode.parentId === nodeId &&
+          candidateNode.nodeName === '#document-fragment'
+        ) {
+          traverse(candidateId);
+        }
+      }
+    }
+
+    // 3. If this node is an iframe (has frameId or is IFRAME tag), traverse content document
+    // Content documents have parentId = this node's backendNodeId and nodeName = '#document'
+    if (node.frameId || node.nodeName.toUpperCase() === 'IFRAME') {
+      for (const [candidateId, candidateNode] of domResult.nodes) {
+        if (candidateNode.parentId === nodeId && candidateNode.nodeName === '#document') {
+          traverse(candidateId);
+        }
+      }
+    }
+  }
+
+  traverse(domResult.rootId);
+  return orderIndex;
+}
+
+/**
+ * Build heading index mapping each backendNodeId to its heading context.
+ * Uses DOM order to determine the most recent preceding heading.
+ * Also traverses into shadow roots and iframe content documents.
+ *
+ * @param domResult - DOM extraction result
+ * @param axResult - AX extraction result for heading names
+ * @returns Map of backendNodeId -> heading context string
+ */
+function buildHeadingIndex(
+  domResult: DomExtractionResult,
+  axResult: AxExtractionResult | undefined
+): Map<number, string> {
+  const headingIndex = new Map<number, string>();
+  const shadowHostSet = new Set(domResult.shadowRoots);
+  let currentHeading: string | undefined;
+
+  // Helper to check if a node is a heading
+  function isHeading(backendNodeId: number): { isHeading: boolean; name?: string } {
+    const domNode = domResult.nodes.get(backendNodeId);
+    const axNode = axResult?.nodes.get(backendNodeId);
+
+    // Check AX role first
+    if (axNode?.role === 'heading') {
+      return { isHeading: true, name: axNode.name };
+    }
+
+    // Check DOM tag (H1-H6)
+    if (domNode?.nodeName?.match(/^H[1-6]$/i)) {
+      // Try to get name from AX, fall back to label if available
+      const name = axNode?.name;
+      return { isHeading: true, name };
+    }
+
+    return { isHeading: false };
+  }
+
+  // Traverse DOM in pre-order (same pattern as buildDomOrderIndex)
+  function traverse(nodeId: number): void {
+    const node = domResult.nodes.get(nodeId);
+    if (!node) return;
+
+    // Check if this node is a heading
+    const headingInfo = isHeading(nodeId);
+    if (headingInfo.isHeading && headingInfo.name) {
+      currentHeading = headingInfo.name;
+    }
+
+    // Record the current heading context for this node
+    if (currentHeading) {
+      headingIndex.set(nodeId, currentHeading);
+    }
+
+    // 1. Process light DOM children first (pre-order DFS)
+    if (node.childNodeIds) {
+      for (const childId of node.childNodeIds) {
+        traverse(childId);
+      }
+    }
+
+    // 2. If this node hosts a shadow root, traverse shadow content
+    if (shadowHostSet.has(nodeId)) {
+      for (const [candidateId, candidateNode] of domResult.nodes) {
+        if (
+          candidateNode.parentId === nodeId &&
+          candidateNode.nodeName === '#document-fragment'
+        ) {
+          traverse(candidateId);
+        }
+      }
+    }
+
+    // 3. If this node is an iframe, traverse content document
+    if (node.frameId || node.nodeName.toUpperCase() === 'IFRAME') {
+      for (const [candidateId, candidateNode] of domResult.nodes) {
+        if (candidateNode.parentId === nodeId && candidateNode.nodeName === '#document') {
+          traverse(candidateId);
+        }
+      }
+    }
+  }
+
+  traverse(domResult.rootId);
+  return headingIndex;
+}
+
+/**
  * Snapshot compiler options
  */
 export interface CompileOptions extends Partial<SnapshotOptions> {
@@ -184,10 +323,16 @@ export class SnapshotCompiler {
     // Phase 1: Parallel extraction of DOM and AX trees
     let domResult: DomExtractionResult | undefined;
     let axResult: AxExtractionResult | undefined;
+    let domOrderAvailable = false;
 
     try {
       [domResult, axResult] = await Promise.all([
-        extractDom(ctx),
+        extractDom(ctx).catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
+          warnings.push(`DOM extraction failed: ${message}`);
+          partial = true;
+          return undefined;
+        }),
         extractAx(ctx).catch((err: unknown) => {
           const message = err instanceof Error ? err.message : String(err);
           warnings.push(`AX extraction failed: ${message}`);
@@ -197,8 +342,21 @@ export class SnapshotCompiler {
       ]);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      warnings.push(`DOM extraction failed: ${message}`);
+      warnings.push(`Extraction failed: ${message}`);
       partial = true;
+    }
+
+    // Build DOM order index for deterministic ordering
+    let domOrderIndex: Map<number, number> | undefined;
+    let headingIndex: Map<number, string> | undefined;
+
+    if (domResult) {
+      domOrderIndex = buildDomOrderIndex(domResult);
+      headingIndex = buildHeadingIndex(domResult, axResult);
+      domOrderAvailable = true;
+    } else {
+      // Add warning about DOM order fallback
+      warnings.push('DOM order unavailable; using AX order');
     }
 
     // Phase 2: Correlate nodes and identify what to include
@@ -233,7 +391,21 @@ export class SnapshotCompiler {
       }
     }
 
-    // Limit nodes
+    // Sort by DOM order if available (before max_nodes slicing)
+    if (domOrderAvailable && domOrderIndex) {
+      const orderMap = domOrderIndex; // Capture for closure to avoid reassignment issues
+      nodesToProcess.sort((a, b) => {
+        const orderA = orderMap.get(a.backendNodeId);
+        const orderB = orderMap.get(b.backendNodeId);
+        // If missing from DOM order index (detached/cross-origin), place after ordered nodes
+        if (orderA === undefined && orderB === undefined) return 0;
+        if (orderA === undefined) return 1;
+        if (orderB === undefined) return -1;
+        return orderA - orderB;
+      });
+    }
+
+    // Limit nodes (now respects DOM order)
     const limitedNodes = nodesToProcess.slice(0, this.options.max_nodes);
 
     // Phase 3: Layout extraction (batched)
@@ -270,7 +442,8 @@ export class SnapshotCompiler {
         domResult?.nodes ?? new Map<number, RawDomNode>(),
         axResult?.nodes ?? new Map<number, RawAxNode>(),
         limitedNodes,
-        idMap
+        idMap,
+        headingIndex
       );
 
       // Filter by visibility (unless include_hidden)
@@ -349,7 +522,8 @@ export class SnapshotCompiler {
     domTree: Map<number, RawDomNode>,
     axTree: Map<number, RawAxNode>,
     allNodes: RawNodeData[],
-    idMap: Map<string, RawDomNode>
+    idMap: Map<string, RawDomNode>,
+    headingIndex?: Map<number, string>
   ): ReadableNode {
     const { domNode, axNode, layout, backendNodeId } = nodeData;
 
@@ -369,15 +543,19 @@ export class SnapshotCompiler {
     // Resolve region
     const region = resolveRegion(domNode, axNode, domTree);
 
-    // Resolve grouping
+    // Resolve grouping (for group_id and group_path only)
     const grouping = resolveGrouping(backendNodeId, domTree, axTree, allNodes);
+
+    // Get heading context from pre-computed heading index (DOM order-based)
+    // Fall back to grouping's heading_context if headingIndex not available
+    const headingContext = headingIndex?.get(backendNodeId) ?? grouping.heading_context;
 
     // Build location
     const where: NodeLocation = {
       region,
       group_id: grouping.group_id,
       group_path: grouping.group_path,
-      heading_context: grouping.heading_context,
+      heading_context: headingContext,
     };
 
     // Build layout

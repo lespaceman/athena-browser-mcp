@@ -60,6 +60,16 @@ function parseAttributes(attributes?: string[]): Record<string, string> | undefi
 }
 
 /**
+ * Context for tracking frame and shadow boundaries during traversal.
+ */
+interface TraversalContext {
+  /** backendNodeIds of iframe ancestors (outermost first) */
+  framePath: number[];
+  /** backendNodeIds of shadow host ancestors (outermost first) */
+  shadowPath: number[];
+}
+
+/**
  * Recursively traverse DOM tree and extract nodes.
  *
  * @param cdpNode - CDP DOM node
@@ -67,13 +77,15 @@ function parseAttributes(attributes?: string[]): Record<string, string> | undefi
  * @param nodes - Map to accumulate extracted nodes
  * @param frameIds - Set to accumulate discovered frame IDs
  * @param shadowRoots - Array to accumulate shadow root host backendNodeIds
+ * @param ctx - Traversal context tracking frame and shadow paths
  */
 function traverseNode(
   cdpNode: CdpDomNode,
   parentId: number | undefined,
   nodes: Map<number, RawDomNode>,
   frameIds: Set<string>,
-  shadowRoots: number[]
+  shadowRoots: number[],
+  ctx: TraversalContext
 ): void {
   const backendNodeId = cdpNode.backendNodeId;
 
@@ -101,7 +113,7 @@ function traverseNode(
     }
   }
 
-  // Create the raw DOM node
+  // Create the raw DOM node with frame/shadow path information
   const rawNode: RawDomNode = {
     nodeId: cdpNode.nodeId,
     backendNodeId,
@@ -113,27 +125,38 @@ function traverseNode(
     frameId,
     parentId,
     nodeValue: cdpNode.nodeValue,
+    // Include frame/shadow paths if non-empty
+    framePath: ctx.framePath.length > 0 ? [...ctx.framePath] : undefined,
+    shadowPath: ctx.shadowPath.length > 0 ? [...ctx.shadowPath] : undefined,
   };
 
   nodes.set(backendNodeId, rawNode);
 
-  // Recursively process children
+  // Recursively process children (same context)
   if (cdpNode.children) {
     for (const child of cdpNode.children) {
-      traverseNode(child, backendNodeId, nodes, frameIds, shadowRoots);
+      traverseNode(child, backendNodeId, nodes, frameIds, shadowRoots, ctx);
     }
   }
 
-  // Process shadow roots (open shadow DOM)
+  // Process shadow roots (add this host to shadow path)
   if (cdpNode.shadowRoots) {
+    const shadowCtx: TraversalContext = {
+      framePath: ctx.framePath,
+      shadowPath: [...ctx.shadowPath, backendNodeId],
+    };
     for (const shadowRoot of cdpNode.shadowRoots) {
-      traverseNode(shadowRoot, backendNodeId, nodes, frameIds, shadowRoots);
+      traverseNode(shadowRoot, backendNodeId, nodes, frameIds, shadowRoots, shadowCtx);
     }
   }
 
-  // Process content document (iframes)
+  // Process content document (add this iframe to frame path, reset shadow path)
   if (cdpNode.contentDocument) {
-    traverseNode(cdpNode.contentDocument, backendNodeId, nodes, frameIds, shadowRoots);
+    const frameCtx: TraversalContext = {
+      framePath: [...ctx.framePath, backendNodeId],
+      shadowPath: [], // Reset shadow path when entering new frame
+    };
+    traverseNode(cdpNode.contentDocument, backendNodeId, nodes, frameIds, shadowRoots, frameCtx);
   }
 }
 
@@ -156,8 +179,14 @@ export async function extractDom(ctx: ExtractorContext): Promise<DomExtractionRe
   const frameIds = new Set<string>();
   const shadowRoots: number[] = [];
 
+  // Initial traversal context (empty paths for root document)
+  const initialCtx: TraversalContext = {
+    framePath: [],
+    shadowPath: [],
+  };
+
   // Traverse the tree starting from root
-  traverseNode(response.root, undefined, nodes, frameIds, shadowRoots);
+  traverseNode(response.root, undefined, nodes, frameIds, shadowRoots, initialCtx);
 
   return {
     nodes,

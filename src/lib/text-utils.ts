@@ -48,10 +48,98 @@ export function truncate(value: string, max = 120): string {
 }
 
 /**
- * Escape string for CSS attribute selector
+ * Escape string for CSS attribute selector (for display labels).
+ * Normalizes and truncates the value.
  */
 export function escapeAttributeValue(value: string, maxLength = 120): string {
   return truncate(normalizeText(value), maxLength).replace(/["\\]/g, '\\$&');
+}
+
+/**
+ * Escape a value for use inside CSS attribute selector quotes.
+ * Only escapes quotes and backslashes - does NOT truncate or normalize.
+ * Use for exact-match selectors like [attr="value"].
+ *
+ * @param value - Raw attribute value
+ * @returns String safe for use in [attr="value"] selectors
+ */
+export function escapeAttrSelectorValue(value: string): string {
+  return value.replace(/["\\]/g, '\\$&');
+}
+
+/**
+ * Escape a string for use in CSS selectors (CSS.escape() semantics).
+ * Does NOT truncate or normalize - uses raw value.
+ * Safe for ID selectors (#id), class selectors (.class), etc.
+ *
+ * Follows CSS.escape() specification:
+ * https://drafts.csswg.org/cssom/#the-css.escape()-method
+ *
+ * @param value - Raw string to escape
+ * @returns CSS-escaped string safe for use in selectors
+ */
+export function cssEscape(value: string): string {
+  if (!value) return '';
+
+  const result: string[] = [];
+  const length = value.length;
+
+  for (let i = 0; i < length; i++) {
+    const char = value.charAt(i);
+    const codeUnit = value.charCodeAt(i);
+
+    // Null character -> U+FFFD replacement character
+    if (codeUnit === 0) {
+      result.push('\uFFFD');
+      continue;
+    }
+
+    // Control characters (U+0001 to U+001F, U+007F) -> unicode escape
+    if ((codeUnit >= 0x0001 && codeUnit <= 0x001f) || codeUnit === 0x007f) {
+      result.push('\\' + codeUnit.toString(16) + ' ');
+      continue;
+    }
+
+    // First character special rules
+    if (i === 0) {
+      // Digit as first character -> unicode escape
+      if (codeUnit >= 0x0030 && codeUnit <= 0x0039) {
+        result.push('\\' + codeUnit.toString(16) + ' ');
+        continue;
+      }
+      // Single hyphen -> escape
+      if (char === '-' && length === 1) {
+        result.push('\\-');
+        continue;
+      }
+      // Hyphen followed by digit -> escape the hyphen
+      if (char === '-' && length > 1) {
+        const nextCodeUnit = value.charCodeAt(1);
+        if (nextCodeUnit >= 0x0030 && nextCodeUnit <= 0x0039) {
+          result.push('\\-');
+          continue;
+        }
+      }
+    }
+
+    // Safe characters: letters, digits (not first), hyphen, underscore, non-ASCII
+    if (
+      codeUnit >= 0x0080 || // Non-ASCII
+      char === '-' ||
+      char === '_' ||
+      (codeUnit >= 0x0030 && codeUnit <= 0x0039) || // 0-9
+      (codeUnit >= 0x0041 && codeUnit <= 0x005a) || // A-Z
+      (codeUnit >= 0x0061 && codeUnit <= 0x007a) // a-z
+    ) {
+      result.push(char);
+      continue;
+    }
+
+    // Everything else gets escaped with backslash
+    result.push('\\' + char);
+  }
+
+  return result.join('');
 }
 
 /**

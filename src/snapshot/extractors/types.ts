@@ -53,6 +53,18 @@ export interface RawDomNode {
 
   /** Text content for text nodes */
   nodeValue?: string;
+
+  /**
+   * Frame path - backendNodeIds of iframe ancestors (outermost first).
+   * Used to scope selectors to the correct frame context.
+   */
+  framePath?: number[];
+
+  /**
+   * Shadow path - backendNodeIds of shadow host ancestors (outermost first).
+   * Used to pierce shadow boundaries when finding elements.
+   */
+  shadowPath?: number[];
 }
 
 /**

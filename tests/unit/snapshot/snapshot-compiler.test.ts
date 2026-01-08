@@ -362,4 +362,905 @@ describe('SnapshotCompiler', () => {
       // Snapshot should still be usable
     });
   });
+
+  describe('DOM ordering', () => {
+    it('should order nodes by DOM pre-order traversal', async () => {
+      // Setup DOM with specific structure:
+      // #document -> HTML -> BODY -> [H1, BUTTON, LINK, INPUT]
+      // Expected DOM order: H1 (8), BUTTON (11), LINK (6), INPUT (10)
+      // But our setup has: NAV > A (6), MAIN > H1 (8) > FORM > INPUT (10), BUTTON (11)
+      // So DOM pre-order should be: A (6), H1 (8), INPUT (10), BUTTON (11)
+      mockCdp.setResponse('DOM.getDocument', {
+        root: {
+          nodeId: 1,
+          backendNodeId: 1,
+          nodeType: 9,
+          nodeName: '#document',
+          children: [
+            {
+              nodeId: 2,
+              backendNodeId: 2,
+              nodeType: 1,
+              nodeName: 'HTML',
+              children: [
+                {
+                  nodeId: 3,
+                  backendNodeId: 3,
+                  nodeType: 1,
+                  nodeName: 'BODY',
+                  children: [
+                    {
+                      nodeId: 10,
+                      backendNodeId: 10,
+                      nodeType: 1,
+                      nodeName: 'H1',
+                      children: [],
+                    },
+                    {
+                      nodeId: 20,
+                      backendNodeId: 20,
+                      nodeType: 1,
+                      nodeName: 'BUTTON',
+                      attributes: ['data-testid', 'first-btn'],
+                      children: [],
+                    },
+                    {
+                      nodeId: 30,
+                      backendNodeId: 30,
+                      nodeType: 1,
+                      nodeName: 'A',
+                      attributes: ['href', '/link'],
+                      children: [],
+                    },
+                    {
+                      nodeId: 40,
+                      backendNodeId: 40,
+                      nodeType: 1,
+                      nodeName: 'INPUT',
+                      attributes: ['type', 'text'],
+                      children: [],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      // AX tree returns nodes in different order than DOM
+      mockCdp.setResponse('Accessibility.getFullAXTree', {
+        nodes: [
+          {
+            nodeId: 'ax-40',
+            backendDOMNodeId: 40,
+            role: { value: 'textbox' },
+            name: { value: 'Input' },
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-10',
+            backendDOMNodeId: 10,
+            role: { value: 'heading' },
+            name: { value: 'Title' },
+            ignored: false,
+            properties: [{ name: 'level', value: { value: 1 } }],
+          },
+          {
+            nodeId: 'ax-30',
+            backendDOMNodeId: 30,
+            role: { value: 'link' },
+            name: { value: 'My Link' },
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-20',
+            backendDOMNodeId: 20,
+            role: { value: 'button' },
+            name: { value: 'Click Me' },
+            ignored: false,
+          },
+        ],
+      });
+
+      const compiler = new SnapshotCompiler({ includeReadable: true });
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      // Nodes should be in DOM pre-order: H1 (10), BUTTON (20), A (30), INPUT (40)
+      expect(snapshot.nodes.length).toBe(4);
+      expect(snapshot.nodes[0].backend_node_id).toBe(10); // H1 first
+      expect(snapshot.nodes[1].backend_node_id).toBe(20); // BUTTON second
+      expect(snapshot.nodes[2].backend_node_id).toBe(30); // A third
+      expect(snapshot.nodes[3].backend_node_id).toBe(40); // INPUT fourth
+    });
+
+    it('should respect max_nodes with DOM order - first N nodes are first N in DOM order', async () => {
+      // Create 5 elements in specific DOM order
+      mockCdp.setResponse('DOM.getDocument', {
+        root: {
+          nodeId: 1,
+          backendNodeId: 1,
+          nodeType: 9,
+          nodeName: '#document',
+          children: [
+            {
+              nodeId: 2,
+              backendNodeId: 2,
+              nodeType: 1,
+              nodeName: 'HTML',
+              children: [
+                {
+                  nodeId: 3,
+                  backendNodeId: 3,
+                  nodeType: 1,
+                  nodeName: 'BODY',
+                  children: [
+                    {
+                      nodeId: 10,
+                      backendNodeId: 10,
+                      nodeType: 1,
+                      nodeName: 'BUTTON',
+                      attributes: ['data-testid', 'btn-1'],
+                      children: [],
+                    },
+                    {
+                      nodeId: 20,
+                      backendNodeId: 20,
+                      nodeType: 1,
+                      nodeName: 'BUTTON',
+                      attributes: ['data-testid', 'btn-2'],
+                      children: [],
+                    },
+                    {
+                      nodeId: 30,
+                      backendNodeId: 30,
+                      nodeType: 1,
+                      nodeName: 'BUTTON',
+                      attributes: ['data-testid', 'btn-3'],
+                      children: [],
+                    },
+                    {
+                      nodeId: 40,
+                      backendNodeId: 40,
+                      nodeType: 1,
+                      nodeName: 'BUTTON',
+                      attributes: ['data-testid', 'btn-4'],
+                      children: [],
+                    },
+                    {
+                      nodeId: 50,
+                      backendNodeId: 50,
+                      nodeType: 1,
+                      nodeName: 'BUTTON',
+                      attributes: ['data-testid', 'btn-5'],
+                      children: [],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      // AX tree returns in reverse order
+      mockCdp.setResponse('Accessibility.getFullAXTree', {
+        nodes: [
+          {
+            nodeId: 'ax-50',
+            backendDOMNodeId: 50,
+            role: { value: 'button' },
+            name: { value: 'Button 5' },
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-40',
+            backendDOMNodeId: 40,
+            role: { value: 'button' },
+            name: { value: 'Button 4' },
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-30',
+            backendDOMNodeId: 30,
+            role: { value: 'button' },
+            name: { value: 'Button 3' },
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-20',
+            backendDOMNodeId: 20,
+            role: { value: 'button' },
+            name: { value: 'Button 2' },
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-10',
+            backendDOMNodeId: 10,
+            role: { value: 'button' },
+            name: { value: 'Button 1' },
+            ignored: false,
+          },
+        ],
+      });
+
+      const compiler = new SnapshotCompiler({ max_nodes: 3 });
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      // Should get first 3 in DOM order, not AX order
+      expect(snapshot.nodes.length).toBe(3);
+      expect(snapshot.nodes[0].backend_node_id).toBe(10); // btn-1
+      expect(snapshot.nodes[1].backend_node_id).toBe(20); // btn-2
+      expect(snapshot.nodes[2].backend_node_id).toBe(30); // btn-3
+    });
+
+    it('should add warning when DOM extraction fails and fall back to AX order', async () => {
+      mockCdp.setError('DOM.getDocument', new Error('DOM extraction failed'));
+
+      // AX-only mode should still work
+      mockCdp.setResponse('Accessibility.getFullAXTree', {
+        nodes: [
+          {
+            nodeId: 'ax-30',
+            backendDOMNodeId: 30,
+            role: { value: 'button' },
+            name: { value: 'Button 1' },
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-10',
+            backendDOMNodeId: 10,
+            role: { value: 'link' },
+            name: { value: 'Link 1' },
+            ignored: false,
+          },
+        ],
+      });
+
+      const compiler = new SnapshotCompiler();
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      expect(snapshot.meta.warnings).toBeDefined();
+      expect(snapshot.meta.warnings).toContainEqual(
+        expect.stringMatching(/DOM.*order.*unavailable|DOM.*extraction.*failed/i)
+      );
+      // Should maintain stable AX order as fallback
+      expect(snapshot.nodes.length).toBe(2);
+    });
+  });
+
+  describe('heading context', () => {
+    it('should provide heading context even when includeReadable is false', async () => {
+      // Setup: H2 -> BUTTON
+      mockCdp.setResponse('DOM.getDocument', {
+        root: {
+          nodeId: 1,
+          backendNodeId: 1,
+          nodeType: 9,
+          nodeName: '#document',
+          children: [
+            {
+              nodeId: 2,
+              backendNodeId: 2,
+              nodeType: 1,
+              nodeName: 'HTML',
+              children: [
+                {
+                  nodeId: 3,
+                  backendNodeId: 3,
+                  nodeType: 1,
+                  nodeName: 'BODY',
+                  children: [
+                    {
+                      nodeId: 10,
+                      backendNodeId: 10,
+                      nodeType: 1,
+                      nodeName: 'SECTION',
+                      children: [
+                        {
+                          nodeId: 20,
+                          backendNodeId: 20,
+                          nodeType: 1,
+                          nodeName: 'H2',
+                          children: [],
+                        },
+                        {
+                          nodeId: 30,
+                          backendNodeId: 30,
+                          nodeType: 1,
+                          nodeName: 'P',
+                          children: [],
+                        },
+                        {
+                          nodeId: 40,
+                          backendNodeId: 40,
+                          nodeType: 1,
+                          nodeName: 'BUTTON',
+                          children: [],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      mockCdp.setResponse('Accessibility.getFullAXTree', {
+        nodes: [
+          {
+            nodeId: 'ax-20',
+            backendDOMNodeId: 20,
+            role: { value: 'heading' },
+            name: { value: 'Section Heading' },
+            ignored: false,
+            properties: [{ name: 'level', value: { value: 2 } }],
+          },
+          {
+            nodeId: 'ax-40',
+            backendDOMNodeId: 40,
+            role: { value: 'button' },
+            name: { value: 'Submit' },
+            ignored: false,
+          },
+        ],
+      });
+
+      // includeReadable: false means headings won't be in final nodes
+      const compiler = new SnapshotCompiler({ includeReadable: false });
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      // Button should still have heading context from the H2
+      const buttonNode = snapshot.nodes.find((n) => n.kind === 'button');
+      expect(buttonNode).toBeDefined();
+      expect(buttonNode?.where.heading_context).toBe('Section Heading');
+    });
+
+    it('should assign heading context from DOM order, not limited nodes', async () => {
+      // Create many nodes but only include first few due to max_nodes
+      // Heading is at position 1000 in DOM but should still affect earlier interactive elements
+      mockCdp.setResponse('DOM.getDocument', {
+        root: {
+          nodeId: 1,
+          backendNodeId: 1,
+          nodeType: 9,
+          nodeName: '#document',
+          children: [
+            {
+              nodeId: 2,
+              backendNodeId: 2,
+              nodeType: 1,
+              nodeName: 'HTML',
+              children: [
+                {
+                  nodeId: 3,
+                  backendNodeId: 3,
+                  nodeType: 1,
+                  nodeName: 'BODY',
+                  children: [
+                    {
+                      nodeId: 10,
+                      backendNodeId: 10,
+                      nodeType: 1,
+                      nodeName: 'H1',
+                      children: [],
+                    },
+                    {
+                      nodeId: 20,
+                      backendNodeId: 20,
+                      nodeType: 1,
+                      nodeName: 'BUTTON',
+                      children: [],
+                    },
+                    {
+                      nodeId: 30,
+                      backendNodeId: 30,
+                      nodeType: 1,
+                      nodeName: 'H2',
+                      children: [],
+                    },
+                    {
+                      nodeId: 40,
+                      backendNodeId: 40,
+                      nodeType: 1,
+                      nodeName: 'INPUT',
+                      attributes: ['type', 'text'],
+                      children: [],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      mockCdp.setResponse('Accessibility.getFullAXTree', {
+        nodes: [
+          {
+            nodeId: 'ax-10',
+            backendDOMNodeId: 10,
+            role: { value: 'heading' },
+            name: { value: 'Main Title' },
+            ignored: false,
+            properties: [{ name: 'level', value: { value: 1 } }],
+          },
+          {
+            nodeId: 'ax-20',
+            backendDOMNodeId: 20,
+            role: { value: 'button' },
+            name: { value: 'Action' },
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-30',
+            backendDOMNodeId: 30,
+            role: { value: 'heading' },
+            name: { value: 'Sub Section' },
+            ignored: false,
+            properties: [{ name: 'level', value: { value: 2 } }],
+          },
+          {
+            nodeId: 'ax-40',
+            backendDOMNodeId: 40,
+            role: { value: 'textbox' },
+            name: { value: 'Search' },
+            ignored: false,
+          },
+        ],
+      });
+
+      // Only include interactive elements but get heading context
+      const compiler = new SnapshotCompiler({ includeReadable: false });
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      // Button (20) follows H1 (10), should have "Main Title" as context
+      const buttonNode = snapshot.nodes.find((n) => n.backend_node_id === 20);
+      expect(buttonNode?.where.heading_context).toBe('Main Title');
+
+      // Input (40) follows H2 (30), should have "Sub Section" as context
+      const inputNode = snapshot.nodes.find((n) => n.backend_node_id === 40);
+      expect(inputNode?.where.heading_context).toBe('Sub Section');
+    });
+
+    it('should build heading index from full DOM order including headings not in limitedNodes', async () => {
+      // Scenario: max_nodes=2, but H1 is at position 3
+      // The H1 should still provide context for the INPUT at position 4
+      mockCdp.setResponse('DOM.getDocument', {
+        root: {
+          nodeId: 1,
+          backendNodeId: 1,
+          nodeType: 9,
+          nodeName: '#document',
+          children: [
+            {
+              nodeId: 2,
+              backendNodeId: 2,
+              nodeType: 1,
+              nodeName: 'HTML',
+              children: [
+                {
+                  nodeId: 3,
+                  backendNodeId: 3,
+                  nodeType: 1,
+                  nodeName: 'BODY',
+                  children: [
+                    {
+                      nodeId: 10,
+                      backendNodeId: 10,
+                      nodeType: 1,
+                      nodeName: 'BUTTON',
+                      children: [],
+                    },
+                    {
+                      nodeId: 15,
+                      backendNodeId: 15,
+                      nodeType: 1,
+                      nodeName: 'A',
+                      attributes: ['href', '/link'],
+                      children: [],
+                    },
+                    {
+                      nodeId: 20,
+                      backendNodeId: 20,
+                      nodeType: 1,
+                      nodeName: 'H1',
+                      children: [],
+                    },
+                    {
+                      nodeId: 30,
+                      backendNodeId: 30,
+                      nodeType: 1,
+                      nodeName: 'INPUT',
+                      attributes: ['type', 'text'],
+                      children: [],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      mockCdp.setResponse('Accessibility.getFullAXTree', {
+        nodes: [
+          {
+            nodeId: 'ax-10',
+            backendDOMNodeId: 10,
+            role: { value: 'button' },
+            name: { value: 'Click' },
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-15',
+            backendDOMNodeId: 15,
+            role: { value: 'link' },
+            name: { value: 'Link' },
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-20',
+            backendDOMNodeId: 20,
+            role: { value: 'heading' },
+            name: { value: 'Important Section' },
+            ignored: false,
+            properties: [{ name: 'level', value: { value: 1 } }],
+          },
+          {
+            nodeId: 'ax-30',
+            backendDOMNodeId: 30,
+            role: { value: 'textbox' },
+            name: { value: 'Input' },
+            ignored: false,
+          },
+        ],
+      });
+
+      // max_nodes=3 with includeReadable=true would give: BUTTON, A, H1
+      // But INPUT should still get heading context from H1
+      const compiler = new SnapshotCompiler({ max_nodes: 3, includeReadable: true });
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      // With max_nodes=3, we get BUTTON, A, H1 (DOM order)
+      expect(snapshot.nodes.length).toBe(3);
+
+      // Now test with max_nodes=4 - INPUT should have "Important Section" heading context
+      const compiler2 = new SnapshotCompiler({ max_nodes: 4, includeReadable: true });
+      const snapshot2 = await compiler2.compile(mockCdp, mockPage, 'page-1');
+
+      const inputNode = snapshot2.nodes.find((n) => n.backend_node_id === 30);
+      expect(inputNode).toBeDefined();
+      expect(inputNode?.where.heading_context).toBe('Important Section');
+    });
+  });
+
+  describe('Shadow DOM and iframe ordering', () => {
+    it('should include shadow DOM children in DOM order traversal', async () => {
+      mockCdp.setResponse('DOM.getDocument', {
+        root: {
+          nodeId: 1,
+          backendNodeId: 1,
+          nodeType: 9,
+          nodeName: '#document',
+          children: [
+            {
+              nodeId: 2,
+              backendNodeId: 2,
+              nodeType: 1,
+              nodeName: 'HTML',
+              children: [
+                {
+                  nodeId: 3,
+                  backendNodeId: 3,
+                  nodeType: 1,
+                  nodeName: 'BODY',
+                  children: [
+                    {
+                      nodeId: 10,
+                      backendNodeId: 10,
+                      nodeType: 1,
+                      nodeName: 'BUTTON',
+                      attributes: ['data-testid', 'light-btn'],
+                      children: [],
+                    },
+                    {
+                      // Shadow host
+                      nodeId: 20,
+                      backendNodeId: 20,
+                      nodeType: 1,
+                      nodeName: 'MY-COMPONENT',
+                      children: [],
+                      shadowRoots: [
+                        {
+                          nodeId: 21,
+                          backendNodeId: 21,
+                          nodeType: 11, // DOCUMENT_FRAGMENT_NODE
+                          nodeName: '#document-fragment',
+                          shadowRootType: 'open',
+                          children: [
+                            {
+                              nodeId: 22,
+                              backendNodeId: 22,
+                              nodeType: 1,
+                              nodeName: 'BUTTON',
+                              attributes: ['data-testid', 'shadow-btn'],
+                              children: [],
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                    {
+                      nodeId: 30,
+                      backendNodeId: 30,
+                      nodeType: 1,
+                      nodeName: 'INPUT',
+                      attributes: ['type', 'text'],
+                      children: [],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      mockCdp.setResponse('Accessibility.getFullAXTree', {
+        nodes: [
+          {
+            nodeId: 'ax-10',
+            backendDOMNodeId: 10,
+            role: { value: 'button' },
+            name: { value: 'Light Button' },
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-22',
+            backendDOMNodeId: 22,
+            role: { value: 'button' },
+            name: { value: 'Shadow Button' },
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-30',
+            backendDOMNodeId: 30,
+            role: { value: 'textbox' },
+            name: { value: 'Input Field' },
+            ignored: false,
+          },
+        ],
+      });
+
+      const compiler = new SnapshotCompiler();
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      // DOM order should be: light button (10), shadow button (22), input (30)
+      expect(snapshot.nodes.length).toBe(3);
+      expect(snapshot.nodes[0].backend_node_id).toBe(10);
+      expect(snapshot.nodes[1].backend_node_id).toBe(22);
+      expect(snapshot.nodes[2].backend_node_id).toBe(30);
+
+      // Shadow button should have shadow_path populated
+      const shadowBtn = snapshot.nodes.find((n) => n.backend_node_id === 22);
+      expect(shadowBtn?.find?.shadow_path).toEqual(['20']); // Shadow host backendNodeId
+    });
+
+    it('should propagate heading context through shadow DOM', async () => {
+      mockCdp.setResponse('DOM.getDocument', {
+        root: {
+          nodeId: 1,
+          backendNodeId: 1,
+          nodeType: 9,
+          nodeName: '#document',
+          children: [
+            {
+              nodeId: 2,
+              backendNodeId: 2,
+              nodeType: 1,
+              nodeName: 'HTML',
+              children: [
+                {
+                  nodeId: 3,
+                  backendNodeId: 3,
+                  nodeType: 1,
+                  nodeName: 'BODY',
+                  children: [
+                    {
+                      nodeId: 10,
+                      backendNodeId: 10,
+                      nodeType: 1,
+                      nodeName: 'H1',
+                      children: [],
+                    },
+                    {
+                      // Shadow host after heading
+                      nodeId: 20,
+                      backendNodeId: 20,
+                      nodeType: 1,
+                      nodeName: 'MY-COMPONENT',
+                      children: [],
+                      shadowRoots: [
+                        {
+                          nodeId: 21,
+                          backendNodeId: 21,
+                          nodeType: 11,
+                          nodeName: '#document-fragment',
+                          shadowRootType: 'open',
+                          children: [
+                            {
+                              nodeId: 22,
+                              backendNodeId: 22,
+                              nodeType: 1,
+                              nodeName: 'BUTTON',
+                              children: [],
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      mockCdp.setResponse('Accessibility.getFullAXTree', {
+        nodes: [
+          {
+            nodeId: 'ax-10',
+            backendDOMNodeId: 10,
+            role: { value: 'heading' },
+            name: { value: 'Main Title' },
+            ignored: false,
+            properties: [{ name: 'level', value: { value: 1 } }],
+          },
+          {
+            nodeId: 'ax-22',
+            backendDOMNodeId: 22,
+            role: { value: 'button' },
+            name: { value: 'Shadow Button' },
+            ignored: false,
+          },
+        ],
+      });
+
+      const compiler = new SnapshotCompiler({ includeReadable: false });
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      // Shadow button should have heading context from the H1 before the shadow host
+      const shadowBtn = snapshot.nodes.find((n) => n.kind === 'button');
+      expect(shadowBtn?.where.heading_context).toBe('Main Title');
+    });
+
+    it('should include iframe content in DOM order traversal', async () => {
+      mockCdp.setResponse('DOM.getDocument', {
+        root: {
+          nodeId: 1,
+          backendNodeId: 1,
+          nodeType: 9,
+          nodeName: '#document',
+          children: [
+            {
+              nodeId: 2,
+              backendNodeId: 2,
+              nodeType: 1,
+              nodeName: 'HTML',
+              children: [
+                {
+                  nodeId: 3,
+                  backendNodeId: 3,
+                  nodeType: 1,
+                  nodeName: 'BODY',
+                  children: [
+                    {
+                      nodeId: 10,
+                      backendNodeId: 10,
+                      nodeType: 1,
+                      nodeName: 'BUTTON',
+                      attributes: ['data-testid', 'main-btn'],
+                      children: [],
+                    },
+                    {
+                      // iframe
+                      nodeId: 20,
+                      backendNodeId: 20,
+                      nodeType: 1,
+                      nodeName: 'IFRAME',
+                      frameId: 'frame-1',
+                      children: [],
+                      contentDocument: {
+                        nodeId: 30,
+                        backendNodeId: 30,
+                        nodeType: 9,
+                        nodeName: '#document',
+                        children: [
+                          {
+                            nodeId: 31,
+                            backendNodeId: 31,
+                            nodeType: 1,
+                            nodeName: 'HTML',
+                            children: [
+                              {
+                                nodeId: 32,
+                                backendNodeId: 32,
+                                nodeType: 1,
+                                nodeName: 'BODY',
+                                children: [
+                                  {
+                                    nodeId: 33,
+                                    backendNodeId: 33,
+                                    nodeType: 1,
+                                    nodeName: 'BUTTON',
+                                    attributes: ['data-testid', 'iframe-btn'],
+                                    children: [],
+                                  },
+                                ],
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    },
+                    {
+                      nodeId: 40,
+                      backendNodeId: 40,
+                      nodeType: 1,
+                      nodeName: 'INPUT',
+                      attributes: ['type', 'text'],
+                      children: [],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      mockCdp.setResponse('Accessibility.getFullAXTree', {
+        nodes: [
+          {
+            nodeId: 'ax-10',
+            backendDOMNodeId: 10,
+            role: { value: 'button' },
+            name: { value: 'Main Button' },
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-33',
+            backendDOMNodeId: 33,
+            role: { value: 'button' },
+            name: { value: 'Iframe Button' },
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-40',
+            backendDOMNodeId: 40,
+            role: { value: 'textbox' },
+            name: { value: 'Input Field' },
+            ignored: false,
+          },
+        ],
+      });
+
+      const compiler = new SnapshotCompiler();
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      // DOM order should be: main button (10), iframe button (33), input (40)
+      expect(snapshot.nodes.length).toBe(3);
+      expect(snapshot.nodes[0].backend_node_id).toBe(10);
+      expect(snapshot.nodes[1].backend_node_id).toBe(33);
+      expect(snapshot.nodes[2].backend_node_id).toBe(40);
+
+      // Iframe button should have frame_path populated
+      const iframeBtn = snapshot.nodes.find((n) => n.backend_node_id === 33);
+      expect(iframeBtn?.find?.frame_path).toEqual(['20']); // Iframe backendNodeId
+    });
+  });
 });

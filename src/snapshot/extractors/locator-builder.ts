@@ -16,7 +16,11 @@
 
 import type { NodeLocators } from '../snapshot.types.js';
 import type { RawDomNode, RawAxNode } from './types.js';
-import { escapeAttributeValue } from '../../lib/text-utils.js';
+import {
+  escapeAttributeValue,
+  escapeAttrSelectorValue,
+  cssEscape,
+} from '../../lib/text-utils.js';
 
 /**
  * Test ID attributes to check (in priority order)
@@ -24,14 +28,15 @@ import { escapeAttributeValue } from '../../lib/text-utils.js';
 const TEST_ID_ATTRS = ['data-testid', 'data-test', 'data-cy', 'data-test-id'];
 
 /**
- * Build a CSS attribute selector.
+ * Build a CSS attribute selector for exact match.
+ * Uses raw value with only quote escaping (no truncation/normalization).
  *
  * @param attr - Attribute name
- * @param value - Attribute value
+ * @param value - Attribute value (raw)
  * @returns CSS attribute selector string
  */
 function attrSelector(attr: string, value: string): string {
-  return `[${attr}="${escapeAttributeValue(value)}"]`;
+  return `[${attr}="${escapeAttrSelectorValue(value)}"]`;
 }
 
 /**
@@ -131,10 +136,10 @@ export function buildLocators(
     }
   }
 
-  // 3. CSS ID selector
+  // 3. CSS ID selector (use cssEscape for proper escaping of special chars)
   const id = attributes.id;
   if (id) {
-    const idSelector = `#${escapeAttributeValue(id)}`;
+    const idSelector = `#${cssEscape(id)}`;
     if (!primary) {
       primary = idSelector;
     } else {
@@ -164,10 +169,10 @@ export function buildLocators(
     }
   }
 
-  // 6. Class-based selector
+  // 6. Class-based selector (use cssEscape for proper escaping of special chars)
   const className = getFirstMeaningfulClass(attributes.class);
   if (className && nodeName) {
-    const classSelector = `${nodeName}.${className}`;
+    const classSelector = `${nodeName}.${cssEscape(className)}`;
     if (!primary) {
       primary = classSelector;
     } else if (!alternates.includes(classSelector)) {
@@ -190,6 +195,15 @@ export function buildLocators(
 
   if (uniqueAlternates.length > 0) {
     result.alternates = uniqueAlternates;
+  }
+
+  // Include frame/shadow paths if present (for cross-boundary element targeting)
+  if (domNode?.framePath && domNode.framePath.length > 0) {
+    result.frame_path = domNode.framePath.map(String);
+  }
+
+  if (domNode?.shadowPath && domNode.shadowPath.length > 0) {
+    result.shadow_path = domNode.shadowPath.map(String);
   }
 
   return result;

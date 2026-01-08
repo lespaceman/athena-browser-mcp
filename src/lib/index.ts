@@ -40,6 +40,8 @@ export {
   sanitizeAccessibleHint,
   truncate,
   escapeAttributeValue,
+  escapeAttrSelectorValue,
+  cssEscape,
   escapeXPathValue,
   tokenizeForMatching,
   fuzzyTokenMatch,
