@@ -14,6 +14,8 @@ export {
   snapshotCapture,
   actionClick,
   getNodeDetails,
+  findElements,
+  getFactPack,
 } from './browser-tools.js';
 
 // Schemas
@@ -52,4 +54,19 @@ export {
   type GetNodeDetailsInput,
   type GetNodeDetailsOutput,
   type NodeDetails,
+  // find_elements
+  FindElementsInputSchema,
+  FindElementsOutputSchema,
+  type FindElementsInput,
+  type FindElementsOutput,
+  // get_factpack
+  GetFactPackInputSchema,
+  GetFactPackOutputSchema,
+  type GetFactPackInput,
+  type GetFactPackOutput,
+  // FactPack schemas
+  FactPackOptionsSchema,
+  FactPackSchema,
+  type FactPackOptions,
+  type FactPackOutput,
 } from './tool-schemas.js';

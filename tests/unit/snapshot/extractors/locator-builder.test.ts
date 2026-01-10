@@ -305,5 +305,244 @@ describe('Locator Builder', () => {
         expect(result.alternates.every((alt) => alt.length > 0)).toBe(true);
       }
     });
+
+    describe('raw accessible name handling for role locators', () => {
+      it('should use raw axNode.name for role locator (not normalized label)', () => {
+        const domNode: RawDomNode = {
+          nodeId: 1,
+          backendNodeId: 100,
+          nodeName: 'BUTTON',
+          nodeType: 1,
+        };
+
+        const axNode: RawAxNode = {
+          nodeId: 'ax-1',
+          backendDOMNodeId: 100,
+          role: 'button',
+          name: '  Submit  Form  ', // Raw name with extra whitespace
+        };
+
+        // Label is normalized version
+        const result = buildLocators(domNode, axNode, 'Submit Form');
+
+        // Role locator should use raw name from axNode.name, preserving whitespace
+        expect(result.primary).toBe('role=button[name="  Submit  Form  "]');
+      });
+
+      it('should skip overlong accessible names in role locators', () => {
+        const longName = 'A'.repeat(201);
+        const domNode: RawDomNode = {
+          nodeId: 1,
+          backendNodeId: 100,
+          nodeName: 'BUTTON',
+          nodeType: 1,
+        };
+
+        const axNode: RawAxNode = {
+          nodeId: 'ax-1',
+          backendDOMNodeId: 100,
+          role: 'button',
+          name: longName,
+        };
+
+        const result = buildLocators(domNode, axNode, 'normalized');
+
+        // Overlong names should fall back to bare role locator
+        expect(result.primary).toBe('role=button');
+      });
+
+      it('should skip oversized test-id values and fall back to role', () => {
+        const longTestId = 'x'.repeat(201);
+        const domNode: RawDomNode = {
+          nodeId: 1,
+          backendNodeId: 100,
+          nodeName: 'BUTTON',
+          nodeType: 1,
+          attributes: { 'data-testid': longTestId },
+        };
+
+        const axNode: RawAxNode = {
+          nodeId: 'ax-1',
+          backendDOMNodeId: 100,
+          role: 'button',
+          name: 'Click Me',
+        };
+
+        const result = buildLocators(domNode, axNode, 'Click Me');
+
+        expect(result.primary).toBe('role=button[name="Click Me"]');
+      });
+
+      it('should fall back to aria-label when axNode.name is missing', () => {
+        const domNode: RawDomNode = {
+          nodeId: 1,
+          backendNodeId: 100,
+          nodeName: 'BUTTON',
+          nodeType: 1,
+          attributes: { 'aria-label': 'Close Dialog' },
+        };
+
+        const axNode: RawAxNode = {
+          nodeId: 'ax-1',
+          backendDOMNodeId: 100,
+          role: 'button',
+          // No name property
+        };
+
+        const result = buildLocators(domNode, axNode, 'Close Dialog');
+
+        expect(result.primary).toBe('role=button[name="Close Dialog"]');
+      });
+
+      it('should emit bare role locator when no name available', () => {
+        const domNode: RawDomNode = {
+          nodeId: 1,
+          backendNodeId: 100,
+          nodeName: 'BUTTON',
+          nodeType: 1,
+        };
+
+        const axNode: RawAxNode = {
+          nodeId: 'ax-1',
+          backendDOMNodeId: 100,
+          role: 'button',
+          // No name
+        };
+
+        const result = buildLocators(domNode, axNode, '');
+
+        expect(result.primary).toBe('role=button');
+      });
+
+      it('should fall back to aria-label when axNode.name is empty string', () => {
+        const domNode: RawDomNode = {
+          nodeId: 1,
+          backendNodeId: 100,
+          nodeName: 'BUTTON',
+          nodeType: 1,
+          attributes: { 'aria-label': 'Close Dialog' },
+        };
+
+        const axNode: RawAxNode = {
+          nodeId: 'ax-1',
+          backendDOMNodeId: 100,
+          role: 'button',
+          name: '', // Empty string should trigger fallback
+        };
+
+        const result = buildLocators(domNode, axNode, 'Close Dialog');
+
+        // Should fall back to aria-label, not emit bare role
+        expect(result.primary).toBe('role=button[name="Close Dialog"]');
+      });
+
+      it('should fall back to aria-label when axNode.name is whitespace only', () => {
+        const domNode: RawDomNode = {
+          nodeId: 1,
+          backendNodeId: 100,
+          nodeName: 'BUTTON',
+          nodeType: 1,
+          attributes: { 'aria-label': 'Close Dialog' },
+        };
+
+        const axNode: RawAxNode = {
+          nodeId: 'ax-1',
+          backendDOMNodeId: 100,
+          role: 'button',
+          name: '   ', // Whitespace only should trigger fallback
+        };
+
+        const result = buildLocators(domNode, axNode, 'Close Dialog');
+
+        // Should fall back to aria-label
+        expect(result.primary).toBe('role=button[name="Close Dialog"]');
+      });
+
+      it('should normalize whitespace in aria-label fallback', () => {
+        const domNode: RawDomNode = {
+          nodeId: 1,
+          backendNodeId: 100,
+          nodeName: 'BUTTON',
+          nodeType: 1,
+          attributes: { 'aria-label': '  Close   Dialog  ' },
+        };
+
+        const axNode: RawAxNode = {
+          nodeId: 'ax-1',
+          backendDOMNodeId: 100,
+          role: 'button',
+          // No name - will use aria-label fallback
+        };
+
+        const result = buildLocators(domNode, axNode, 'Close Dialog');
+
+        // aria-label should have whitespace normalized
+        expect(result.primary).toBe('role=button[name="Close Dialog"]');
+      });
+
+      it('should fall back to bare role locator when name has control characters', () => {
+        const domNode: RawDomNode = {
+          nodeId: 1,
+          backendNodeId: 100,
+          nodeName: 'BUTTON',
+          nodeType: 1,
+        };
+
+        const axNode: RawAxNode = {
+          nodeId: 'ax-1',
+          backendDOMNodeId: 100,
+          role: 'button',
+          name: 'Line1\nLine2', // Name with newline
+        };
+
+        const result = buildLocators(domNode, axNode, 'Line1 Line2');
+
+        // Control chars should not be embedded in role locator strings
+        expect(result.primary).toBe('role=button');
+      });
+
+      it('should escape quotes and backslashes in role locator names', () => {
+        const domNode: RawDomNode = {
+          nodeId: 1,
+          backendNodeId: 100,
+          nodeName: 'BUTTON',
+          nodeType: 1,
+        };
+
+        const axNode: RawAxNode = {
+          nodeId: 'ax-1',
+          backendDOMNodeId: 100,
+          role: 'button',
+          name: 'Click "here" \\ now',
+        };
+
+        const result = buildLocators(domNode, axNode, 'Click here now');
+
+        // Quotes and backslashes must be escaped to not break selector syntax
+        expect(result.primary).toBe('role=button[name="Click \\"here\\" \\\\ now"]');
+      });
+
+      it('should prefer axNode.name over domNode aria-label', () => {
+        const domNode: RawDomNode = {
+          nodeId: 1,
+          backendNodeId: 100,
+          nodeName: 'BUTTON',
+          nodeType: 1,
+          attributes: { 'aria-label': 'DOM Label' },
+        };
+
+        const axNode: RawAxNode = {
+          nodeId: 'ax-1',
+          backendDOMNodeId: 100,
+          role: 'button',
+          name: 'AX Computed Name',
+        };
+
+        const result = buildLocators(domNode, axNode, 'AX Computed Name');
+
+        // Should use axNode.name, not aria-label
+        expect(result.primary).toBe('role=button[name="AX Computed Name"]');
+      });
+    });
   });
 });

@@ -291,6 +291,17 @@ describe('SnapshotCompiler', () => {
       expect(uniqueIds.size).toBe(nodeIds.length);
     });
 
+    it('should derive node_id from backend_node_id for stability across snapshots', async () => {
+      const compiler = new SnapshotCompiler();
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      // Each node's node_id should be the string representation of its backend_node_id
+      // This ensures the same DOM element gets the same ID across snapshots
+      for (const node of snapshot.nodes) {
+        expect(node.node_id).toBe(String(node.backend_node_id));
+      }
+    });
+
     it('should handle include_hidden option', async () => {
       const compiler = new SnapshotCompiler();
 
@@ -312,6 +323,174 @@ describe('SnapshotCompiler', () => {
       expect(snapshot.captured_at).toBeDefined();
       expect(snapshot.captured_at >= beforeCompile).toBe(true);
       expect(snapshot.captured_at <= afterCompile).toBe(true);
+    });
+
+    it('should include form nodes for form detection', async () => {
+      // Setup: page with form element
+      mockCdp.setResponse('DOM.getDocument', {
+        root: {
+          nodeId: 1,
+          backendNodeId: 1,
+          nodeType: 9,
+          nodeName: '#document',
+          children: [
+            {
+              nodeId: 2,
+              backendNodeId: 2,
+              nodeType: 1,
+              nodeName: 'HTML',
+              children: [
+                {
+                  nodeId: 3,
+                  backendNodeId: 3,
+                  nodeType: 1,
+                  nodeName: 'BODY',
+                  children: [
+                    {
+                      nodeId: 10,
+                      backendNodeId: 10,
+                      nodeType: 1,
+                      nodeName: 'FORM',
+                      attributes: ['id', 'login-form'],
+                      children: [
+                        {
+                          nodeId: 11,
+                          backendNodeId: 11,
+                          nodeType: 1,
+                          nodeName: 'INPUT',
+                          attributes: ['type', 'text', 'name', 'username'],
+                          children: [],
+                        },
+                        {
+                          nodeId: 12,
+                          backendNodeId: 12,
+                          nodeType: 1,
+                          nodeName: 'BUTTON',
+                          attributes: ['type', 'submit'],
+                          children: [],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      mockCdp.setResponse('Accessibility.getFullAXTree', {
+        nodes: [
+          {
+            nodeId: 'ax-10',
+            backendDOMNodeId: 10,
+            role: { value: 'form' },
+            name: { value: 'Login Form' },
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-11',
+            backendDOMNodeId: 11,
+            role: { value: 'textbox' },
+            name: { value: 'Username' },
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-12',
+            backendDOMNodeId: 12,
+            role: { value: 'button' },
+            name: { value: 'Submit' },
+            ignored: false,
+          },
+        ],
+      });
+
+      const compiler = new SnapshotCompiler();
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      // Should include form node (essential structural node for form detection)
+      const formNodes = snapshot.nodes.filter((n) => n.kind === 'form');
+      expect(formNodes.length).toBe(1);
+      expect(formNodes[0].label).toBe('Login Form');
+
+      // Should also include interactive nodes
+      const inputNodes = snapshot.nodes.filter((n) => n.kind === 'input');
+      expect(inputNodes.length).toBe(1);
+      const buttonNodes = snapshot.nodes.filter((n) => n.kind === 'button');
+      expect(buttonNodes.length).toBe(1);
+    });
+
+    it('should include dialog nodes for dialog detection', async () => {
+      // Setup: page with dialog element
+      mockCdp.setResponse('DOM.getDocument', {
+        root: {
+          nodeId: 1,
+          backendNodeId: 1,
+          nodeType: 9,
+          nodeName: '#document',
+          children: [
+            {
+              nodeId: 2,
+              backendNodeId: 2,
+              nodeType: 1,
+              nodeName: 'HTML',
+              children: [
+                {
+                  nodeId: 3,
+                  backendNodeId: 3,
+                  nodeType: 1,
+                  nodeName: 'BODY',
+                  children: [
+                    {
+                      nodeId: 10,
+                      backendNodeId: 10,
+                      nodeType: 1,
+                      nodeName: 'DIALOG',
+                      attributes: ['open', ''],
+                      children: [
+                        {
+                          nodeId: 11,
+                          backendNodeId: 11,
+                          nodeType: 1,
+                          nodeName: 'BUTTON',
+                          children: [],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      mockCdp.setResponse('Accessibility.getFullAXTree', {
+        nodes: [
+          {
+            nodeId: 'ax-10',
+            backendDOMNodeId: 10,
+            role: { value: 'dialog' },
+            name: { value: 'Confirm Action' },
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-11',
+            backendDOMNodeId: 11,
+            role: { value: 'button' },
+            name: { value: 'OK' },
+            ignored: false,
+          },
+        ],
+      });
+
+      const compiler = new SnapshotCompiler();
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      // Should include dialog node (essential structural node for dialog detection)
+      const dialogNodes = snapshot.nodes.filter((n) => n.kind === 'dialog');
+      expect(dialogNodes.length).toBe(1);
+      expect(dialogNodes[0].label).toBe('Confirm Action');
     });
   });
 
@@ -1049,6 +1228,158 @@ describe('SnapshotCompiler', () => {
       expect(shadowBtn?.find?.shadow_path).toEqual(['20']); // Shadow host backendNodeId
     });
 
+    it('should use DOM text content when AX name is missing', async () => {
+      // H1 with text node child but no AX name
+      mockCdp.setResponse('DOM.getDocument', {
+        root: {
+          nodeId: 1,
+          backendNodeId: 1,
+          nodeType: 9,
+          nodeName: '#document',
+          children: [
+            {
+              nodeId: 2,
+              backendNodeId: 2,
+              nodeType: 1,
+              nodeName: 'HTML',
+              children: [
+                {
+                  nodeId: 3,
+                  backendNodeId: 3,
+                  nodeType: 1,
+                  nodeName: 'BODY',
+                  children: [
+                    {
+                      nodeId: 10,
+                      backendNodeId: 10,
+                      nodeType: 1,
+                      nodeName: 'H1',
+                      children: [
+                        {
+                          nodeId: 11,
+                          backendNodeId: 11,
+                          nodeType: 3, // TEXT_NODE
+                          nodeName: '#text',
+                          nodeValue: 'DOM Heading Text',
+                        },
+                      ],
+                    },
+                    {
+                      nodeId: 20,
+                      backendNodeId: 20,
+                      nodeType: 1,
+                      nodeName: 'BUTTON',
+                      children: [],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      // AX tree has heading but NO name
+      mockCdp.setResponse('Accessibility.getFullAXTree', {
+        nodes: [
+          {
+            nodeId: 'ax-10',
+            backendDOMNodeId: 10,
+            role: { value: 'heading' },
+            // name intentionally omitted
+            ignored: false,
+            properties: [{ name: 'level', value: { value: 1 } }],
+          },
+          {
+            nodeId: 'ax-20',
+            backendDOMNodeId: 20,
+            role: { value: 'button' },
+            name: { value: 'Click Me' },
+            ignored: false,
+          },
+        ],
+      });
+
+      const compiler = new SnapshotCompiler({ includeReadable: false });
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      // Button should have heading context from DOM text
+      const buttonNode = snapshot.nodes.find((n) => n.kind === 'button');
+      expect(buttonNode).toBeDefined();
+      expect(buttonNode?.where.heading_context).toBe('DOM Heading Text');
+    });
+
+    it('should use aria-label when AX name is missing', async () => {
+      mockCdp.setResponse('DOM.getDocument', {
+        root: {
+          nodeId: 1,
+          backendNodeId: 1,
+          nodeType: 9,
+          nodeName: '#document',
+          children: [
+            {
+              nodeId: 2,
+              backendNodeId: 2,
+              nodeType: 1,
+              nodeName: 'HTML',
+              children: [
+                {
+                  nodeId: 3,
+                  backendNodeId: 3,
+                  nodeType: 1,
+                  nodeName: 'BODY',
+                  children: [
+                    {
+                      nodeId: 10,
+                      backendNodeId: 10,
+                      nodeType: 1,
+                      nodeName: 'H1',
+                      attributes: ['aria-label', 'Aria Heading Label'],
+                      children: [], // No text children
+                    },
+                    {
+                      nodeId: 20,
+                      backendNodeId: 20,
+                      nodeType: 1,
+                      nodeName: 'BUTTON',
+                      children: [],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      // AX tree omits heading name
+      mockCdp.setResponse('Accessibility.getFullAXTree', {
+        nodes: [
+          {
+            nodeId: 'ax-10',
+            backendDOMNodeId: 10,
+            role: { value: 'heading' },
+            // name intentionally omitted
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-20',
+            backendDOMNodeId: 20,
+            role: { value: 'button' },
+            name: { value: 'Submit' },
+            ignored: false,
+          },
+        ],
+      });
+
+      const compiler = new SnapshotCompiler({ includeReadable: false });
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      const buttonNode = snapshot.nodes.find((n) => n.kind === 'button');
+      expect(buttonNode).toBeDefined();
+      expect(buttonNode?.where.heading_context).toBe('Aria Heading Label');
+    });
+
     it('should propagate heading context through shadow DOM', async () => {
       mockCdp.setResponse('DOM.getDocument', {
         root: {
@@ -1261,6 +1592,938 @@ describe('SnapshotCompiler', () => {
       // Iframe button should have frame_path populated
       const iframeBtn = snapshot.nodes.find((n) => n.backend_node_id === 33);
       expect(iframeBtn?.find?.frame_path).toEqual(['20']); // Iframe backendNodeId
+    });
+
+    it('should NOT propagate heading context into iframe content', async () => {
+      // Setup: H1 in main doc, then iframe with button (no heading inside iframe)
+      mockCdp.setResponse('DOM.getDocument', {
+        root: {
+          nodeId: 1,
+          backendNodeId: 1,
+          nodeType: 9,
+          nodeName: '#document',
+          children: [
+            {
+              nodeId: 2,
+              backendNodeId: 2,
+              nodeType: 1,
+              nodeName: 'HTML',
+              children: [
+                {
+                  nodeId: 3,
+                  backendNodeId: 3,
+                  nodeType: 1,
+                  nodeName: 'BODY',
+                  children: [
+                    {
+                      // H1 in main document
+                      nodeId: 10,
+                      backendNodeId: 10,
+                      nodeType: 1,
+                      nodeName: 'H1',
+                      children: [],
+                    },
+                    {
+                      // Button after heading (should have heading context)
+                      nodeId: 15,
+                      backendNodeId: 15,
+                      nodeType: 1,
+                      nodeName: 'BUTTON',
+                      attributes: ['data-testid', 'main-btn'],
+                      children: [],
+                    },
+                    {
+                      // iframe after heading
+                      nodeId: 20,
+                      backendNodeId: 20,
+                      nodeType: 1,
+                      nodeName: 'IFRAME',
+                      frameId: 'frame-1',
+                      children: [],
+                      contentDocument: {
+                        nodeId: 30,
+                        backendNodeId: 30,
+                        nodeType: 9,
+                        nodeName: '#document',
+                        children: [
+                          {
+                            nodeId: 31,
+                            backendNodeId: 31,
+                            nodeType: 1,
+                            nodeName: 'HTML',
+                            children: [
+                              {
+                                nodeId: 32,
+                                backendNodeId: 32,
+                                nodeType: 1,
+                                nodeName: 'BODY',
+                                children: [
+                                  {
+                                    // Button inside iframe - NO heading in iframe
+                                    nodeId: 33,
+                                    backendNodeId: 33,
+                                    nodeType: 1,
+                                    nodeName: 'BUTTON',
+                                    attributes: ['data-testid', 'iframe-btn'],
+                                    children: [],
+                                  },
+                                ],
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      mockCdp.setResponse('Accessibility.getFullAXTree', {
+        nodes: [
+          {
+            nodeId: 'ax-10',
+            backendDOMNodeId: 10,
+            role: { value: 'heading' },
+            name: { value: 'Main Page Title' },
+            ignored: false,
+            properties: [{ name: 'level', value: { value: 1 } }],
+          },
+          {
+            nodeId: 'ax-15',
+            backendDOMNodeId: 15,
+            role: { value: 'button' },
+            name: { value: 'Main Button' },
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-33',
+            backendDOMNodeId: 33,
+            role: { value: 'button' },
+            name: { value: 'Iframe Button' },
+            ignored: false,
+          },
+        ],
+      });
+
+      const compiler = new SnapshotCompiler({ includeReadable: false });
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      // Main button SHOULD have heading context
+      const mainBtn = snapshot.nodes.find((n) => n.backend_node_id === 15);
+      expect(mainBtn).toBeDefined();
+      expect(mainBtn?.where.heading_context).toBe('Main Page Title');
+
+      // Iframe button should NOT have heading context (isolated document)
+      const iframeBtn = snapshot.nodes.find((n) => n.backend_node_id === 33);
+      expect(iframeBtn).toBeDefined();
+      expect(iframeBtn?.where.heading_context).toBeUndefined();
+    });
+
+    it('should isolate heading context within iframe boundaries', async () => {
+      // Setup: Main doc with button, iframe with H2 then button, main button after iframe
+      mockCdp.setResponse('DOM.getDocument', {
+        root: {
+          nodeId: 1,
+          backendNodeId: 1,
+          nodeType: 9,
+          nodeName: '#document',
+          children: [
+            {
+              nodeId: 2,
+              backendNodeId: 2,
+              nodeType: 1,
+              nodeName: 'HTML',
+              children: [
+                {
+                  nodeId: 3,
+                  backendNodeId: 3,
+                  nodeType: 1,
+                  nodeName: 'BODY',
+                  children: [
+                    {
+                      nodeId: 10,
+                      backendNodeId: 10,
+                      nodeType: 1,
+                      nodeName: 'BUTTON',
+                      attributes: ['data-testid', 'before-iframe-btn'],
+                      children: [],
+                    },
+                    {
+                      nodeId: 20,
+                      backendNodeId: 20,
+                      nodeType: 1,
+                      nodeName: 'IFRAME',
+                      frameId: 'frame-1',
+                      children: [],
+                      contentDocument: {
+                        nodeId: 30,
+                        backendNodeId: 30,
+                        nodeType: 9,
+                        nodeName: '#document',
+                        children: [
+                          {
+                            nodeId: 31,
+                            backendNodeId: 31,
+                            nodeType: 1,
+                            nodeName: 'HTML',
+                            children: [
+                              {
+                                nodeId: 32,
+                                backendNodeId: 32,
+                                nodeType: 1,
+                                nodeName: 'BODY',
+                                children: [
+                                  {
+                                    nodeId: 33,
+                                    backendNodeId: 33,
+                                    nodeType: 1,
+                                    nodeName: 'H2',
+                                    children: [],
+                                  },
+                                  {
+                                    nodeId: 34,
+                                    backendNodeId: 34,
+                                    nodeType: 1,
+                                    nodeName: 'BUTTON',
+                                    attributes: ['data-testid', 'iframe-btn'],
+                                    children: [],
+                                  },
+                                ],
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    },
+                    {
+                      nodeId: 40,
+                      backendNodeId: 40,
+                      nodeType: 1,
+                      nodeName: 'BUTTON',
+                      attributes: ['data-testid', 'after-iframe-btn'],
+                      children: [],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      mockCdp.setResponse('Accessibility.getFullAXTree', {
+        nodes: [
+          {
+            nodeId: 'ax-10',
+            backendDOMNodeId: 10,
+            role: { value: 'button' },
+            name: { value: 'Before Iframe' },
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-33',
+            backendDOMNodeId: 33,
+            role: { value: 'heading' },
+            name: { value: 'Iframe Section' },
+            ignored: false,
+            properties: [{ name: 'level', value: { value: 2 } }],
+          },
+          {
+            nodeId: 'ax-34',
+            backendDOMNodeId: 34,
+            role: { value: 'button' },
+            name: { value: 'Iframe Button' },
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-40',
+            backendDOMNodeId: 40,
+            role: { value: 'button' },
+            name: { value: 'After Iframe' },
+            ignored: false,
+          },
+        ],
+      });
+
+      const compiler = new SnapshotCompiler({ includeReadable: false });
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      // Button before iframe - no heading context
+      const beforeBtn = snapshot.nodes.find((n) => n.backend_node_id === 10);
+      expect(beforeBtn?.where.heading_context).toBeUndefined();
+
+      // Button inside iframe - should have iframe's heading context
+      const iframeBtn = snapshot.nodes.find((n) => n.backend_node_id === 34);
+      expect(iframeBtn?.where.heading_context).toBe('Iframe Section');
+
+      // Button after iframe - should NOT have iframe's heading context
+      // (iframe heading stays inside iframe)
+      const afterBtn = snapshot.nodes.find((n) => n.backend_node_id === 40);
+      expect(afterBtn?.where.heading_context).toBeUndefined();
+    });
+
+    it('should not leak iframe headings when includeReadable is true', async () => {
+      mockCdp.setResponse('DOM.getDocument', {
+        root: {
+          nodeId: 1,
+          backendNodeId: 1,
+          nodeType: 9,
+          nodeName: '#document',
+          children: [
+            {
+              nodeId: 2,
+              backendNodeId: 2,
+              nodeType: 1,
+              nodeName: 'HTML',
+              children: [
+                {
+                  nodeId: 3,
+                  backendNodeId: 3,
+                  nodeType: 1,
+                  nodeName: 'BODY',
+                  children: [
+                    {
+                      nodeId: 20,
+                      backendNodeId: 20,
+                      nodeType: 1,
+                      nodeName: 'IFRAME',
+                      frameId: 'frame-1',
+                      children: [],
+                      contentDocument: {
+                        nodeId: 30,
+                        backendNodeId: 30,
+                        nodeType: 9,
+                        nodeName: '#document',
+                        children: [
+                          {
+                            nodeId: 31,
+                            backendNodeId: 31,
+                            nodeType: 1,
+                            nodeName: 'HTML',
+                            children: [
+                              {
+                                nodeId: 32,
+                                backendNodeId: 32,
+                                nodeType: 1,
+                                nodeName: 'BODY',
+                                children: [
+                                  {
+                                    nodeId: 33,
+                                    backendNodeId: 33,
+                                    nodeType: 1,
+                                    nodeName: 'H2',
+                                    children: [],
+                                  },
+                                  {
+                                    nodeId: 34,
+                                    backendNodeId: 34,
+                                    nodeType: 1,
+                                    nodeName: 'BUTTON',
+                                    attributes: ['data-testid', 'iframe-btn'],
+                                    children: [],
+                                  },
+                                ],
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    },
+                    {
+                      nodeId: 40,
+                      backendNodeId: 40,
+                      nodeType: 1,
+                      nodeName: 'BUTTON',
+                      attributes: ['data-testid', 'after-iframe-btn'],
+                      children: [],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      mockCdp.setResponse('Accessibility.getFullAXTree', {
+        nodes: [
+          {
+            nodeId: 'ax-33',
+            backendDOMNodeId: 33,
+            role: { value: 'heading' },
+            name: { value: 'Iframe Section' },
+            ignored: false,
+            properties: [{ name: 'level', value: { value: 2 } }],
+          },
+          {
+            nodeId: 'ax-34',
+            backendDOMNodeId: 34,
+            role: { value: 'button' },
+            name: { value: 'Iframe Button' },
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-40',
+            backendDOMNodeId: 40,
+            role: { value: 'button' },
+            name: { value: 'After Iframe' },
+            ignored: false,
+          },
+        ],
+      });
+
+      const compiler = new SnapshotCompiler({ includeReadable: true });
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      const iframeBtn = snapshot.nodes.find((n) => n.backend_node_id === 34);
+      expect(iframeBtn?.where.heading_context).toBe('Iframe Section');
+
+      const afterBtn = snapshot.nodes.find((n) => n.backend_node_id === 40);
+      expect(afterBtn?.where.heading_context).toBeUndefined();
+    });
+
+    it('should resolve aria-labelledby within the correct iframe context', async () => {
+      mockCdp.setResponse('DOM.getDocument', {
+        root: {
+          nodeId: 1,
+          backendNodeId: 1,
+          nodeType: 9,
+          nodeName: '#document',
+          children: [
+            {
+              nodeId: 2,
+              backendNodeId: 2,
+              nodeType: 1,
+              nodeName: 'HTML',
+              children: [
+                {
+                  nodeId: 3,
+                  backendNodeId: 3,
+                  nodeType: 1,
+                  nodeName: 'BODY',
+                  children: [
+                    {
+                      nodeId: 20,
+                      backendNodeId: 20,
+                      nodeType: 1,
+                      nodeName: 'IFRAME',
+                      frameId: 'frame-1',
+                      children: [],
+                      contentDocument: {
+                        nodeId: 30,
+                        backendNodeId: 30,
+                        nodeType: 9,
+                        nodeName: '#document',
+                        children: [
+                          {
+                            nodeId: 31,
+                            backendNodeId: 31,
+                            nodeType: 1,
+                            nodeName: 'HTML',
+                            children: [
+                              {
+                                nodeId: 32,
+                                backendNodeId: 32,
+                                nodeType: 1,
+                                nodeName: 'BODY',
+                                children: [
+                                  {
+                                    nodeId: 50,
+                                    backendNodeId: 50,
+                                    nodeType: 1,
+                                    nodeName: 'SPAN',
+                                    attributes: [
+                                      'id',
+                                      'shared-title',
+                                      'aria-label',
+                                      'Iframe Title',
+                                    ],
+                                    children: [],
+                                  },
+                                  {
+                                    nodeId: 33,
+                                    backendNodeId: 33,
+                                    nodeType: 1,
+                                    nodeName: 'H1',
+                                    attributes: ['aria-labelledby', 'shared-title'],
+                                    children: [],
+                                  },
+                                  {
+                                    nodeId: 34,
+                                    backendNodeId: 34,
+                                    nodeType: 1,
+                                    nodeName: 'BUTTON',
+                                    attributes: ['data-testid', 'iframe-btn'],
+                                    children: [],
+                                  },
+                                ],
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    },
+                    {
+                      nodeId: 40,
+                      backendNodeId: 40,
+                      nodeType: 1,
+                      nodeName: 'SPAN',
+                      attributes: ['id', 'shared-title', 'aria-label', 'Main Title'],
+                      children: [],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      mockCdp.setResponse('Accessibility.getFullAXTree', {
+        nodes: [
+          {
+            nodeId: 'ax-33',
+            backendDOMNodeId: 33,
+            role: { value: 'heading' },
+            ignored: false,
+            properties: [{ name: 'level', value: { value: 1 } }],
+          },
+          {
+            nodeId: 'ax-34',
+            backendDOMNodeId: 34,
+            role: { value: 'button' },
+            name: { value: 'Iframe Button' },
+            ignored: false,
+          },
+        ],
+      });
+
+      const compiler = new SnapshotCompiler({ includeReadable: false });
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      const iframeBtn = snapshot.nodes.find((n) => n.backend_node_id === 34);
+      expect(iframeBtn?.where.heading_context).toBe('Iframe Title');
+    });
+  });
+
+  describe('noise filtering', () => {
+    it('should filter out empty list containers with no interactive descendants', async () => {
+      // Setup: UL with no name and only empty listitem children
+      mockCdp.setResponse('DOM.getDocument', {
+        root: {
+          nodeId: 1,
+          backendNodeId: 1,
+          nodeType: 9,
+          nodeName: '#document',
+          children: [
+            {
+              nodeId: 2,
+              backendNodeId: 2,
+              nodeType: 1,
+              nodeName: 'HTML',
+              children: [
+                {
+                  nodeId: 3,
+                  backendNodeId: 3,
+                  nodeType: 1,
+                  nodeName: 'BODY',
+                  children: [
+                    {
+                      nodeId: 10,
+                      backendNodeId: 10,
+                      nodeType: 1,
+                      nodeName: 'UL',
+                      children: [
+                        {
+                          nodeId: 11,
+                          backendNodeId: 11,
+                          nodeType: 1,
+                          nodeName: 'LI',
+                          children: [],
+                        },
+                        {
+                          nodeId: 12,
+                          backendNodeId: 12,
+                          nodeType: 1,
+                          nodeName: 'LI',
+                          children: [],
+                        },
+                      ],
+                    },
+                    {
+                      nodeId: 20,
+                      backendNodeId: 20,
+                      nodeType: 1,
+                      nodeName: 'BUTTON',
+                      children: [],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      mockCdp.setResponse('Accessibility.getFullAXTree', {
+        nodes: [
+          {
+            nodeId: 'ax-10',
+            backendDOMNodeId: 10,
+            role: { value: 'list' },
+            name: { value: '' }, // Empty name
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-11',
+            backendDOMNodeId: 11,
+            role: { value: 'listitem' },
+            name: { value: '' }, // Empty name
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-12',
+            backendDOMNodeId: 12,
+            role: { value: 'listitem' },
+            name: { value: '' }, // Empty name
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-20',
+            backendDOMNodeId: 20,
+            role: { value: 'button' },
+            name: { value: 'Submit' },
+            ignored: false,
+          },
+        ],
+      });
+
+      const compiler = new SnapshotCompiler({ includeReadable: true });
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      // Should NOT include the empty list and listitems
+      const listNodes = snapshot.nodes.filter((n) => n.kind === 'list' || n.kind === 'listitem');
+      expect(listNodes.length).toBe(0);
+
+      // Should still include the button
+      const buttons = snapshot.nodes.filter((n) => n.kind === 'button');
+      expect(buttons.length).toBe(1);
+    });
+
+    it('should keep list containers that have interactive descendants', async () => {
+      // Setup: UL with no name but contains interactive links
+      mockCdp.setResponse('DOM.getDocument', {
+        root: {
+          nodeId: 1,
+          backendNodeId: 1,
+          nodeType: 9,
+          nodeName: '#document',
+          children: [
+            {
+              nodeId: 2,
+              backendNodeId: 2,
+              nodeType: 1,
+              nodeName: 'HTML',
+              children: [
+                {
+                  nodeId: 3,
+                  backendNodeId: 3,
+                  nodeType: 1,
+                  nodeName: 'BODY',
+                  children: [
+                    {
+                      nodeId: 10,
+                      backendNodeId: 10,
+                      nodeType: 1,
+                      nodeName: 'UL',
+                      children: [
+                        {
+                          nodeId: 11,
+                          backendNodeId: 11,
+                          nodeType: 1,
+                          nodeName: 'LI',
+                          children: [
+                            {
+                              nodeId: 15,
+                              backendNodeId: 15,
+                              nodeType: 1,
+                              nodeName: 'A',
+                              attributes: ['href', '/link'],
+                              children: [],
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      mockCdp.setResponse('Accessibility.getFullAXTree', {
+        nodes: [
+          {
+            nodeId: 'ax-10',
+            backendDOMNodeId: 10,
+            role: { value: 'list' },
+            name: { value: '' }, // Empty name but has interactive child
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-11',
+            backendDOMNodeId: 11,
+            role: { value: 'listitem' },
+            name: { value: '' },
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-15',
+            backendDOMNodeId: 15,
+            role: { value: 'link' },
+            name: { value: 'Home' },
+            ignored: false,
+          },
+        ],
+      });
+
+      const compiler = new SnapshotCompiler({ includeReadable: true });
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      // Should keep the list and listitem because they contain interactive link
+      const listNodes = snapshot.nodes.filter((n) => n.kind === 'list');
+      expect(listNodes.length).toBe(1);
+
+      // Should include the link
+      const links = snapshot.nodes.filter((n) => n.kind === 'link');
+      expect(links.length).toBe(1);
+    });
+
+    it('should filter out StaticText that mirrors parent label', async () => {
+      // Setup: Button with StaticText child that has same label
+      mockCdp.setResponse('DOM.getDocument', {
+        root: {
+          nodeId: 1,
+          backendNodeId: 1,
+          nodeType: 9,
+          nodeName: '#document',
+          children: [
+            {
+              nodeId: 2,
+              backendNodeId: 2,
+              nodeType: 1,
+              nodeName: 'HTML',
+              children: [
+                {
+                  nodeId: 3,
+                  backendNodeId: 3,
+                  nodeType: 1,
+                  nodeName: 'BODY',
+                  children: [
+                    {
+                      nodeId: 10,
+                      backendNodeId: 10,
+                      nodeType: 1,
+                      nodeName: 'BUTTON',
+                      children: [
+                        {
+                          nodeId: 11,
+                          backendNodeId: 11,
+                          nodeType: 3, // TEXT_NODE
+                          nodeName: '#text',
+                          nodeValue: 'Click Me',
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      mockCdp.setResponse('Accessibility.getFullAXTree', {
+        nodes: [
+          {
+            nodeId: 'ax-10',
+            backendDOMNodeId: 10,
+            role: { value: 'button' },
+            name: { value: 'Click Me' },
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-11',
+            backendDOMNodeId: 11,
+            role: { value: 'StaticText' },
+            name: { value: 'Click Me' }, // Same label as parent
+            ignored: false,
+          },
+        ],
+      });
+
+      const compiler = new SnapshotCompiler({ includeReadable: true });
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      // Should NOT include the StaticText that mirrors parent
+      const staticTextNodes = snapshot.nodes.filter((n) => n.kind === 'text');
+      expect(staticTextNodes.length).toBe(0);
+
+      // Should include the button
+      const buttons = snapshot.nodes.filter((n) => n.kind === 'button');
+      expect(buttons.length).toBe(1);
+    });
+
+    it('should keep StaticText with unique content', async () => {
+      // Setup: Paragraph with StaticText children that add unique info
+      // Note: StaticText AX nodes need a DOM node with matching backendNodeId
+      mockCdp.setResponse('DOM.getDocument', {
+        root: {
+          nodeId: 1,
+          backendNodeId: 1,
+          nodeType: 9,
+          nodeName: '#document',
+          children: [
+            {
+              nodeId: 2,
+              backendNodeId: 2,
+              nodeType: 1,
+              nodeName: 'HTML',
+              children: [
+                {
+                  nodeId: 3,
+                  backendNodeId: 3,
+                  nodeType: 1,
+                  nodeName: 'BODY',
+                  children: [
+                    {
+                      nodeId: 10,
+                      backendNodeId: 10,
+                      nodeType: 1,
+                      nodeName: 'P',
+                      children: [
+                        {
+                          nodeId: 11,
+                          backendNodeId: 11,
+                          nodeType: 3, // TEXT_NODE
+                          nodeName: '#text',
+                          nodeValue: 'Important information here',
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      mockCdp.setResponse('Accessibility.getFullAXTree', {
+        nodes: [
+          {
+            nodeId: 'ax-10',
+            backendDOMNodeId: 10,
+            role: { value: 'paragraph' },
+            name: { value: '' }, // Empty paragraph name
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-11',
+            backendDOMNodeId: 11,
+            role: { value: 'StaticText' },
+            name: { value: 'Important information here' }, // Unique content
+            ignored: false,
+          },
+        ],
+      });
+
+      const compiler = new SnapshotCompiler({ includeReadable: true });
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      // Should include StaticText with unique content
+      const staticTextNodes = snapshot.nodes.filter((n) => n.kind === 'text');
+      expect(staticTextNodes.length).toBe(1);
+      expect(staticTextNodes[0].label).toBe('Important information here');
+    });
+
+    it('should keep lists with semantic names', async () => {
+      // Setup: UL with aria-label
+      mockCdp.setResponse('DOM.getDocument', {
+        root: {
+          nodeId: 1,
+          backendNodeId: 1,
+          nodeType: 9,
+          nodeName: '#document',
+          children: [
+            {
+              nodeId: 2,
+              backendNodeId: 2,
+              nodeType: 1,
+              nodeName: 'HTML',
+              children: [
+                {
+                  nodeId: 3,
+                  backendNodeId: 3,
+                  nodeType: 1,
+                  nodeName: 'BODY',
+                  children: [
+                    {
+                      nodeId: 10,
+                      backendNodeId: 10,
+                      nodeType: 1,
+                      nodeName: 'UL',
+                      attributes: ['aria-label', 'Navigation Menu'],
+                      children: [
+                        {
+                          nodeId: 11,
+                          backendNodeId: 11,
+                          nodeType: 1,
+                          nodeName: 'LI',
+                          children: [],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      mockCdp.setResponse('Accessibility.getFullAXTree', {
+        nodes: [
+          {
+            nodeId: 'ax-10',
+            backendDOMNodeId: 10,
+            role: { value: 'list' },
+            name: { value: 'Navigation Menu' }, // Has semantic name
+            ignored: false,
+          },
+          {
+            nodeId: 'ax-11',
+            backendDOMNodeId: 11,
+            role: { value: 'listitem' },
+            name: { value: '' },
+            ignored: false,
+          },
+        ],
+      });
+
+      const compiler = new SnapshotCompiler({ includeReadable: true });
+      const snapshot = await compiler.compile(mockCdp, mockPage, 'page-1');
+
+      // Should keep list with semantic name
+      const listNodes = snapshot.nodes.filter((n) => n.kind === 'list');
+      expect(listNodes.length).toBe(1);
+      expect(listNodes[0].label).toBe('Navigation Menu');
     });
   });
 });

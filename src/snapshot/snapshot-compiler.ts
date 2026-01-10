@@ -44,15 +44,107 @@ import {
   type LayoutExtractionResult,
   type ExtractorContext,
 } from './extractors/index.js';
+import { getTextContent } from '../lib/text-utils.js';
+
+/**
+ * Adjacency maps for efficient shadow root and content document lookup.
+ */
+interface AdjacencyMaps {
+  /** Maps shadow host backendNodeId -> array of shadow root backendNodeIds */
+  shadowRootsByHost: Map<number, number[]>;
+  /** Maps iframe backendNodeId -> array of content document backendNodeIds */
+  contentDocsByFrame: Map<number, number[]>;
+}
+
+type IdMapsByContext = Map<string, Map<string, RawDomNode>>;
+
+const ROOT_CONTEXT = 'root';
+const LIGHT_DOM_CONTEXT = 'light';
+
+/**
+ * Build a context key based on iframe and shadow ancestry.
+ */
+function buildContextKey(node: RawDomNode): string {
+  const frameKey = node.framePath?.length ? node.framePath.join('/') : ROOT_CONTEXT;
+  const shadowKey = node.shadowPath?.length ? node.shadowPath.join('/') : LIGHT_DOM_CONTEXT;
+  return `${frameKey}|${shadowKey}`;
+}
+
+/**
+ * Build context-scoped ID maps to avoid cross-frame/shadow collisions.
+ */
+function buildIdMapsByContext(domResult: DomExtractionResult): IdMapsByContext {
+  const idMaps = new Map<string, Map<string, RawDomNode>>();
+
+  for (const node of domResult.nodes.values()) {
+    const id = node.attributes?.id;
+    if (!id) continue;
+
+    const contextKey = buildContextKey(node);
+    let map = idMaps.get(contextKey);
+    if (!map) {
+      map = new Map<string, RawDomNode>();
+      idMaps.set(contextKey, map);
+    }
+    map.set(id, node);
+  }
+
+  return idMaps;
+}
+
+/**
+ * Get the ID map scoped to a node's frame/shadow context.
+ */
+function getIdMapForNode(
+  node: RawDomNode | undefined,
+  idMapsByContext: IdMapsByContext
+): Map<string, RawDomNode> | undefined {
+  if (!node) return undefined;
+  return idMapsByContext.get(buildContextKey(node));
+}
+
+/**
+ * Build adjacency maps for shadow roots and iframe content documents.
+ * Single O(n) pass through all nodes.
+ *
+ * @param domResult - DOM extraction result
+ * @returns Adjacency maps for shadow roots and content documents
+ */
+function buildAdjacencyMaps(domResult: DomExtractionResult): AdjacencyMaps {
+  const shadowRootsByHost = new Map<number, number[]>();
+  const contentDocsByFrame = new Map<number, number[]>();
+
+  for (const [nodeId, node] of domResult.nodes) {
+    if (node.parentId === undefined) continue;
+
+    if (node.nodeName === '#document-fragment') {
+      // This is a shadow root - add to shadow host's children
+      const existing = shadowRootsByHost.get(node.parentId) ?? [];
+      existing.push(nodeId);
+      shadowRootsByHost.set(node.parentId, existing);
+    } else if (node.nodeName === '#document') {
+      // This is a content document - add to iframe's children
+      const existing = contentDocsByFrame.get(node.parentId) ?? [];
+      existing.push(nodeId);
+      contentDocsByFrame.set(node.parentId, existing);
+    }
+  }
+
+  return { shadowRootsByHost, contentDocsByFrame };
+}
 
 /**
  * Build DOM pre-order index by traversing the DOM tree.
  * Also traverses into shadow roots and iframe content documents.
  *
  * @param domResult - DOM extraction result with nodes and rootId
+ * @param adjacencyMaps - Precomputed maps for shadow roots and content documents
  * @returns Map of backendNodeId -> DOM order index
  */
-function buildDomOrderIndex(domResult: DomExtractionResult): Map<number, number> {
+function buildDomOrderIndex(
+  domResult: DomExtractionResult,
+  adjacencyMaps: AdjacencyMaps
+): Map<number, number> {
   const orderIndex = new Map<number, number>();
   const shadowHostSet = new Set(domResult.shadowRoots);
   let index = 0;
@@ -70,26 +162,19 @@ function buildDomOrderIndex(domResult: DomExtractionResult): Map<number, number>
       }
     }
 
-    // 2. If this node hosts a shadow root, traverse shadow content
-    // Shadow roots have parentId = this node's backendNodeId and nodeName = '#document-fragment'
+    // 2. If this node hosts a shadow root, traverse shadow content (O(1) lookup)
     if (shadowHostSet.has(nodeId)) {
-      for (const [candidateId, candidateNode] of domResult.nodes) {
-        if (
-          candidateNode.parentId === nodeId &&
-          candidateNode.nodeName === '#document-fragment'
-        ) {
-          traverse(candidateId);
-        }
+      const shadowRoots = adjacencyMaps.shadowRootsByHost.get(nodeId) ?? [];
+      for (const shadowRootId of shadowRoots) {
+        traverse(shadowRootId);
       }
     }
 
-    // 3. If this node is an iframe (has frameId or is IFRAME tag), traverse content document
-    // Content documents have parentId = this node's backendNodeId and nodeName = '#document'
+    // 3. If this node is an iframe, traverse content document (O(1) lookup)
     if (node.frameId || node.nodeName.toUpperCase() === 'IFRAME') {
-      for (const [candidateId, candidateNode] of domResult.nodes) {
-        if (candidateNode.parentId === nodeId && candidateNode.nodeName === '#document') {
-          traverse(candidateId);
-        }
+      const contentDocs = adjacencyMaps.contentDocsByFrame.get(nodeId) ?? [];
+      for (const contentDocId of contentDocs) {
+        traverse(contentDocId);
       }
     }
   }
@@ -103,42 +188,68 @@ function buildDomOrderIndex(domResult: DomExtractionResult): Map<number, number>
  * Uses DOM order to determine the most recent preceding heading.
  * Also traverses into shadow roots and iframe content documents.
  *
+ * Heading context is isolated at iframe boundaries:
+ * - Heading from parent document does NOT propagate into iframe
+ * - Heading from iframe does NOT propagate back to parent document
+ * - Shadow DOM shares heading context with its host document
+ *
  * @param domResult - DOM extraction result
  * @param axResult - AX extraction result for heading names
+ * @param idMap - Map of DOM ID to RawDomNode for aria-labelledby resolution
+ * @param adjacencyMaps - Precomputed maps for shadow roots and content documents
  * @returns Map of backendNodeId -> heading context string
  */
 function buildHeadingIndex(
   domResult: DomExtractionResult,
-  axResult: AxExtractionResult | undefined
+  axResult: AxExtractionResult | undefined,
+  idMapsByContext: IdMapsByContext,
+  adjacencyMaps: AdjacencyMaps
 ): Map<number, string> {
   const headingIndex = new Map<number, string>();
   const shadowHostSet = new Set(domResult.shadowRoots);
-  let currentHeading: string | undefined;
 
-  // Helper to check if a node is a heading
+  // Helper to check if a node is a heading and resolve its name
   function isHeading(backendNodeId: number): { isHeading: boolean; name?: string } {
     const domNode = domResult.nodes.get(backendNodeId);
     const axNode = axResult?.nodes.get(backendNodeId);
 
     // Check AX role first
+    const scopedIdMap = domNode ? getIdMapForNode(domNode, idMapsByContext) : undefined;
+
     if (axNode?.role === 'heading') {
-      return { isHeading: true, name: axNode.name };
+      // Priority: AX name -> resolveLabel -> DOM text content
+      let name = axNode.name;
+      if (!name && domNode) {
+        const labelResult = resolveLabel(domNode, axNode, scopedIdMap);
+        if (labelResult.source !== 'none') {
+          name = labelResult.label;
+        }
+      }
+      name ??= getTextContent(backendNodeId, domResult.nodes);
+      return { isHeading: true, name };
     }
 
     // Check DOM tag (H1-H6)
     if (domNode?.nodeName?.match(/^H[1-6]$/i)) {
-      // Try to get name from AX, fall back to label if available
-      const name = axNode?.name;
+      // Priority: AX name -> resolveLabel -> DOM text content
+      let name = axNode?.name;
+      if (!name) {
+        const labelResult = resolveLabel(domNode, axNode, scopedIdMap);
+        if (labelResult.source !== 'none') {
+          name = labelResult.label;
+        }
+      }
+      name ??= getTextContent(backendNodeId, domResult.nodes);
       return { isHeading: true, name };
     }
 
     return { isHeading: false };
   }
 
-  // Traverse DOM in pre-order (same pattern as buildDomOrderIndex)
-  function traverse(nodeId: number): void {
+  // Traverse DOM in pre-order, passing and returning heading context
+  function traverse(nodeId: number, currentHeading: string | undefined): string | undefined {
     const node = domResult.nodes.get(nodeId);
-    if (!node) return;
+    if (!node) return currentHeading;
 
     // Check if this node is a heading
     const headingInfo = isHeading(nodeId);
@@ -152,35 +263,37 @@ function buildHeadingIndex(
     }
 
     // 1. Process light DOM children first (pre-order DFS)
+    // Heading context propagates and updates through light DOM
     if (node.childNodeIds) {
       for (const childId of node.childNodeIds) {
-        traverse(childId);
+        currentHeading = traverse(childId, currentHeading) ?? currentHeading;
       }
     }
 
-    // 2. If this node hosts a shadow root, traverse shadow content
+    // 2. If this node hosts a shadow root, traverse shadow content (O(1) lookup)
+    // Shadow DOM shares heading context with host document (same logical document)
     if (shadowHostSet.has(nodeId)) {
-      for (const [candidateId, candidateNode] of domResult.nodes) {
-        if (
-          candidateNode.parentId === nodeId &&
-          candidateNode.nodeName === '#document-fragment'
-        ) {
-          traverse(candidateId);
-        }
+      const shadowRoots = adjacencyMaps.shadowRootsByHost.get(nodeId) ?? [];
+      for (const shadowRootId of shadowRoots) {
+        currentHeading = traverse(shadowRootId, currentHeading) ?? currentHeading;
       }
     }
 
-    // 3. If this node is an iframe, traverse content document
+    // 3. If this node is an iframe, traverse content document (O(1) lookup)
+    // IMPORTANT: Heading context resets at iframe boundary (separate document)
+    // - Pass undefined to reset context inside iframe
+    // - Discard returned heading (iframe headings don't affect parent)
     if (node.frameId || node.nodeName.toUpperCase() === 'IFRAME') {
-      for (const [candidateId, candidateNode] of domResult.nodes) {
-        if (candidateNode.parentId === nodeId && candidateNode.nodeName === '#document') {
-          traverse(candidateId);
-        }
+      const contentDocs = adjacencyMaps.contentDocsByFrame.get(nodeId) ?? [];
+      for (const contentDocId of contentDocs) {
+        traverse(contentDocId, undefined);
       }
     }
+
+    return currentHeading;
   }
 
-  traverse(domResult.rootId);
+  traverse(domResult.rootId, undefined);
   return headingIndex;
 }
 
@@ -235,6 +348,8 @@ function mapRoleToKind(role: string | undefined): NodeKind | undefined {
     // Readable
     heading: 'heading',
     paragraph: 'paragraph',
+    text: 'text',
+    statictext: 'text',
     list: 'list',
     listitem: 'listitem',
     tree: 'list',
@@ -272,9 +387,6 @@ export class SnapshotCompiler {
   /** Counter for generating unique snapshot IDs */
   private snapshotCounter = 0;
 
-  /** Counter for generating unique node IDs within a snapshot */
-  private nodeCounter = 0;
-
   constructor(options?: Partial<CompileOptions>) {
     this.options = { ...DEFAULT_OPTIONS, ...options };
   }
@@ -288,21 +400,6 @@ export class SnapshotCompiler {
   }
 
   /**
-   * Generate a unique node ID.
-   */
-  private generateNodeId(): string {
-    this.nodeCounter++;
-    return `n${this.nodeCounter}`;
-  }
-
-  /**
-   * Reset node counter for new snapshot.
-   */
-  private resetNodeCounter(): void {
-    this.nodeCounter = 0;
-  }
-
-  /**
    * Compile a snapshot from the current page state.
    *
    * @param cdp - CDP client for the page
@@ -312,7 +409,6 @@ export class SnapshotCompiler {
    */
   async compile(cdp: CdpClient, page: Page, _pageId: string): Promise<BaseSnapshot> {
     const startTime = Date.now();
-    this.resetNodeCounter();
 
     const viewport = page.viewportSize() ?? { width: 1280, height: 720 };
     const ctx = createExtractorContext(cdp, viewport, this.options);
@@ -346,13 +442,18 @@ export class SnapshotCompiler {
       partial = true;
     }
 
+    const idMapsByContext: IdMapsByContext = domResult
+      ? buildIdMapsByContext(domResult)
+      : new Map<string, Map<string, RawDomNode>>();
+
     // Build DOM order index for deterministic ordering
     let domOrderIndex: Map<number, number> | undefined;
     let headingIndex: Map<number, string> | undefined;
 
     if (domResult) {
-      domOrderIndex = buildDomOrderIndex(domResult);
-      headingIndex = buildHeadingIndex(domResult, axResult);
+      const adjacencyMaps = buildAdjacencyMaps(domResult);
+      domOrderIndex = buildDomOrderIndex(domResult, adjacencyMaps);
+      headingIndex = buildHeadingIndex(domResult, axResult, idMapsByContext, adjacencyMaps);
       domOrderAvailable = true;
     } else {
       // Add warning about DOM order fallback
@@ -362,14 +463,21 @@ export class SnapshotCompiler {
     // Phase 2: Correlate nodes and identify what to include
     const nodesToProcess: RawNodeData[] = [];
 
+    // Structural roles that must be included for FactPack features
+    // (form detection, dialog detection)
+    const essentialStructuralRoles = new Set(['form', 'dialog', 'alertdialog']);
+
     if (axResult) {
       // Build from AX tree (has semantic information)
       for (const [backendNodeId, axNode] of axResult.nodes) {
         const classification = classifyAxRole(axNode.role);
         const isInteractive = classification === 'interactive';
         const isReadable = classification === 'readable' && this.options.includeReadable;
+        const isEssentialStructural =
+          classification === 'structural' &&
+          essentialStructuralRoles.has(axNode.role?.toLowerCase() ?? '');
 
-        if (isInteractive || isReadable) {
+        if (isInteractive || isReadable || isEssentialStructural) {
           const domNode = domResult?.nodes.get(backendNodeId);
           nodesToProcess.push({
             backendNodeId,
@@ -379,10 +487,10 @@ export class SnapshotCompiler {
         }
       }
     } else if (domResult) {
-      // Fallback: Use DOM-only for interactive tags
+      // Fallback: Use DOM-only for interactive tags and essential structural elements
       for (const [backendNodeId, domNode] of domResult.nodes) {
         const tagName = domNode.nodeName.toUpperCase();
-        if (['BUTTON', 'A', 'INPUT', 'SELECT', 'TEXTAREA'].includes(tagName)) {
+        if (['BUTTON', 'A', 'INPUT', 'SELECT', 'TEXTAREA', 'FORM', 'DIALOG'].includes(tagName)) {
           nodesToProcess.push({
             backendNodeId,
             domNode,
@@ -422,19 +530,8 @@ export class SnapshotCompiler {
       }
     }
 
-    // Build ID map for aria-labelledby resolution
-    const idMap = new Map<string, RawDomNode>();
-    if (domResult) {
-      for (const node of domResult.nodes.values()) {
-        const id = node.attributes?.id;
-        if (id) {
-          idMap.set(id, node);
-        }
-      }
-    }
-
     // Phase 4: Transform to ReadableNode[]
-    const nodes: ReadableNode[] = [];
+    const transformedNodes: ReadableNode[] = [];
 
     for (const nodeData of limitedNodes) {
       const node = this.transformNode(
@@ -442,15 +539,22 @@ export class SnapshotCompiler {
         domResult?.nodes ?? new Map<number, RawDomNode>(),
         axResult?.nodes ?? new Map<number, RawAxNode>(),
         limitedNodes,
-        idMap,
+        idMapsByContext,
         headingIndex
       );
 
       // Filter by visibility (unless include_hidden)
       if (this.options.include_hidden || node.state?.visible !== false) {
-        nodes.push(node);
+        transformedNodes.push(node);
       }
     }
+
+    // Phase 4.5: Filter noise nodes (empty containers, duplicate text)
+    const nodes = this.filterNoiseNodes(
+      transformedNodes,
+      domResult?.nodes ?? new Map<number, RawDomNode>(),
+      axResult?.nodes ?? new Map<number, RawAxNode>()
+    );
 
     // Phase 5: Build BaseSnapshot
     const duration = Date.now() - startTime;
@@ -522,7 +626,7 @@ export class SnapshotCompiler {
     domTree: Map<number, RawDomNode>,
     axTree: Map<number, RawAxNode>,
     allNodes: RawNodeData[],
-    idMap: Map<string, RawDomNode>,
+    idMapsByContext: IdMapsByContext,
     headingIndex?: Map<number, string>
   ): ReadableNode {
     const { domNode, axNode, layout, backendNodeId } = nodeData;
@@ -537,18 +641,23 @@ export class SnapshotCompiler {
     }
 
     // Resolve label
-    const labelResult = resolveLabel(domNode, axNode, idMap);
+    const scopedIdMap = getIdMapForNode(domNode, idMapsByContext);
+    const labelResult = resolveLabel(domNode, axNode, scopedIdMap);
     const label = labelResult.label;
 
-    // Resolve region
-    const region = resolveRegion(domNode, axNode, domTree);
+    // Resolve region (pass axTree for ancestor AX role lookup)
+    const region = resolveRegion(domNode, axNode, domTree, axTree);
 
     // Resolve grouping (for group_id and group_path only)
-    const grouping = resolveGrouping(backendNodeId, domTree, axTree, allNodes);
+    const grouping = resolveGrouping(backendNodeId, domTree, axTree, allNodes, {
+      includeHeadingContext: !headingIndex,
+    });
 
     // Get heading context from pre-computed heading index (DOM order-based)
     // Fall back to grouping's heading_context if headingIndex not available
-    const headingContext = headingIndex?.get(backendNodeId) ?? grouping.heading_context;
+    const headingContext = headingIndex
+      ? headingIndex.get(backendNodeId)
+      : grouping.heading_context;
 
     // Build location
     const where: NodeLocation = {
@@ -587,9 +696,9 @@ export class SnapshotCompiler {
       axNode
     );
 
-    // Build the node
+    // Build the node - node_id is derived from backend_node_id for stability across snapshots
     const node: ReadableNode = {
-      node_id: this.generateNodeId(),
+      node_id: String(backendNodeId),
       backend_node_id: backendNodeId,
       kind,
       label,
@@ -638,6 +747,115 @@ export class SnapshotCompiler {
       NAV: 'navigation',
     };
     return tagMap[tag];
+  }
+
+  /**
+   * Filter out noise nodes to reduce snapshot size.
+   *
+   * Filters:
+   * 1. Empty list/listitem containers with no semantic name AND no interactive descendants
+   * 2. StaticText/text nodes that mirror their parent's label exactly
+   */
+  private filterNoiseNodes(
+    nodes: ReadableNode[],
+    domTree: Map<number, RawDomNode>,
+    axTree: Map<number, RawAxNode>
+  ): ReadableNode[] {
+    // Build set of interactive node backend IDs for descendant checking
+    const interactiveKinds = new Set([
+      'button',
+      'link',
+      'input',
+      'textarea',
+      'select',
+      'combobox',
+      'checkbox',
+      'radio',
+      'switch',
+      'slider',
+      'tab',
+      'menuitem',
+    ]);
+    const interactiveBackendIds = new Set(
+      nodes.filter((n) => interactiveKinds.has(n.kind)).map((n) => n.backend_node_id)
+    );
+
+    // Build parent-child relationship from DOM tree
+    const childToParent = new Map<number, number>();
+    for (const [nodeId, domNode] of domTree) {
+      if (domNode.parentId !== undefined) {
+        childToParent.set(nodeId, domNode.parentId);
+      }
+    }
+
+    // Check if a node has any interactive descendants in the DOM tree
+    const hasInteractiveDescendant = (nodeId: number): boolean => {
+      const domNode = domTree.get(nodeId);
+      if (!domNode) return false;
+
+      // Check direct children
+      if (domNode.childNodeIds) {
+        for (const childId of domNode.childNodeIds) {
+          if (interactiveBackendIds.has(childId)) {
+            return true;
+          }
+          if (hasInteractiveDescendant(childId)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+
+    // Get label of parent node in the node list
+    const getParentLabel = (nodeId: number): string | undefined => {
+      const parentId = childToParent.get(nodeId);
+      if (parentId === undefined) return undefined;
+
+      // Look up parent in our node list
+      const parentNode = nodes.find((n) => n.backend_node_id === parentId);
+      if (parentNode) {
+        return parentNode.label;
+      }
+
+      // Parent might be further up - check AX tree for parent's name
+      const parentAx = axTree.get(parentId);
+      return parentAx?.name;
+    };
+
+    // Container kinds that can be noisy when empty
+    const containerKinds = new Set(['list', 'listitem']);
+
+    // Text kinds that can duplicate parent labels
+    const textKinds = new Set(['text']);
+
+    return nodes.filter((node) => {
+      // Rule 1: Filter empty container nodes without interactive descendants
+      if (containerKinds.has(node.kind)) {
+        const hasSemanticName = node.label && node.label.trim().length > 0;
+        if (!hasSemanticName) {
+          const hasInteractive = hasInteractiveDescendant(node.backend_node_id);
+          if (!hasInteractive) {
+            return false; // Filter out empty container without interactive content
+          }
+        }
+      }
+
+      // Rule 2: Filter text nodes that mirror parent's label
+      if (textKinds.has(node.kind)) {
+        const parentLabel = getParentLabel(node.backend_node_id);
+        if (parentLabel && node.label) {
+          // Normalize and compare
+          const normalizedParent = parentLabel.trim().toLowerCase();
+          const normalizedNode = node.label.trim().toLowerCase();
+          if (normalizedNode === normalizedParent) {
+            return false; // Filter out duplicate text
+          }
+        }
+      }
+
+      return true; // Keep the node
+    });
   }
 }
 
