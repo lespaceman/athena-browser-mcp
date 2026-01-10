@@ -71,8 +71,9 @@ function initializeServer(): BrowserAutomationServer {
       title: 'Launch or Connect Browser',
       description:
         'Launch a new browser or connect to an existing one (e.g., Athena browser). ' +
-        'Returns a page_id and FactPack with page type, dialogs, forms, and key actions. ' +
-        'Use include_nodes: true for raw node list (disabled by default to reduce tokens).',
+        'Returns page_brief (compact XML) by default. ' +
+        'Use include_factpack: true for full FactPack JSON with dialogs, forms, actions. ' +
+        'Use include_nodes: true for raw node list.',
       inputSchema: BrowserLaunchInputSchema.shape,
       outputSchema: BrowserLaunchOutputSchema.shape,
     },
@@ -86,8 +87,9 @@ function initializeServer(): BrowserAutomationServer {
       title: 'Navigate to URL',
       description:
         'Navigate a page to the specified URL. Wait for page load to complete. ' +
-        'Returns FactPack with page type, dialogs, forms, and key actions. ' +
-        'Use include_nodes: true for raw node list (disabled by default to reduce tokens).',
+        'Returns page_brief (compact XML) by default. ' +
+        'Use include_factpack: true for full FactPack JSON with dialogs, forms, actions. ' +
+        'Use include_nodes: true for raw node list.',
       inputSchema: BrowserNavigateInputSchema.shape,
       outputSchema: BrowserNavigateOutputSchema.shape,
     },
@@ -115,8 +117,9 @@ function initializeServer(): BrowserAutomationServer {
       title: 'Capture Page Snapshot',
       description:
         'Capture a fresh snapshot of the page using CDP accessibility tree. ' +
-        'Returns FactPack with page type, dialogs, forms, and key actions. ' +
-        'Use include_nodes: true for raw node list (disabled by default to reduce tokens).',
+        'Returns page_brief (compact XML) by default. ' +
+        'Use include_factpack: true for full FactPack JSON with dialogs, forms, actions. ' +
+        'Use include_nodes: true for raw node list.',
       inputSchema: SnapshotCaptureInputSchema.shape,
       outputSchema: SnapshotCaptureOutputSchema.shape,
     },

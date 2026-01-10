@@ -90,6 +90,31 @@ function buildNodeSummary(snapshot: BaseSnapshot): {
 }
 
 /**
+ * Resolve page_id to a PageHandle, throwing if not found.
+ * Also touches the page to mark it as MRU.
+ *
+ * @param session - SessionManager instance
+ * @param page_id - Optional page identifier
+ * @returns PageHandle for the resolved page
+ * @throws Error if no page available
+ */
+function resolveExistingPage(
+  session: SessionManager,
+  page_id: string | undefined
+): import('../browser/page-registry.js').PageHandle {
+  const handle = session.resolvePage(page_id);
+  if (!handle) {
+    if (page_id) {
+      throw new Error(`Page not found: ${page_id}`);
+    } else {
+      throw new Error('No page available. Use browser_launch first.');
+    }
+  }
+  session.touchPage(handle.page_id);
+  return handle;
+}
+
+/**
  * Launch a new browser or connect to an existing one.
  * Automatically captures a snapshot of the page.
  *
@@ -106,12 +131,23 @@ export async function browserLaunch(rawInput: unknown): Promise<BrowserLaunchOut
   if (input.mode === 'connect') {
     const endpointUrl = input.endpoint_url ?? buildEndpointUrl();
     await session.connect({ endpointUrl });
+
     // Try to adopt existing page, or create one if none exist
-    if (session.getPageCount() > 0) {
-      handle = await session.adoptPage(0);
-    } else {
-      // No pages in connected browser, create a new one
-      handle = await session.createPage();
+    // Use try-catch to handle race condition where page count changes between check and adopt
+    try {
+      if (session.getPageCount() > 0) {
+        handle = await session.adoptPage(0);
+      } else {
+        // No pages in connected browser, create a new one
+        handle = await session.createPage();
+      }
+    } catch (error) {
+      // If adoptPage fails due to race condition (pages changed), create new page
+      if (error instanceof Error && error.message.includes('Invalid page index')) {
+        handle = await session.createPage();
+      } else {
+        throw error;
+      }
     }
     mode = 'connected';
   } else {
@@ -144,10 +180,14 @@ export async function browserLaunch(rawInput: unknown): Promise<BrowserLaunchOut
     snapshot_id: snapshot.snapshot_id,
     node_count: snapshot.meta.node_count,
     interactive_count: snapshot.meta.interactive_count,
-    factpack,
     page_brief: pageBriefResult.page_brief,
     page_brief_tokens: pageBriefResult.page_brief_tokens,
   };
+
+  // Only include factpack if explicitly requested
+  if (input.include_factpack) {
+    result.factpack = factpack;
+  }
 
   // Only include nodes if explicitly requested
   if (input.include_nodes) {
@@ -167,17 +207,17 @@ export async function browserLaunch(rawInput: unknown): Promise<BrowserLaunchOut
 export async function browserNavigate(rawInput: unknown): Promise<BrowserNavigateOutput> {
   const input = BrowserNavigateInputSchema.parse(rawInput);
   const session = getSessionManager();
-  const handle = session.getPage(input.page_id);
 
-  if (!handle) {
-    throw new Error(`Page not found: ${input.page_id}`);
-  }
+  // Resolve page_id with auto-create if not specified
+  const handle = await session.resolvePageOrCreate(input.page_id);
+  const page_id = handle.page_id;
+  session.touchPage(page_id);
 
-  await session.navigateTo(input.page_id, input.url);
+  await session.navigateTo(page_id, input.url);
 
   // Auto-capture snapshot after navigation
-  const snapshot = await compileSnapshot(handle.cdp, handle.page, input.page_id);
-  snapshotStore.store(input.page_id, snapshot);
+  const snapshot = await compileSnapshot(handle.cdp, handle.page, page_id);
+  snapshotStore.store(page_id, snapshot);
 
   // Extract FactPack
   const factpackOptions: FactPackOptions = {
@@ -191,16 +231,20 @@ export async function browserNavigate(rawInput: unknown): Promise<BrowserNavigat
   const pageBriefResult = generatePageBrief(factpack);
 
   const result: BrowserNavigateOutput = {
-    page_id: input.page_id,
+    page_id,
     url: handle.page.url(),
     title: await handle.page.title(),
     snapshot_id: snapshot.snapshot_id,
     node_count: snapshot.meta.node_count,
     interactive_count: snapshot.meta.interactive_count,
-    factpack,
     page_brief: pageBriefResult.page_brief,
     page_brief_tokens: pageBriefResult.page_brief_tokens,
   };
+
+  // Only include factpack if explicitly requested
+  if (input.include_factpack) {
+    result.factpack = factpack;
+  }
 
   // Only include nodes if explicitly requested
   if (input.include_nodes) {
@@ -243,17 +287,16 @@ export async function browserClose(rawInput: unknown): Promise<BrowserCloseOutpu
 export async function snapshotCapture(rawInput: unknown): Promise<SnapshotCaptureOutput> {
   const input = SnapshotCaptureInputSchema.parse(rawInput);
   const session = getSessionManager();
-  const handle = session.getPage(input.page_id);
 
-  if (!handle) {
-    throw new Error(`Page not found: ${input.page_id}`);
-  }
+  // Resolve page_id (no auto-create for snapshot)
+  const handle = resolveExistingPage(session, input.page_id);
+  const page_id = handle.page_id;
 
   // Extract snapshot using CDP
-  const snapshot = await compileSnapshot(handle.cdp, handle.page, input.page_id);
+  const snapshot = await compileSnapshot(handle.cdp, handle.page, page_id);
 
   // Store for later use by actions
-  snapshotStore.store(input.page_id, snapshot);
+  snapshotStore.store(page_id, snapshot);
 
   // Extract FactPack
   const factpackOptions: FactPackOptions = {
@@ -272,10 +315,14 @@ export async function snapshotCapture(rawInput: unknown): Promise<SnapshotCaptur
     title: snapshot.title,
     node_count: snapshot.meta.node_count,
     interactive_count: snapshot.meta.interactive_count,
-    factpack,
     page_brief: pageBriefResult.page_brief,
     page_brief_tokens: pageBriefResult.page_brief_tokens,
   };
+
+  // Only include factpack if explicitly requested
+  if (input.include_factpack) {
+    result.factpack = factpack;
+  }
 
   // Only include nodes if explicitly requested
   if (input.include_nodes) {
@@ -294,16 +341,15 @@ export async function snapshotCapture(rawInput: unknown): Promise<SnapshotCaptur
 export async function actionClick(rawInput: unknown): Promise<ActionClickOutput> {
   const input = ActionClickInputSchema.parse(rawInput);
   const session = getSessionManager();
-  const handle = session.getPage(input.page_id);
 
-  if (!handle) {
-    throw new Error(`Page not found: ${input.page_id}`);
-  }
+  // Resolve page_id (no auto-create for click)
+  const handle = resolveExistingPage(session, input.page_id);
+  const page_id = handle.page_id;
 
   // Get snapshot for this page
-  const snapshot = snapshotStore.getByPageId(input.page_id);
+  const snapshot = snapshotStore.getByPageId(page_id);
   if (!snapshot) {
-    throw new Error(`No snapshot for page ${input.page_id} - call snapshot_capture first`);
+    throw new Error(`No snapshot for page ${page_id} - call snapshot_capture first`);
   }
 
   // Find node in snapshot
@@ -331,11 +377,16 @@ export async function actionClick(rawInput: unknown): Promise<ActionClickOutput>
  */
 export function getNodeDetails(rawInput: unknown): GetNodeDetailsOutput {
   const input = GetNodeDetailsInputSchema.parse(rawInput);
+  const session = getSessionManager();
+
+  // Resolve page_id (no auto-create for read-only operation)
+  const handle = resolveExistingPage(session, input.page_id);
+  const page_id = handle.page_id;
 
   // Get snapshot for this page
-  const snapshot = snapshotStore.getByPageId(input.page_id);
+  const snapshot = snapshotStore.getByPageId(page_id);
   if (!snapshot) {
-    throw new Error(`No snapshot for page ${input.page_id} - navigate to a page first`);
+    throw new Error(`No snapshot for page ${page_id} - navigate to a page first`);
   }
 
   // Find the node
@@ -343,7 +394,7 @@ export function getNodeDetails(rawInput: unknown): GetNodeDetailsOutput {
 
   if (!node) {
     return {
-      page_id: input.page_id,
+      page_id,
       snapshot_id: snapshot.snapshot_id,
       nodes: [],
       not_found: [input.node_id],
@@ -410,7 +461,7 @@ export function getNodeDetails(rawInput: unknown): GetNodeDetailsOutput {
   }
 
   return {
-    page_id: input.page_id,
+    page_id,
     snapshot_id: snapshot.snapshot_id,
     nodes: [details],
   };
@@ -425,11 +476,16 @@ export function getNodeDetails(rawInput: unknown): GetNodeDetailsOutput {
  */
 export function findElements(rawInput: unknown): FindElementsOutput {
   const input = FindElementsInputSchema.parse(rawInput);
+  const session = getSessionManager();
+
+  // Resolve page_id (no auto-create for query)
+  const handle = resolveExistingPage(session, input.page_id);
+  const page_id = handle.page_id;
 
   // Get snapshot for this page
-  const snapshot = snapshotStore.getByPageId(input.page_id);
+  const snapshot = snapshotStore.getByPageId(page_id);
   if (!snapshot) {
-    throw new Error(`No snapshot for page ${input.page_id} - call snapshot_capture first`);
+    throw new Error(`No snapshot for page ${page_id} - call snapshot_capture first`);
   }
 
   // Build query request from input
@@ -495,7 +551,7 @@ export function findElements(rawInput: unknown): FindElementsOutput {
   }));
 
   return {
-    page_id: input.page_id,
+    page_id,
     snapshot_id: snapshot.snapshot_id,
     matches,
     stats: response.stats,
@@ -513,6 +569,11 @@ export function findElements(rawInput: unknown): FindElementsOutput {
  */
 export function getFactPack(rawInput: unknown): GetFactPackOutput {
   const input = GetFactPackInputSchema.parse(rawInput);
+  const session = getSessionManager();
+
+  // Resolve page_id (no auto-create for FactPack extraction)
+  const handle = resolveExistingPage(session, input.page_id);
+  const page_id = handle.page_id;
 
   // Get snapshot (by ID or latest for page)
   let snapshot: BaseSnapshot | undefined;
@@ -522,9 +583,9 @@ export function getFactPack(rawInput: unknown): GetFactPackOutput {
       throw new Error(`Snapshot not found: ${input.snapshot_id}`);
     }
   } else {
-    snapshot = snapshotStore.getByPageId(input.page_id);
+    snapshot = snapshotStore.getByPageId(page_id);
     if (!snapshot) {
-      throw new Error(`No snapshot for page ${input.page_id} - navigate to a page first`);
+      throw new Error(`No snapshot for page ${page_id} - navigate to a page first`);
     }
   }
 
@@ -536,9 +597,18 @@ export function getFactPack(rawInput: unknown): GetFactPackOutput {
   };
   const factpack = extractFactPack(snapshot, options);
 
-  return {
-    page_id: input.page_id,
+  const result: GetFactPackOutput = {
+    page_id,
     snapshot_id: snapshot.snapshot_id,
     factpack,
   };
+
+  // Include page_brief if requested
+  if (input.include_page_brief) {
+    const pageBriefResult = generatePageBrief(factpack);
+    result.page_brief = pageBriefResult.page_brief;
+    result.page_brief_tokens = pageBriefResult.page_brief_tokens;
+  }
+
+  return result;
 }

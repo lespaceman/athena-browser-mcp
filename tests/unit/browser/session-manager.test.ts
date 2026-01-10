@@ -769,4 +769,103 @@ describe('SessionManager', () => {
       expect(persistentContext.newPage).toHaveBeenCalled();
     });
   });
+
+  describe('touchPage', () => {
+    beforeEach(async () => {
+      await sessionManager.launch();
+    });
+
+    it('should mark page as MRU', async () => {
+      const page1 = await sessionManager.createPage();
+      const page2 = await sessionManager.createPage();
+
+      // page2 is MRU after creation
+      expect(sessionManager.resolvePage()?.page_id).toBe(page2.page_id);
+
+      // Touch page1
+      sessionManager.touchPage(page1.page_id);
+
+      // page1 should now be MRU
+      expect(sessionManager.resolvePage()?.page_id).toBe(page1.page_id);
+    });
+  });
+
+  describe('resolvePage', () => {
+    beforeEach(async () => {
+      await sessionManager.launch();
+    });
+
+    it('should return specified page when page_id provided', async () => {
+      const page1 = await sessionManager.createPage();
+      const page2 = await sessionManager.createPage();
+
+      const resolved = sessionManager.resolvePage(page1.page_id);
+
+      expect(resolved?.page_id).toBe(page1.page_id);
+    });
+
+    it('should return undefined for unknown page_id', () => {
+      const resolved = sessionManager.resolvePage('page-unknown');
+
+      expect(resolved).toBeUndefined();
+    });
+
+    it('should return MRU page when page_id omitted', async () => {
+      const page1 = await sessionManager.createPage();
+      const page2 = await sessionManager.createPage();
+
+      // page2 is MRU (last created)
+      const resolved = sessionManager.resolvePage();
+
+      expect(resolved?.page_id).toBe(page2.page_id);
+    });
+
+    it('should return undefined when no pages and page_id omitted', () => {
+      const resolved = sessionManager.resolvePage();
+
+      expect(resolved).toBeUndefined();
+    });
+  });
+
+  describe('resolvePageOrCreate', () => {
+    beforeEach(async () => {
+      await sessionManager.launch();
+    });
+
+    it('should return specified page when page_id provided', async () => {
+      const page = await sessionManager.createPage();
+
+      const resolved = await sessionManager.resolvePageOrCreate(page.page_id);
+
+      expect(resolved.page_id).toBe(page.page_id);
+    });
+
+    it('should throw when page_id provided but not found', async () => {
+      await expect(sessionManager.resolvePageOrCreate('page-unknown')).rejects.toThrow(
+        'Page not found: page-unknown'
+      );
+    });
+
+    it('should return MRU page when page_id omitted and pages exist', async () => {
+      const page1 = await sessionManager.createPage();
+      const page2 = await sessionManager.createPage();
+
+      const resolved = await sessionManager.resolvePageOrCreate();
+
+      expect(resolved.page_id).toBe(page2.page_id);
+    });
+
+    it('should create new page when page_id omitted and no pages exist', async () => {
+      const resolved = await sessionManager.resolvePageOrCreate();
+
+      expectPageId(resolved.page_id);
+      expect(mockContext.newPage).toHaveBeenCalled();
+    });
+
+    it('should throw when browser not running', async () => {
+      const newManager = new SessionManager();
+
+      await expect(newManager.resolvePageOrCreate()).rejects.toThrow('Browser not running');
+    });
+  });
 });

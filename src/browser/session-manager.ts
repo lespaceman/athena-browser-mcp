@@ -474,6 +474,62 @@ export class SessionManager {
   }
 
   /**
+   * Touch a page to mark it as most recently used.
+   *
+   * Call this on page access to update MRU tracking.
+   *
+   * @param page_id - The page identifier
+   */
+  touchPage(page_id: string): void {
+    this.registry.touch(page_id);
+  }
+
+  /**
+   * Resolve page_id to a PageHandle.
+   *
+   * If page_id is provided, returns the specified page.
+   * If page_id is omitted, returns the most recently used page.
+   * Does NOT auto-create pages.
+   *
+   * @param page_id - Optional page identifier
+   * @returns PageHandle if found, undefined otherwise
+   */
+  resolvePage(page_id?: string): PageHandle | undefined {
+    if (page_id) {
+      return this.getPage(page_id);
+    }
+    return this.registry.getMostRecent();
+  }
+
+  /**
+   * Resolve page_id to a PageHandle, creating a new page if needed.
+   *
+   * If page_id is provided, returns the specified page (throws if not found).
+   * If page_id is omitted, returns the most recently used page or creates one.
+   *
+   * @param page_id - Optional page identifier
+   * @returns PageHandle for the resolved or created page
+   * @throws Error if page_id is provided but not found, or if browser not running
+   */
+  async resolvePageOrCreate(page_id?: string): Promise<PageHandle> {
+    if (page_id) {
+      const handle = this.getPage(page_id);
+      if (!handle) {
+        throw new Error(`Page not found: ${page_id}`);
+      }
+      return handle;
+    }
+
+    // Try to get MRU page
+    let handle = this.registry.getMostRecent();
+    if (!handle) {
+      // No pages exist, create one
+      handle = await this.createPage();
+    }
+    return handle;
+  }
+
+  /**
    * Close a page and its CDP session
    *
    * @param page_id - The page identifier

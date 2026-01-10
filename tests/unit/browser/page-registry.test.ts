@@ -324,4 +324,157 @@ describe('PageRegistry', () => {
       expect(found).toHaveLength(2);
     });
   });
+
+  describe('MRU tracking', () => {
+    describe('touch', () => {
+      it('should return true for registered page_id', () => {
+        const mockPage = createMockPage();
+        const mockCdp = createMockCdpClient();
+        const handle = registry.register(mockPage as unknown as PageHandle['page'], mockCdp);
+
+        const result = registry.touch(handle.page_id);
+
+        expect(result).toBe(true);
+      });
+
+      it('should return false for unknown page_id', () => {
+        const result = registry.touch('page-unknown-id');
+
+        expect(result).toBe(false);
+      });
+
+      it('should update MRU to touched page', () => {
+        const mockPage1 = createMockPage();
+        const mockPage2 = createMockPage();
+        const mockCdp1 = createMockCdpClient();
+        const mockCdp2 = createMockCdpClient();
+
+        const handle1 = registry.register(mockPage1 as unknown as PageHandle['page'], mockCdp1);
+        const handle2 = registry.register(mockPage2 as unknown as PageHandle['page'], mockCdp2);
+
+        // handle2 is MRU after registration
+        expect(registry.getMostRecent()?.page_id).toBe(handle2.page_id);
+
+        // Touch handle1
+        registry.touch(handle1.page_id);
+
+        // Now handle1 should be MRU
+        expect(registry.getMostRecent()?.page_id).toBe(handle1.page_id);
+      });
+    });
+
+    describe('getMostRecent', () => {
+      it('should return undefined when no pages registered', () => {
+        expect(registry.getMostRecent()).toBeUndefined();
+      });
+
+      it('should return the last registered page as MRU', () => {
+        const mockPage1 = createMockPage();
+        const mockPage2 = createMockPage();
+        const mockCdp1 = createMockCdpClient();
+        const mockCdp2 = createMockCdpClient();
+
+        registry.register(mockPage1 as unknown as PageHandle['page'], mockCdp1);
+        const handle2 = registry.register(mockPage2 as unknown as PageHandle['page'], mockCdp2);
+
+        expect(registry.getMostRecent()?.page_id).toBe(handle2.page_id);
+      });
+
+      it('should return touched page as MRU', () => {
+        const mockPage1 = createMockPage();
+        const mockPage2 = createMockPage();
+        const mockCdp1 = createMockCdpClient();
+        const mockCdp2 = createMockCdpClient();
+
+        const handle1 = registry.register(mockPage1 as unknown as PageHandle['page'], mockCdp1);
+        registry.register(mockPage2 as unknown as PageHandle['page'], mockCdp2);
+
+        registry.touch(handle1.page_id);
+
+        expect(registry.getMostRecent()?.page_id).toBe(handle1.page_id);
+      });
+
+      it('should fallback to first page when MRU is removed', () => {
+        const mockPage1 = createMockPage();
+        const mockPage2 = createMockPage();
+        const mockCdp1 = createMockCdpClient();
+        const mockCdp2 = createMockCdpClient();
+
+        const handle1 = registry.register(mockPage1 as unknown as PageHandle['page'], mockCdp1);
+        const handle2 = registry.register(mockPage2 as unknown as PageHandle['page'], mockCdp2);
+
+        // handle2 is MRU
+        expect(registry.getMostRecent()?.page_id).toBe(handle2.page_id);
+
+        // Remove MRU page
+        registry.remove(handle2.page_id);
+
+        // Should fallback to handle1
+        expect(registry.getMostRecent()?.page_id).toBe(handle1.page_id);
+      });
+
+      it('should return undefined after clear', () => {
+        const mockPage = createMockPage();
+        const mockCdp = createMockCdpClient();
+
+        registry.register(mockPage as unknown as PageHandle['page'], mockCdp);
+        registry.clear();
+
+        expect(registry.getMostRecent()).toBeUndefined();
+      });
+    });
+
+    describe('MRU integration', () => {
+      it('should maintain MRU across multiple operations', () => {
+        const mockPage1 = createMockPage();
+        const mockPage2 = createMockPage();
+        const mockPage3 = createMockPage();
+        const mockCdp1 = createMockCdpClient();
+        const mockCdp2 = createMockCdpClient();
+        const mockCdp3 = createMockCdpClient();
+
+        // Register page1 (MRU = page1)
+        const handle1 = registry.register(mockPage1 as unknown as PageHandle['page'], mockCdp1);
+        expect(registry.getMostRecent()?.page_id).toBe(handle1.page_id);
+
+        // Register page2 (MRU = page2)
+        const handle2 = registry.register(mockPage2 as unknown as PageHandle['page'], mockCdp2);
+        expect(registry.getMostRecent()?.page_id).toBe(handle2.page_id);
+
+        // Touch page1 (MRU = page1)
+        registry.touch(handle1.page_id);
+        expect(registry.getMostRecent()?.page_id).toBe(handle1.page_id);
+
+        // Register page3 (MRU = page3)
+        const handle3 = registry.register(mockPage3 as unknown as PageHandle['page'], mockCdp3);
+        expect(registry.getMostRecent()?.page_id).toBe(handle3.page_id);
+
+        // Remove MRU (page3), MRU should transfer
+        registry.remove(handle3.page_id);
+        const mru = registry.getMostRecent();
+        expect(mru).toBeDefined();
+        // Should be one of the remaining pages
+        expect([handle1.page_id, handle2.page_id]).toContain(mru?.page_id);
+      });
+
+      it('should not change MRU when removing non-MRU page', () => {
+        const mockPage1 = createMockPage();
+        const mockPage2 = createMockPage();
+        const mockCdp1 = createMockCdpClient();
+        const mockCdp2 = createMockCdpClient();
+
+        const handle1 = registry.register(mockPage1 as unknown as PageHandle['page'], mockCdp1);
+        const handle2 = registry.register(mockPage2 as unknown as PageHandle['page'], mockCdp2);
+
+        // handle2 is MRU
+        expect(registry.getMostRecent()?.page_id).toBe(handle2.page_id);
+
+        // Remove non-MRU page (handle1)
+        registry.remove(handle1.page_id);
+
+        // MRU should still be handle2
+        expect(registry.getMostRecent()?.page_id).toBe(handle2.page_id);
+      });
+    });
+  });
 });

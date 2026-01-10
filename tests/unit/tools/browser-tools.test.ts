@@ -207,6 +207,29 @@ describe('BrowserTools', () => {
         }
       }
     });
+
+    it('should return page_brief by default without factpack', async () => {
+      const result = await browserTools.browserLaunch({ mode: 'launch', headless: true });
+
+      // page_brief is always returned
+      expect(result.page_brief).toBeDefined();
+      expect(result.page_brief_tokens).toBeGreaterThan(0);
+      // factpack is NOT returned by default
+      expect(result.factpack).toBeUndefined();
+    });
+
+    it('should include factpack when include_factpack is true', async () => {
+      const result = await browserTools.browserLaunch({
+        mode: 'launch',
+        headless: true,
+        include_factpack: true,
+      });
+
+      expect(result.factpack).toBeDefined();
+      expect(result.factpack!.meta.snapshot_id).toBe('snap-123');
+      // page_brief should still be included
+      expect(result.page_brief).toBeDefined();
+    });
   });
 
   describe('browserNavigate()', () => {
@@ -231,6 +254,32 @@ describe('BrowserTools', () => {
         browserTools.browserNavigate({ page_id: 'non-existent', url: 'https://example.com' })
       ).rejects.toThrow('Page not found: non-existent');
     });
+
+    it('should return page_brief by default without factpack', async () => {
+      const result = await browserTools.browserNavigate({
+        page_id: 'page-123',
+        url: 'https://example.com/page',
+      });
+
+      // page_brief is always returned
+      expect(result.page_brief).toBeDefined();
+      expect(result.page_brief_tokens).toBeGreaterThan(0);
+      // factpack is NOT returned by default
+      expect(result.factpack).toBeUndefined();
+    });
+
+    it('should include factpack when include_factpack is true', async () => {
+      const result = await browserTools.browserNavigate({
+        page_id: 'page-123',
+        url: 'https://example.com/page',
+        include_factpack: true,
+      });
+
+      expect(result.factpack).toBeDefined();
+      expect(result.factpack!.meta.snapshot_id).toBe('snap-123');
+      // page_brief should still be included
+      expect(result.page_brief).toBeDefined();
+    });
   });
 
   describe('browserClose()', () => {
@@ -250,18 +299,32 @@ describe('BrowserTools', () => {
   });
 
   describe('snapshotCapture()', () => {
-    it('should capture snapshot and return factpack', async () => {
+    it('should capture snapshot and return page_brief by default (no factpack)', async () => {
       const result = await browserTools.snapshotCapture({ page_id: 'page-123' });
 
       expect(compileSnapshotMock).toHaveBeenCalledWith(mockCdp, mockPage, 'page-123');
       expect(result.snapshot_id).toBe('snap-123');
       expect(result.url).toBe('https://example.com');
       expect(result.node_count).toBe(1);
-      // FactPack is always returned
-      expect(result.factpack).toBeDefined();
-      expect(result.factpack.meta.snapshot_id).toBe('snap-123');
+      // page_brief is always returned
+      expect(result.page_brief).toBeDefined();
+      expect(result.page_brief_tokens).toBeGreaterThan(0);
+      // factpack is NOT returned by default (opt-in)
+      expect(result.factpack).toBeUndefined();
       // nodes are NOT returned by default (opt-in)
       expect(result.nodes).toBeUndefined();
+    });
+
+    it('should include factpack when include_factpack is true', async () => {
+      const result = await browserTools.snapshotCapture({
+        page_id: 'page-123',
+        include_factpack: true,
+      });
+
+      expect(result.factpack).toBeDefined();
+      expect(result.factpack!.meta.snapshot_id).toBe('snap-123');
+      // page_brief should still be included
+      expect(result.page_brief).toBeDefined();
     });
 
     it('should include nodes when include_nodes is true', async () => {
@@ -631,6 +694,43 @@ describe('BrowserTools', () => {
 
       expect(result.matches).toHaveLength(5);
       expect(result.stats.total_matched).toBe(20);
+    });
+  });
+
+  describe('getFactPack()', () => {
+    it('should return factpack without page_brief by default', async () => {
+      // First capture a snapshot
+      await browserTools.snapshotCapture({ page_id: 'page-123' });
+
+      const result = browserTools.getFactPack({ page_id: 'page-123' });
+
+      expect(result.page_id).toBe('page-123');
+      expect(result.snapshot_id).toBe('snap-123');
+      expect(result.factpack).toBeDefined();
+      expect(result.factpack.meta.snapshot_id).toBe('snap-123');
+      // page_brief is NOT returned by default
+      expect(result.page_brief).toBeUndefined();
+      expect(result.page_brief_tokens).toBeUndefined();
+    });
+
+    it('should include page_brief when include_page_brief is true', async () => {
+      // First capture a snapshot
+      await browserTools.snapshotCapture({ page_id: 'page-123' });
+
+      const result = browserTools.getFactPack({
+        page_id: 'page-123',
+        include_page_brief: true,
+      });
+
+      expect(result.factpack).toBeDefined();
+      expect(result.page_brief).toBeDefined();
+      expect(result.page_brief_tokens).toBeGreaterThan(0);
+    });
+
+    it('should throw error if no snapshot exists', () => {
+      expect(() => browserTools.getFactPack({ page_id: 'page-123' })).toThrow(
+        'No snapshot for page page-123'
+      );
     });
   });
 });

@@ -20,6 +20,8 @@ export const BrowserLaunchInputSchema = z.object({
   endpoint_url: z.string().optional(),
   /** Include raw node summary in response (default: false) */
   include_nodes: z.boolean().default(false),
+  /** Include full FactPack JSON in response (default: false). Use when you need structured access to dialogs, forms, actions. */
+  include_factpack: z.boolean().default(false),
   /** FactPack extraction options */
   factpack_options: z
     .object({
@@ -49,12 +51,12 @@ export const BrowserLaunchOutputSchema = z.object({
   node_count: z.number(),
   /** Interactive nodes captured */
   interactive_count: z.number(),
-  /** Extracted FactPack with page understanding */
-  factpack: FactPackSchemaLazy,
   /** XML-compact page brief for LLM context (always included) */
   page_brief: z.string(),
   /** Token count for page_brief */
   page_brief_tokens: z.number(),
+  /** Extracted FactPack with page understanding (only when include_factpack: true) */
+  factpack: FactPackSchemaLazy.optional(),
   /** Summary of interactive nodes (only when include_nodes: true) */
   nodes: z
     .array(
@@ -76,12 +78,14 @@ export type BrowserLaunchOutput = z.infer<typeof BrowserLaunchOutputSchema>;
 // ============================================================================
 
 export const BrowserNavigateInputSchema = z.object({
-  /** Page ID to navigate */
-  page_id: z.string(),
+  /** Page ID to navigate. If omitted, uses most recently used page (or creates one if none exist) */
+  page_id: z.string().optional(),
   /** URL to navigate to */
   url: z.string().url(),
   /** Include raw node summary in response (default: false) */
   include_nodes: z.boolean().default(false),
+  /** Include full FactPack JSON in response (default: false). Use when you need structured access to dialogs, forms, actions. */
+  include_factpack: z.boolean().default(false),
   /** FactPack extraction options */
   factpack_options: z
     .object({
@@ -105,12 +109,12 @@ export const BrowserNavigateOutputSchema = z.object({
   node_count: z.number(),
   /** Interactive nodes captured */
   interactive_count: z.number(),
-  /** Extracted FactPack with page understanding */
-  factpack: FactPackSchemaLazy,
   /** XML-compact page brief for LLM context (always included) */
   page_brief: z.string(),
   /** Token count for page_brief */
   page_brief_tokens: z.number(),
+  /** Extracted FactPack with page understanding (only when include_factpack: true) */
+  factpack: FactPackSchemaLazy.optional(),
   /** Summary of interactive nodes (only when include_nodes: true) */
   nodes: z
     .array(
@@ -161,10 +165,12 @@ export const NodeSummarySchema = z.object({
 });
 
 export const SnapshotCaptureInputSchema = z.object({
-  /** Page ID to capture */
-  page_id: z.string(),
+  /** Page ID to capture. If omitted, uses most recently used page */
+  page_id: z.string().optional(),
   /** Include raw node summary in response (default: false) */
   include_nodes: z.boolean().default(false),
+  /** Include full FactPack JSON in response (default: false). Use when you need structured access to dialogs, forms, actions. */
+  include_factpack: z.boolean().default(false),
   /** FactPack extraction options */
   factpack_options: z
     .object({
@@ -186,12 +192,12 @@ export const SnapshotCaptureOutputSchema = z.object({
   node_count: z.number(),
   /** Interactive nodes captured */
   interactive_count: z.number(),
-  /** Extracted FactPack with page understanding */
-  factpack: FactPackSchemaLazy,
   /** XML-compact page brief for LLM context (always included) */
   page_brief: z.string(),
   /** Token count for page_brief */
   page_brief_tokens: z.number(),
+  /** Extracted FactPack with page understanding (only when include_factpack: true) */
+  factpack: FactPackSchemaLazy.optional(),
   /** Summary of interactive nodes (only when include_nodes: true) */
   nodes: z.array(NodeSummarySchema).optional(),
 });
@@ -205,8 +211,8 @@ export type SnapshotCaptureOutput = z.infer<typeof SnapshotCaptureOutputSchema>;
 // ============================================================================
 
 export const ActionClickInputSchema = z.object({
-  /** Page ID */
-  page_id: z.string(),
+  /** Page ID. If omitted, uses most recently used page */
+  page_id: z.string().optional(),
   /** Node ID from snapshot to click */
   node_id: z.string(),
 });
@@ -228,8 +234,8 @@ export type ActionClickOutput = z.infer<typeof ActionClickOutputSchema>;
 // ============================================================================
 
 export const GetNodeDetailsInputSchema = z.object({
-  /** Page ID */
-  page_id: z.string(),
+  /** Page ID. If omitted, uses most recently used page */
+  page_id: z.string().optional(),
   /** Node ID to get details for */
   node_id: z.string(),
 });
@@ -356,8 +362,8 @@ const LabelFilterSchema = z.union([
 ]);
 
 export const FindElementsInputSchema = z.object({
-  /** Page ID to query */
-  page_id: z.string(),
+  /** Page ID to query. If omitted, uses most recently used page */
+  page_id: z.string().optional(),
   /** Filter by NodeKind (single or array) */
   kind: z.union([z.string(), z.array(z.string())]).optional(),
   /** Filter by label text (string for contains, or object for options) */
@@ -646,8 +652,8 @@ export type FactPackOutput = z.infer<typeof FactPackSchema>;
 // ============================================================================
 
 export const GetFactPackInputSchema = z.object({
-  /** Page ID to get FactPack for */
-  page_id: z.string(),
+  /** Page ID to get FactPack for. If omitted, uses most recently used page */
+  page_id: z.string().optional(),
   /** Specific snapshot ID (defaults to latest for page) */
   snapshot_id: z.string().optional(),
   /** Max actions to select (default: 12) */
@@ -656,6 +662,8 @@ export const GetFactPackInputSchema = z.object({
   min_action_score: z.number().min(0).max(1).optional(),
   /** Include disabled form fields (default: true) */
   include_disabled_fields: z.boolean().optional(),
+  /** Include rendered page_brief XML in response (default: false) */
+  include_page_brief: z.boolean().default(false),
 });
 
 export const GetFactPackOutputSchema = z.object({
@@ -665,6 +673,10 @@ export const GetFactPackOutputSchema = z.object({
   snapshot_id: z.string(),
   /** Extracted FactPack */
   factpack: FactPackSchema,
+  /** XML-compact page brief (only when include_page_brief: true) */
+  page_brief: z.string().optional(),
+  /** Token count for page_brief (only when include_page_brief: true) */
+  page_brief_tokens: z.number().optional(),
 });
 
 export type GetFactPackInput = z.infer<typeof GetFactPackInputSchema>;

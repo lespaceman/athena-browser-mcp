@@ -37,6 +37,8 @@ export interface PageHandle {
  */
 export class PageRegistry {
   private readonly pages = new Map<string, PageHandle>();
+  /** Most recently used page ID for default resolution */
+  private mruPageId: string | null = null;
 
   /**
    * Register a new page with its CDP session
@@ -63,6 +65,7 @@ export class PageRegistry {
     };
 
     this.pages.set(page_id, handle);
+    this.mruPageId = page_id;
 
     return handle;
   }
@@ -84,7 +87,13 @@ export class PageRegistry {
    * @returns true if page was removed, false if not found
    */
   remove(page_id: string): boolean {
-    return this.pages.delete(page_id);
+    const deleted = this.pages.delete(page_id);
+    if (deleted && this.mruPageId === page_id) {
+      // Transfer MRU to first remaining page, or null if empty
+      const firstRemaining = this.pages.values().next().value;
+      this.mruPageId = firstRemaining?.page_id ?? null;
+    }
+    return deleted;
   }
 
   /**
@@ -101,6 +110,7 @@ export class PageRegistry {
    */
   clear(): void {
     this.pages.clear();
+    this.mruPageId = null;
   }
 
   /**
@@ -190,5 +200,34 @@ export class PageRegistry {
     }
 
     return true;
+  }
+
+  /**
+   * Touch a page to mark it as most recently used.
+   *
+   * @param page_id - The page identifier
+   * @returns true if the page exists and was touched, false otherwise
+   */
+  touch(page_id: string): boolean {
+    if (this.pages.has(page_id)) {
+      this.mruPageId = page_id;
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Get the most recently used page.
+   *
+   * Falls back to the first registered page if MRU is not set.
+   *
+   * @returns PageHandle for MRU page, or undefined if no pages
+   */
+  getMostRecent(): PageHandle | undefined {
+    if (this.mruPageId && this.pages.has(this.mruPageId)) {
+      return this.pages.get(this.mruPageId);
+    }
+    // Fallback to first page
+    return this.pages.values().next().value;
   }
 }
