@@ -10,6 +10,9 @@ import {
   escapeAttrSelectorValue,
   escapeAttributeValue,
   normalizeText,
+  levenshteinDistance,
+  stringSimilarity,
+  fuzzyTokensMatch,
 } from '../../../src/lib/text-utils.js';
 
 describe('cssEscape', () => {
@@ -307,5 +310,200 @@ describe('normalizeText', () => {
   it('should normalize unicode', () => {
     // NFKC normalization: ﬁ (U+FB01) -> fi
     expect(normalizeText('ﬁle')).toBe('file');
+  });
+});
+
+// ============================================================================
+// Fuzzy Matching Utilities
+// ============================================================================
+
+describe('levenshteinDistance', () => {
+  describe('identical strings', () => {
+    it('should return 0 for identical strings', () => {
+      expect(levenshteinDistance('hello', 'hello')).toBe(0);
+    });
+
+    it('should return 0 for empty strings', () => {
+      expect(levenshteinDistance('', '')).toBe(0);
+    });
+  });
+
+  describe('basic operations', () => {
+    it('should handle single insertion', () => {
+      expect(levenshteinDistance('cat', 'cats')).toBe(1);
+    });
+
+    it('should handle single deletion', () => {
+      expect(levenshteinDistance('cats', 'cat')).toBe(1);
+    });
+
+    it('should handle single substitution', () => {
+      expect(levenshteinDistance('cat', 'bat')).toBe(1);
+    });
+
+    it('should handle multiple operations', () => {
+      expect(levenshteinDistance('kitten', 'sitting')).toBe(3);
+    });
+  });
+
+  describe('edge cases', () => {
+    it('should handle one empty string', () => {
+      expect(levenshteinDistance('', 'hello')).toBe(5);
+      expect(levenshteinDistance('hello', '')).toBe(5);
+    });
+
+    it('should handle single character strings', () => {
+      expect(levenshteinDistance('a', 'b')).toBe(1);
+      expect(levenshteinDistance('a', 'a')).toBe(0);
+    });
+
+    it('should handle completely different strings', () => {
+      expect(levenshteinDistance('abc', 'xyz')).toBe(3);
+    });
+  });
+
+  describe('symmetry', () => {
+    it('should be symmetric', () => {
+      expect(levenshteinDistance('abc', 'def')).toBe(levenshteinDistance('def', 'abc'));
+      expect(levenshteinDistance('submit', 'submt')).toBe(levenshteinDistance('submt', 'submit'));
+    });
+  });
+});
+
+describe('stringSimilarity', () => {
+  describe('identical strings', () => {
+    it('should return 1 for identical strings', () => {
+      expect(stringSimilarity('hello', 'hello')).toBe(1);
+    });
+
+    it('should return 1 for empty strings', () => {
+      expect(stringSimilarity('', '')).toBe(1);
+    });
+  });
+
+  describe('similarity values', () => {
+    it('should return high similarity for close strings', () => {
+      // 1 edit out of 6 chars = 1 - 1/6 ≈ 0.833
+      expect(stringSimilarity('submit', 'submt')).toBeCloseTo(0.833, 2);
+    });
+
+    it('should return low similarity for different strings', () => {
+      expect(stringSimilarity('abc', 'xyz')).toBe(0);
+    });
+
+    it('should return moderate similarity for partially matching strings', () => {
+      // "hello" vs "hallo" = 1 edit, length 5, similarity = 0.8
+      expect(stringSimilarity('hello', 'hallo')).toBe(0.8);
+    });
+  });
+
+  describe('boundary values', () => {
+    it('should return value between 0 and 1', () => {
+      const similarity = stringSimilarity('test', 'testing');
+      expect(similarity).toBeGreaterThanOrEqual(0);
+      expect(similarity).toBeLessThanOrEqual(1);
+    });
+  });
+});
+
+describe('fuzzyTokensMatch', () => {
+  describe('exact matching', () => {
+    it('should match identical tokens', () => {
+      const result = fuzzyTokensMatch(['submit', 'form'], ['submit', 'form']);
+      expect(result.isMatch).toBe(true);
+      expect(result.score).toBe(1);
+    });
+
+    it('should not match completely different tokens', () => {
+      const result = fuzzyTokensMatch(['cancel', 'button'], ['submit', 'form']);
+      expect(result.isMatch).toBe(false);
+    });
+  });
+
+  describe('prefix matching', () => {
+    it('should match when query token is prefix of text token', () => {
+      const result = fuzzyTokensMatch(['submitting'], ['sub'], { prefixMatch: true });
+      expect(result.isMatch).toBe(true);
+      expect(result.score).toBeGreaterThan(0.5);
+    });
+
+    it('should not match prefixes when prefixMatch is disabled', () => {
+      const result = fuzzyTokensMatch(['submitting'], ['sub'], { prefixMatch: false });
+      expect(result.isMatch).toBe(false);
+    });
+
+    it('should match when text token is prefix of query token', () => {
+      const result = fuzzyTokensMatch(['sub'], ['submitting'], { prefixMatch: true });
+      expect(result.isMatch).toBe(true);
+    });
+  });
+
+  describe('edit distance similarity', () => {
+    it('should match tokens with typos above threshold', () => {
+      // "submit" vs "submt" has similarity ~0.833, above default 0.8
+      const result = fuzzyTokensMatch(['submit'], ['submt'], { minSimilarity: 0.8 });
+      expect(result.isMatch).toBe(true);
+    });
+
+    it('should not match tokens with too many differences', () => {
+      // "submit" vs "abc" has low similarity
+      const result = fuzzyTokensMatch(['submit'], ['abc'], { minSimilarity: 0.8 });
+      expect(result.isMatch).toBe(false);
+    });
+
+    it('should respect custom minSimilarity threshold', () => {
+      // With a lower threshold, more typos are tolerated
+      const result = fuzzyTokensMatch(['submit'], ['sumbit'], { minSimilarity: 0.6 });
+      expect(result.isMatch).toBe(true);
+    });
+  });
+
+  describe('token overlap', () => {
+    it('should respect minTokenOverlap', () => {
+      // 1 out of 2 tokens match = 0.5 overlap
+      const resultLow = fuzzyTokensMatch(
+        ['submit', 'form'],
+        ['submit', 'cancel'],
+        { minTokenOverlap: 0.5 }
+      );
+      expect(resultLow.isMatch).toBe(true);
+
+      const resultHigh = fuzzyTokensMatch(
+        ['submit', 'form'],
+        ['submit', 'cancel'],
+        { minTokenOverlap: 0.8 }
+      );
+      expect(resultHigh.isMatch).toBe(false);
+    });
+  });
+
+  describe('empty inputs', () => {
+    it('should return no match for empty query tokens', () => {
+      const result = fuzzyTokensMatch(['submit'], []);
+      expect(result.isMatch).toBe(false);
+      expect(result.score).toBe(0);
+    });
+
+    it('should return no match for empty text tokens', () => {
+      const result = fuzzyTokensMatch([], ['submit']);
+      expect(result.isMatch).toBe(false);
+    });
+  });
+
+  describe('real-world scenarios', () => {
+    it('should match "Sign In" with "Sign" query', () => {
+      const result = fuzzyTokensMatch(['sign', 'in'], ['sign']);
+      expect(result.isMatch).toBe(true);
+    });
+
+    it('should match button with typo', () => {
+      const result = fuzzyTokensMatch(['submit', 'button'], ['submitt', 'button']);
+      expect(result.isMatch).toBe(true);
+    });
+
+    it('should match partial word queries', () => {
+      const result = fuzzyTokensMatch(['authentication', 'form'], ['auth'], { prefixMatch: true });
+      expect(result.isMatch).toBe(true);
+    });
   });
 });

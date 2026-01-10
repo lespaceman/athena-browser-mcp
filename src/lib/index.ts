@@ -45,8 +45,13 @@ export {
   escapeXPathValue,
   tokenizeForMatching,
   fuzzyTokenMatch,
+  levenshteinDistance,
+  stringSimilarity,
+  fuzzyTokensMatch,
   getTextContent,
   type TextContentNode,
+  type FuzzyTokenMatchOptions,
+  type FuzzyTokenMatchResult,
 } from './text-utils.js';
 
 // Selector building utilities

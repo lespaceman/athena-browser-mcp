@@ -13,9 +13,20 @@ import type { NodeKind, SemanticRegion, ReadableNode } from '../../snapshot/snap
 
 /**
  * Text matching mode for label queries.
- * Future: add 'fuzzy' | 'semantic' modes
  */
-export type TextMatchMode = 'exact' | 'contains';
+export type TextMatchMode = 'exact' | 'contains' | 'fuzzy';
+
+/**
+ * Options for fuzzy matching behavior
+ */
+export interface FuzzyMatchOptions {
+  /** Minimum token overlap ratio (0-1) for a match. Default: 0.5 */
+  minTokenOverlap?: number;
+  /** Enable prefix matching for tokens. Default: true */
+  prefixMatch?: boolean;
+  /** Minimum edit distance similarity (0-1) for similar tokens. Default: 0.8 */
+  minSimilarity?: number;
+}
 
 /**
  * Label filter configuration
@@ -27,6 +38,8 @@ export interface LabelFilter {
   mode?: TextMatchMode;
   /** Case sensitivity (default: false) */
   caseSensitive?: boolean;
+  /** Options for fuzzy matching (only used when mode is 'fuzzy') */
+  fuzzyOptions?: FuzzyMatchOptions;
 }
 
 // ============================================================================
@@ -86,11 +99,17 @@ export interface FindElementsRequest {
   /** Maximum number of results (default: 10) */
   limit?: number;
 
+  /** Minimum relevance score (0-1) to include in results */
+  min_score?: number;
+
+  /** Sort results by relevance (default: false, maintains document order) */
+  sort_by_relevance?: boolean;
+
+  /** Include disambiguation suggestions when results are ambiguous */
+  include_suggestions?: boolean;
+
   // Future: spatial constraint for position-based queries
   // spatial?: SpatialConstraint;
-
-  // Future: minimum relevance score (0-1)
-  // min_score?: number;
 }
 
 // ============================================================================
@@ -98,17 +117,27 @@ export interface FindElementsRequest {
 // ============================================================================
 
 /**
+ * Reason why a node matched the query
+ */
+export interface MatchReason {
+  /** Type of match criterion */
+  type: 'kind' | 'label' | 'region' | 'state' | 'group' | 'heading';
+  /** Human-readable description */
+  description: string;
+  /** How much this criterion contributed to relevance (0-1) */
+  score_contribution: number;
+}
+
+/**
  * A matched node from the query
  */
 export interface MatchedNode {
   /** The matched node */
   node: ReadableNode;
-
-  // Future: relevance score (0-1)
-  // relevance?: number;
-
-  // Future: explanations for why this node matched
-  // why?: MatchReason[];
+  /** Relevance score (0-1, 1 = perfect match) */
+  relevance?: number;
+  /** Explanations for why this node matched */
+  match_reasons?: MatchReason[];
 }
 
 /**
@@ -124,6 +153,20 @@ export interface QueryStats {
 }
 
 /**
+ * Disambiguation suggestion when query is ambiguous
+ */
+export interface DisambiguationSuggestion {
+  /** Type of refinement suggested */
+  type: 'refine_kind' | 'refine_region' | 'refine_label' | 'add_state' | 'refine_group';
+  /** Human-readable suggestion message */
+  message: string;
+  /** Query refinement to apply */
+  refinement: Partial<FindElementsRequest>;
+  /** How many matches this refinement would reduce to */
+  expected_matches: number;
+}
+
+/**
  * Response from find elements query
  */
 export interface FindElementsResponse {
@@ -131,32 +174,13 @@ export interface FindElementsResponse {
   matches: MatchedNode[];
   /** Query execution statistics */
   stats: QueryStats;
-
-  // Future: disambiguation suggestions if query is ambiguous
-  // suggestions?: DisambiguationSuggestion[];
+  /** Disambiguation suggestions when query matches multiple similar elements */
+  suggestions?: DisambiguationSuggestion[];
 }
 
 // ============================================================================
 // Future Types (Placeholders)
 // ============================================================================
-
-// /**
-//  * Reason why a node matched the query
-//  */
-// export interface MatchReason {
-//   type: 'kind' | 'label' | 'region' | 'state' | 'group' | 'heading' | 'spatial';
-//   description: string;
-//   score_contribution: number;
-// }
-
-// /**
-//  * Disambiguation suggestion when query is ambiguous
-//  */
-// export interface DisambiguationSuggestion {
-//   type: 'refine_kind' | 'refine_region' | 'refine_label' | 'add_state';
-//   message: string;
-//   refinement: Partial<FindElementsRequest>;
-// }
 
 // /**
 //  * Spatial constraint for position-based queries

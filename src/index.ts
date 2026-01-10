@@ -18,6 +18,7 @@ import {
   actionClick,
   getNodeDetails,
   findElements,
+  getFactPack,
   BrowserLaunchInputSchema,
   BrowserLaunchOutputSchema,
   BrowserNavigateInputSchema,
@@ -32,6 +33,8 @@ import {
   GetNodeDetailsOutputSchema,
   FindElementsInputSchema,
   FindElementsOutputSchema,
+  GetFactPackInputSchema,
+  GetFactPackOutputSchema,
 } from './tools/index.js';
 
 // Singleton session manager (initialized lazily on first tool use)
@@ -68,7 +71,8 @@ function initializeServer(): BrowserAutomationServer {
       title: 'Launch or Connect Browser',
       description:
         'Launch a new browser or connect to an existing one (e.g., Athena browser). ' +
-        'Returns a page_id that can be used with other tools.',
+        'Returns a page_id and FactPack with page type, dialogs, forms, and key actions. ' +
+        'Use include_nodes: true for raw node list (disabled by default to reduce tokens).',
       inputSchema: BrowserLaunchInputSchema.shape,
       outputSchema: BrowserLaunchOutputSchema.shape,
     },
@@ -80,7 +84,10 @@ function initializeServer(): BrowserAutomationServer {
     'browser_navigate',
     {
       title: 'Navigate to URL',
-      description: 'Navigate a page to the specified URL. Wait for page load to complete.',
+      description:
+        'Navigate a page to the specified URL. Wait for page load to complete. ' +
+        'Returns FactPack with page type, dialogs, forms, and key actions. ' +
+        'Use include_nodes: true for raw node list (disabled by default to reduce tokens).',
       inputSchema: BrowserNavigateInputSchema.shape,
       outputSchema: BrowserNavigateOutputSchema.shape,
     },
@@ -107,8 +114,9 @@ function initializeServer(): BrowserAutomationServer {
     {
       title: 'Capture Page Snapshot',
       description:
-        'Extract interactive elements from the page using CDP accessibility tree. ' +
-        'Returns a list of clickable elements with their node_ids for use with action tools.',
+        'Capture a fresh snapshot of the page using CDP accessibility tree. ' +
+        'Returns FactPack with page type, dialogs, forms, and key actions. ' +
+        'Use include_nodes: true for raw node list (disabled by default to reduce tokens).',
       inputSchema: SnapshotCaptureInputSchema.shape,
       outputSchema: SnapshotCaptureOutputSchema.shape,
     },
@@ -158,6 +166,22 @@ function initializeServer(): BrowserAutomationServer {
       outputSchema: FindElementsOutputSchema.shape,
     },
     (input) => Promise.resolve(findElements(input))
+  );
+
+  // Register get_factpack tool
+  server.registerTool(
+    'get_factpack',
+    {
+      title: 'Get Page FactPack',
+      description:
+        'Extract semantic facts from the current page snapshot. ' +
+        'Returns page type classification, detected dialogs, forms with fields, ' +
+        'and scored key actions. Use this for high-level page understanding ' +
+        'without re-capturing the snapshot.',
+      inputSchema: GetFactPackInputSchema.shape,
+      outputSchema: GetFactPackOutputSchema.shape,
+    },
+    (input) => Promise.resolve(getFactPack(input))
   );
 
   return server;

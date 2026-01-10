@@ -235,6 +235,150 @@ export function fuzzyTokenMatch(text: string, query: string, minMatchTokens = 2)
   return matchCount >= Math.min(minMatchTokens, queryTokens.length);
 }
 
+// ============================================================================
+// Fuzzy Matching Utilities
+// ============================================================================
+
+/**
+ * Calculate Levenshtein (edit) distance between two strings.
+ * Uses optimized single-row algorithm with O(min(m,n)) space.
+ */
+export function levenshteinDistance(a: string, b: string): number {
+  // Ensure a is the shorter string for space optimization
+  if (a.length > b.length) {
+    [a, b] = [b, a];
+  }
+
+  const m = a.length;
+  const n = b.length;
+
+  // Early exit for empty strings
+  if (m === 0) return n;
+  if (n === 0) return m;
+
+  // Single row of previous distances
+  let prevRow = new Array<number>(m + 1);
+  let currRow = new Array<number>(m + 1);
+
+  // Initialize first row
+  for (let i = 0; i <= m; i++) {
+    prevRow[i] = i;
+  }
+
+  // Fill in the rest
+  for (let j = 1; j <= n; j++) {
+    currRow[0] = j;
+
+    for (let i = 1; i <= m; i++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      currRow[i] = Math.min(
+        prevRow[i] + 1, // deletion
+        currRow[i - 1] + 1, // insertion
+        prevRow[i - 1] + cost // substitution
+      );
+    }
+
+    // Swap rows
+    [prevRow, currRow] = [currRow, prevRow];
+  }
+
+  return prevRow[m];
+}
+
+/**
+ * Calculate similarity ratio (0-1) between two strings based on Levenshtein distance.
+ * Returns 1 for identical strings, 0 for completely different strings.
+ */
+export function stringSimilarity(a: string, b: string): number {
+  const maxLen = Math.max(a.length, b.length);
+  if (maxLen === 0) return 1; // Both empty strings are identical
+  return 1 - levenshteinDistance(a, b) / maxLen;
+}
+
+/**
+ * Options for fuzzy token matching
+ */
+export interface FuzzyTokenMatchOptions {
+  /** Minimum token overlap ratio (0-1) for a match. Default: 0.5 */
+  minTokenOverlap?: number;
+  /** Enable prefix matching for tokens. Default: true */
+  prefixMatch?: boolean;
+  /** Minimum edit distance similarity (0-1) for similar tokens. Default: 0.8 */
+  minSimilarity?: number;
+}
+
+/**
+ * Result from fuzzy token matching
+ */
+export interface FuzzyTokenMatchResult {
+  /** Whether the tokens match based on options */
+  isMatch: boolean;
+  /** Match score (0-1) based on token overlap quality */
+  score: number;
+}
+
+/**
+ * Enhanced fuzzy token matching with similarity scoring.
+ * Supports exact matching, prefix matching, and edit distance similarity.
+ *
+ * @param textTokens - Tokens from the text being searched
+ * @param queryTokens - Tokens from the search query
+ * @param options - Matching options
+ * @returns Match result with score
+ */
+export function fuzzyTokensMatch(
+  textTokens: string[],
+  queryTokens: string[],
+  options: FuzzyTokenMatchOptions = {}
+): FuzzyTokenMatchResult {
+  const { minTokenOverlap = 0.5, prefixMatch = true, minSimilarity = 0.8 } = options;
+
+  if (queryTokens.length === 0) {
+    return { isMatch: false, score: 0 };
+  }
+
+  let totalScore = 0;
+
+  for (const queryToken of queryTokens) {
+    let bestMatch = 0;
+
+    for (const textToken of textTokens) {
+      // Exact match - perfect score
+      if (textToken === queryToken) {
+        bestMatch = 1;
+        break;
+      }
+
+      // Prefix match - high score (query token is prefix of text token)
+      if (prefixMatch && textToken.startsWith(queryToken)) {
+        bestMatch = Math.max(bestMatch, 0.9);
+        continue;
+      }
+
+      // Prefix match - query token contains text token (slightly lower)
+      if (prefixMatch && queryToken.startsWith(textToken)) {
+        bestMatch = Math.max(bestMatch, 0.85);
+        continue;
+      }
+
+      // Edit distance similarity - typo tolerance
+      const similarity = stringSimilarity(textToken, queryToken);
+      if (similarity >= minSimilarity) {
+        bestMatch = Math.max(bestMatch, similarity);
+      }
+    }
+
+    totalScore += bestMatch;
+  }
+
+  const overlapRatio = totalScore / queryTokens.length;
+
+  return {
+    isMatch: overlapRatio >= minTokenOverlap,
+    score: overlapRatio,
+  };
+}
+
 /**
  * Minimal DOM node interface for text content extraction.
  * Compatible with RawDomNode from extractors.

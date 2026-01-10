@@ -228,15 +228,28 @@ describe('BrowserTools', () => {
   });
 
   describe('snapshotCapture()', () => {
-    it('should capture snapshot and return node summaries', async () => {
+    it('should capture snapshot and return factpack', async () => {
       const result = await browserTools.snapshotCapture({ page_id: 'page-123' });
 
       expect(compileSnapshotMock).toHaveBeenCalledWith(mockCdp, mockPage, 'page-123');
       expect(result.snapshot_id).toBe('snap-123');
       expect(result.url).toBe('https://example.com');
       expect(result.node_count).toBe(1);
+      // FactPack is always returned
+      expect(result.factpack).toBeDefined();
+      expect(result.factpack.meta.snapshot_id).toBe('snap-123');
+      // nodes are NOT returned by default (opt-in)
+      expect(result.nodes).toBeUndefined();
+    });
+
+    it('should include nodes when include_nodes is true', async () => {
+      const result = await browserTools.snapshotCapture({
+        page_id: 'page-123',
+        include_nodes: true,
+      });
+
       expect(result.nodes).toHaveLength(1);
-      expect(result.nodes[0]).toEqual({
+      expect(result.nodes![0]).toEqual({
         node_id: 'n1',
         kind: 'link',
         label: 'More information...',
@@ -442,7 +455,7 @@ describe('BrowserTools', () => {
       expect(result.page_id).toBe('page-123');
       expect(result.snapshot_id).toBe('snap-123');
       expect(result.matches).toHaveLength(1);
-      expect(result.matches[0]).toEqual({
+      expect(result.matches[0]).toMatchObject({
         node_id: 'n1',
         kind: 'link',
         label: 'More information...',
@@ -451,6 +464,9 @@ describe('BrowserTools', () => {
         group_id: undefined,
         heading_context: undefined,
       });
+      // Relevance score should be included
+      expect(result.matches[0].relevance).toBeDefined();
+      expect(typeof result.matches[0].relevance).toBe('number');
       expect(result.stats.total_matched).toBe(1);
     });
 

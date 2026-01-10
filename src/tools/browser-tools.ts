@@ -14,6 +14,7 @@ import {
   ActionClickInputSchema,
   GetNodeDetailsInputSchema,
   FindElementsInputSchema,
+  GetFactPackInputSchema,
   type BrowserLaunchOutput,
   type BrowserNavigateOutput,
   type BrowserCloseOutput,
@@ -21,12 +22,15 @@ import {
   type ActionClickOutput,
   type GetNodeDetailsOutput,
   type FindElementsOutput,
+  type GetFactPackOutput,
   type NodeDetails,
 } from './tool-schemas.js';
 import { QueryEngine } from '../query/query-engine.js';
 import type { FindElementsRequest } from '../query/types/query.types.js';
 import type { NodeKind, SemanticRegion } from '../snapshot/snapshot.types.js';
 import type { BaseSnapshot } from '../snapshot/snapshot.types.js';
+import { extractFactPack, type FactPackOptions } from '../factpack/index.js';
+import { generatePageBrief } from '../renderer/index.js';
 
 // Module-level state
 let sessionManager: SessionManager | null = null;
@@ -115,7 +119,18 @@ export async function browserLaunch(rawInput: unknown): Promise<BrowserLaunchOut
   const snapshot = await compileSnapshot(handle.cdp, handle.page, handle.page_id);
   snapshotStore.store(handle.page_id, snapshot);
 
-  return {
+  // Extract FactPack
+  const factpackOptions: FactPackOptions = {
+    max_actions: input.factpack_options?.max_actions,
+    min_action_score: input.factpack_options?.min_action_score,
+    include_disabled_fields: input.factpack_options?.include_disabled_fields,
+  };
+  const factpack = extractFactPack(snapshot, factpackOptions);
+
+  // Generate page_brief (always included)
+  const pageBriefResult = generatePageBrief(factpack);
+
+  const result: BrowserLaunchOutput = {
     page_id: handle.page_id,
     url: handle.url ?? handle.page.url(),
     title: await handle.page.title(),
@@ -123,8 +138,17 @@ export async function browserLaunch(rawInput: unknown): Promise<BrowserLaunchOut
     snapshot_id: snapshot.snapshot_id,
     node_count: snapshot.meta.node_count,
     interactive_count: snapshot.meta.interactive_count,
-    nodes: buildNodeSummary(snapshot),
+    factpack,
+    page_brief: pageBriefResult.page_brief,
+    page_brief_tokens: pageBriefResult.page_brief_tokens,
   };
+
+  // Only include nodes if explicitly requested
+  if (input.include_nodes) {
+    result.nodes = buildNodeSummary(snapshot);
+  }
+
+  return result;
 }
 
 /**
@@ -149,15 +173,35 @@ export async function browserNavigate(rawInput: unknown): Promise<BrowserNavigat
   const snapshot = await compileSnapshot(handle.cdp, handle.page, input.page_id);
   snapshotStore.store(input.page_id, snapshot);
 
-  return {
+  // Extract FactPack
+  const factpackOptions: FactPackOptions = {
+    max_actions: input.factpack_options?.max_actions,
+    min_action_score: input.factpack_options?.min_action_score,
+    include_disabled_fields: input.factpack_options?.include_disabled_fields,
+  };
+  const factpack = extractFactPack(snapshot, factpackOptions);
+
+  // Generate page_brief (always included)
+  const pageBriefResult = generatePageBrief(factpack);
+
+  const result: BrowserNavigateOutput = {
     page_id: input.page_id,
     url: handle.page.url(),
     title: await handle.page.title(),
     snapshot_id: snapshot.snapshot_id,
     node_count: snapshot.meta.node_count,
     interactive_count: snapshot.meta.interactive_count,
-    nodes: buildNodeSummary(snapshot),
+    factpack,
+    page_brief: pageBriefResult.page_brief,
+    page_brief_tokens: pageBriefResult.page_brief_tokens,
   };
+
+  // Only include nodes if explicitly requested
+  if (input.include_nodes) {
+    result.nodes = buildNodeSummary(snapshot);
+  }
+
+  return result;
 }
 
 /**
@@ -205,14 +249,34 @@ export async function snapshotCapture(rawInput: unknown): Promise<SnapshotCaptur
   // Store for later use by actions
   snapshotStore.store(input.page_id, snapshot);
 
-  return {
+  // Extract FactPack
+  const factpackOptions: FactPackOptions = {
+    max_actions: input.factpack_options?.max_actions,
+    min_action_score: input.factpack_options?.min_action_score,
+    include_disabled_fields: input.factpack_options?.include_disabled_fields,
+  };
+  const factpack = extractFactPack(snapshot, factpackOptions);
+
+  // Generate page_brief (always included)
+  const pageBriefResult = generatePageBrief(factpack);
+
+  const result: SnapshotCaptureOutput = {
     snapshot_id: snapshot.snapshot_id,
     url: snapshot.url,
     title: snapshot.title,
     node_count: snapshot.meta.node_count,
     interactive_count: snapshot.meta.interactive_count,
-    nodes: buildNodeSummary(snapshot),
+    factpack,
+    page_brief: pageBriefResult.page_brief,
+    page_brief_tokens: pageBriefResult.page_brief_tokens,
   };
+
+  // Only include nodes if explicitly requested
+  if (input.include_nodes) {
+    result.nodes = buildNodeSummary(snapshot);
+  }
+
+  return result;
 }
 
 /**
@@ -397,11 +461,22 @@ export function findElements(rawInput: unknown): FindElementsOutput {
     request.heading_context = input.heading_context;
   }
 
+  // New options: min_score, sort_by_relevance, include_suggestions
+  if (input.min_score !== undefined) {
+    request.min_score = input.min_score;
+  }
+  if (input.sort_by_relevance !== undefined) {
+    request.sort_by_relevance = input.sort_by_relevance;
+  }
+  if (input.include_suggestions !== undefined) {
+    request.include_suggestions = input.include_suggestions;
+  }
+
   // Create query engine and execute query
   const engine = new QueryEngine(snapshot);
   const response = engine.find(request);
 
-  // Build output with simplified node info
+  // Build output with simplified node info (including relevance)
   const matches = response.matches.map((m) => ({
     node_id: m.node.node_id,
     kind: m.node.kind,
@@ -410,6 +485,7 @@ export function findElements(rawInput: unknown): FindElementsOutput {
     region: m.node.where.region,
     group_id: m.node.where.group_id,
     heading_context: m.node.where.heading_context,
+    relevance: m.relevance,
   }));
 
   return {
@@ -417,5 +493,46 @@ export function findElements(rawInput: unknown): FindElementsOutput {
     snapshot_id: snapshot.snapshot_id,
     matches,
     stats: response.stats,
+    suggestions: response.suggestions,
+  };
+}
+
+/**
+ * Get FactPack for an existing snapshot.
+ * Useful for re-analyzing with different options or getting fresh semantic analysis
+ * without re-capturing the page.
+ *
+ * @param rawInput - FactPack request options (will be validated)
+ * @returns FactPack extraction result
+ */
+export function getFactPack(rawInput: unknown): GetFactPackOutput {
+  const input = GetFactPackInputSchema.parse(rawInput);
+
+  // Get snapshot (by ID or latest for page)
+  let snapshot: BaseSnapshot | undefined;
+  if (input.snapshot_id) {
+    snapshot = snapshotStore.get(input.snapshot_id);
+    if (!snapshot) {
+      throw new Error(`Snapshot not found: ${input.snapshot_id}`);
+    }
+  } else {
+    snapshot = snapshotStore.getByPageId(input.page_id);
+    if (!snapshot) {
+      throw new Error(`No snapshot for page ${input.page_id} - navigate to a page first`);
+    }
+  }
+
+  // Extract FactPack with options
+  const options: FactPackOptions = {
+    max_actions: input.max_actions,
+    min_action_score: input.min_action_score,
+    include_disabled_fields: input.include_disabled_fields,
+  };
+  const factpack = extractFactPack(snapshot, options);
+
+  return {
+    page_id: input.page_id,
+    snapshot_id: snapshot.snapshot_id,
+    factpack,
   };
 }

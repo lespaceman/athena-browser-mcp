@@ -18,7 +18,21 @@ export const BrowserLaunchInputSchema = z.object({
   headless: z.boolean().default(true),
   /** CDP endpoint URL (connect mode). Falls back to CEF_BRIDGE_HOST/PORT env vars */
   endpoint_url: z.string().optional(),
+  /** Include raw node summary in response (default: false) */
+  include_nodes: z.boolean().default(false),
+  /** FactPack extraction options */
+  factpack_options: z
+    .object({
+      max_actions: z.number().int().min(1).max(50).optional(),
+      min_action_score: z.number().min(0).max(1).optional(),
+      include_disabled_fields: z.boolean().optional(),
+    })
+    .optional(),
 });
+
+// Forward declaration for FactPack (defined later in file)
+// The actual schema is FactPackSchema defined below
+const FactPackSchemaLazy = z.lazy(() => FactPackSchema);
 
 export const BrowserLaunchOutputSchema = z.object({
   /** Unique page identifier */
@@ -35,15 +49,23 @@ export const BrowserLaunchOutputSchema = z.object({
   node_count: z.number(),
   /** Interactive nodes captured */
   interactive_count: z.number(),
-  /** Summary of interactive nodes */
-  nodes: z.array(
-    z.object({
-      node_id: z.string(),
-      kind: z.string(),
-      label: z.string(),
-      selector: z.string(),
-    })
-  ),
+  /** Extracted FactPack with page understanding */
+  factpack: FactPackSchemaLazy,
+  /** XML-compact page brief for LLM context (always included) */
+  page_brief: z.string(),
+  /** Token count for page_brief */
+  page_brief_tokens: z.number(),
+  /** Summary of interactive nodes (only when include_nodes: true) */
+  nodes: z
+    .array(
+      z.object({
+        node_id: z.string(),
+        kind: z.string(),
+        label: z.string(),
+        selector: z.string(),
+      })
+    )
+    .optional(),
 });
 
 export type BrowserLaunchInput = z.infer<typeof BrowserLaunchInputSchema>;
@@ -58,6 +80,16 @@ export const BrowserNavigateInputSchema = z.object({
   page_id: z.string(),
   /** URL to navigate to */
   url: z.string().url(),
+  /** Include raw node summary in response (default: false) */
+  include_nodes: z.boolean().default(false),
+  /** FactPack extraction options */
+  factpack_options: z
+    .object({
+      max_actions: z.number().int().min(1).max(50).optional(),
+      min_action_score: z.number().min(0).max(1).optional(),
+      include_disabled_fields: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 export const BrowserNavigateOutputSchema = z.object({
@@ -73,15 +105,23 @@ export const BrowserNavigateOutputSchema = z.object({
   node_count: z.number(),
   /** Interactive nodes captured */
   interactive_count: z.number(),
-  /** Summary of interactive nodes */
-  nodes: z.array(
-    z.object({
-      node_id: z.string(),
-      kind: z.string(),
-      label: z.string(),
-      selector: z.string(),
-    })
-  ),
+  /** Extracted FactPack with page understanding */
+  factpack: FactPackSchemaLazy,
+  /** XML-compact page brief for LLM context (always included) */
+  page_brief: z.string(),
+  /** Token count for page_brief */
+  page_brief_tokens: z.number(),
+  /** Summary of interactive nodes (only when include_nodes: true) */
+  nodes: z
+    .array(
+      z.object({
+        node_id: z.string(),
+        kind: z.string(),
+        label: z.string(),
+        selector: z.string(),
+      })
+    )
+    .optional(),
 });
 
 export type BrowserNavigateInput = z.infer<typeof BrowserNavigateInputSchema>;
@@ -123,6 +163,16 @@ export const NodeSummarySchema = z.object({
 export const SnapshotCaptureInputSchema = z.object({
   /** Page ID to capture */
   page_id: z.string(),
+  /** Include raw node summary in response (default: false) */
+  include_nodes: z.boolean().default(false),
+  /** FactPack extraction options */
+  factpack_options: z
+    .object({
+      max_actions: z.number().int().min(1).max(50).optional(),
+      min_action_score: z.number().min(0).max(1).optional(),
+      include_disabled_fields: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 export const SnapshotCaptureOutputSchema = z.object({
@@ -136,8 +186,14 @@ export const SnapshotCaptureOutputSchema = z.object({
   node_count: z.number(),
   /** Interactive nodes captured */
   interactive_count: z.number(),
-  /** Summary of interactive nodes */
-  nodes: z.array(NodeSummarySchema),
+  /** Extracted FactPack with page understanding */
+  factpack: FactPackSchemaLazy,
+  /** XML-compact page brief for LLM context (always included) */
+  page_brief: z.string(),
+  /** Token count for page_brief */
+  page_brief_tokens: z.number(),
+  /** Summary of interactive nodes (only when include_nodes: true) */
+  nodes: z.array(NodeSummarySchema).optional(),
 });
 
 export type NodeSummary = z.infer<typeof NodeSummarySchema>;
@@ -278,13 +334,24 @@ const StateConstraintSchema = z
   })
   .optional();
 
+/** Options for fuzzy matching behavior */
+const FuzzyMatchOptionsSchema = z.object({
+  /** Minimum token overlap ratio (0-1) for a match. Default: 0.5 */
+  minTokenOverlap: z.number().min(0).max(1).optional(),
+  /** Enable prefix matching for tokens. Default: true */
+  prefixMatch: z.boolean().optional(),
+  /** Minimum edit distance similarity (0-1) for similar tokens. Default: 0.8 */
+  minSimilarity: z.number().min(0).max(1).optional(),
+});
+
 /** Label filter - either a simple string or an object with options */
 const LabelFilterSchema = z.union([
   z.string(),
   z.object({
     text: z.string(),
-    mode: z.enum(['exact', 'contains']).default('contains'),
+    mode: z.enum(['exact', 'contains', 'fuzzy']).default('contains'),
     caseSensitive: z.boolean().default(false),
+    fuzzyOptions: FuzzyMatchOptionsSchema.optional(),
   }),
 ]);
 
@@ -315,6 +382,12 @@ export const FindElementsInputSchema = z.object({
   heading_context: z.string().optional(),
   /** Maximum number of results (default: 10) */
   limit: z.number().int().min(1).max(100).default(10),
+  /** Minimum relevance score (0-1) to include in results */
+  min_score: z.number().min(0).max(1).optional(),
+  /** Sort results by relevance (default: false, maintains document order) */
+  sort_by_relevance: z.boolean().default(false).optional(),
+  /** Include disambiguation suggestions when results are ambiguous */
+  include_suggestions: z.boolean().default(false).optional(),
 });
 
 /** Matched node in find_elements response */
@@ -326,6 +399,8 @@ const MatchedNodeSchema = z.object({
   region: z.string(),
   group_id: z.string().optional(),
   heading_context: z.string().optional(),
+  /** Relevance score (0-1, 1 = perfect match) */
+  relevance: z.number().min(0).max(1).optional(),
 });
 
 /** Query statistics */
@@ -333,6 +408,18 @@ const QueryStatsSchema = z.object({
   total_matched: z.number(),
   query_time_ms: z.number(),
   nodes_evaluated: z.number(),
+});
+
+/** Disambiguation suggestion for refining ambiguous queries */
+const DisambiguationSuggestionSchema = z.object({
+  /** Type of refinement suggested */
+  type: z.enum(['refine_kind', 'refine_region', 'refine_label', 'add_state', 'refine_group']),
+  /** Human-readable suggestion message */
+  message: z.string(),
+  /** Query refinement to apply */
+  refinement: z.record(z.unknown()),
+  /** How many matches this refinement would reduce to */
+  expected_matches: z.number(),
 });
 
 export const FindElementsOutputSchema = z.object({
@@ -344,7 +431,251 @@ export const FindElementsOutputSchema = z.object({
   matches: z.array(MatchedNodeSchema),
   /** Query execution statistics */
   stats: QueryStatsSchema,
+  /** Disambiguation suggestions when query matches multiple similar elements */
+  suggestions: z.array(DisambiguationSuggestionSchema).optional(),
 });
 
 export type FindElementsInput = z.infer<typeof FindElementsInputSchema>;
 export type FindElementsOutput = z.infer<typeof FindElementsOutputSchema>;
+
+// ============================================================================
+// FactPack Schemas
+// ============================================================================
+
+/**
+ * Options for FactPack extraction.
+ */
+export const FactPackOptionsSchema = z.object({
+  /** Max actions to select (default: 12) */
+  max_actions: z.number().int().min(1).max(50).optional(),
+  /** Min action score threshold (default: 0.2) */
+  min_action_score: z.number().min(0).max(1).optional(),
+  /** Include disabled form fields (default: true) */
+  include_disabled_fields: z.boolean().optional(),
+});
+
+export type FactPackOptions = z.infer<typeof FactPackOptionsSchema>;
+
+// --- Dialog schemas ---
+
+const DialogActionSchema = z.object({
+  node_id: z.string(),
+  backend_node_id: z.number(),
+  label: z.string(),
+  role: z.enum(['primary', 'secondary', 'dismiss', 'unknown']),
+  kind: z.string(),
+});
+
+const BBoxSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  w: z.number(),
+  h: z.number(),
+});
+
+const DetectedDialogSchema = z.object({
+  node_id: z.string(),
+  backend_node_id: z.number(),
+  bbox: BBoxSchema,
+  is_modal: z.boolean(),
+  title: z.string().optional(),
+  actions: z.array(DialogActionSchema),
+  detection_method: z.enum([
+    'role-dialog',
+    'role-alertdialog',
+    'html-dialog',
+    'aria-modal',
+    'heuristic',
+  ]),
+  type: z.enum([
+    'modal',
+    'alert',
+    'confirm',
+    'cookie-consent',
+    'newsletter',
+    'login-prompt',
+    'age-gate',
+    'unknown',
+  ]),
+  type_confidence: z.number(),
+  classification_signals: z.array(z.string()),
+});
+
+const DialogDetectionResultSchema = z.object({
+  dialogs: z.array(DetectedDialogSchema),
+  has_blocking_dialog: z.boolean(),
+  meta: z.object({
+    total_detected: z.number(),
+    classified_count: z.number(),
+    detection_time_ms: z.number(),
+  }),
+});
+
+// --- Form schemas ---
+
+const FormFieldSchema = z.object({
+  node_id: z.string(),
+  backend_node_id: z.number(),
+  kind: z.string(),
+  label: z.string(),
+  input_type: z.string(),
+  required: z.boolean(),
+  invalid: z.boolean(),
+  disabled: z.boolean(),
+  readonly: z.boolean(),
+  has_value: z.boolean(),
+  placeholder: z.string().optional(),
+  autocomplete: z.string().optional(),
+  semantic_type: z.string(),
+  semantic_confidence: z.number(),
+});
+
+const FormSubmitButtonSchema = z.object({
+  node_id: z.string(),
+  backend_node_id: z.number(),
+  label: z.string(),
+  enabled: z.boolean(),
+  visible: z.boolean(),
+});
+
+const FormValidationSchema = z.object({
+  has_errors: z.boolean(),
+  error_count: z.number(),
+  required_unfilled: z.number(),
+  ready_to_submit: z.boolean(),
+});
+
+const DetectedFormSchema = z.object({
+  node_id: z.string(),
+  backend_node_id: z.number(),
+  title: z.string().optional(),
+  action: z.string().optional(),
+  method: z.string().optional(),
+  fields: z.array(FormFieldSchema),
+  submit_button: FormSubmitButtonSchema.optional(),
+  validation: FormValidationSchema,
+  purpose: z.string(),
+  purpose_confidence: z.number(),
+  purpose_signals: z.array(z.string()),
+});
+
+const FormDetectionResultSchema = z.object({
+  forms: z.array(DetectedFormSchema),
+  primary_form: DetectedFormSchema.optional(),
+  meta: z.object({
+    total_detected: z.number(),
+    classified_count: z.number(),
+    detection_time_ms: z.number(),
+  }),
+});
+
+// --- Action schemas ---
+
+const ActionSignalSchema = z.object({
+  type: z.string(),
+  weight: z.number(),
+});
+
+const SelectedActionSchema = z.object({
+  node_id: z.string(),
+  backend_node_id: z.number(),
+  label: z.string(),
+  kind: z.string(),
+  region: z.string(),
+  locator: z.string(),
+  enabled: z.boolean(),
+  score: z.number(),
+  signals: z.array(ActionSignalSchema),
+  category: z.string(),
+  category_confidence: z.number(),
+});
+
+const ActionSelectionResultSchema = z.object({
+  actions: z.array(SelectedActionSchema),
+  primary_cta: SelectedActionSchema.optional(),
+  meta: z.object({
+    candidates_evaluated: z.number(),
+    selection_time_ms: z.number(),
+  }),
+});
+
+// --- Page classification schemas ---
+
+const PageSignalSchema = z.object({
+  source: z.enum(['url', 'title', 'content', 'form', 'element']),
+  signal: z.string(),
+  evidence: z.string(),
+  weight: z.number(),
+});
+
+const PageEntitySchema = z.object({
+  type: z.string(),
+  value: z.string(),
+  node_id: z.string().optional(),
+  confidence: z.number(),
+});
+
+const PageClassificationSchema = z.object({
+  type: z.string(),
+  confidence: z.number(),
+  secondary_type: z.string().optional(),
+  secondary_confidence: z.number().optional(),
+  signals: z.array(PageSignalSchema),
+  entities: z.array(PageEntitySchema),
+  has_forms: z.boolean(),
+  has_navigation: z.boolean(),
+  has_main_content: z.boolean(),
+  has_search: z.boolean(),
+});
+
+const PageClassificationResultSchema = z.object({
+  classification: PageClassificationSchema,
+  meta: z.object({
+    signals_evaluated: z.number(),
+    classification_time_ms: z.number(),
+  }),
+});
+
+// --- Complete FactPack schema ---
+
+export const FactPackSchema = z.object({
+  page_type: PageClassificationResultSchema,
+  dialogs: DialogDetectionResultSchema,
+  forms: FormDetectionResultSchema,
+  actions: ActionSelectionResultSchema,
+  meta: z.object({
+    snapshot_id: z.string(),
+    extraction_time_ms: z.number(),
+  }),
+});
+
+export type FactPackOutput = z.infer<typeof FactPackSchema>;
+
+// ============================================================================
+// get_factpack
+// ============================================================================
+
+export const GetFactPackInputSchema = z.object({
+  /** Page ID to get FactPack for */
+  page_id: z.string(),
+  /** Specific snapshot ID (defaults to latest for page) */
+  snapshot_id: z.string().optional(),
+  /** Max actions to select (default: 12) */
+  max_actions: z.number().int().min(1).max(50).optional(),
+  /** Min action score threshold (default: 0.2) */
+  min_action_score: z.number().min(0).max(1).optional(),
+  /** Include disabled form fields (default: true) */
+  include_disabled_fields: z.boolean().optional(),
+});
+
+export const GetFactPackOutputSchema = z.object({
+  /** Page ID */
+  page_id: z.string(),
+  /** Snapshot ID the FactPack was extracted from */
+  snapshot_id: z.string(),
+  /** Extracted FactPack */
+  factpack: FactPackSchema,
+});
+
+export type GetFactPackInput = z.infer<typeof GetFactPackInputSchema>;
+export type GetFactPackOutput = z.infer<typeof GetFactPackOutputSchema>;
