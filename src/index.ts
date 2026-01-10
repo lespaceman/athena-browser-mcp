@@ -87,6 +87,7 @@ function initializeServer(): BrowserAutomationServer {
       title: 'Navigate to URL',
       description:
         'Navigate a page to the specified URL. Wait for page load to complete. ' +
+        'If page_id is omitted, uses the most recently used page (or creates one if none exist). ' +
         'Returns page_brief (compact XML) by default. ' +
         'Use include_factpack: true for full FactPack JSON with dialogs, forms, actions. ' +
         'Use include_nodes: true for raw node list.',
@@ -117,6 +118,7 @@ function initializeServer(): BrowserAutomationServer {
       title: 'Capture Page Snapshot',
       description:
         'Capture a fresh snapshot of the page using CDP accessibility tree. ' +
+        'If page_id is omitted, uses the most recently used page. ' +
         'Returns page_brief (compact XML) by default. ' +
         'Use include_factpack: true for full FactPack JSON with dialogs, forms, actions. ' +
         'Use include_nodes: true for raw node list.',
@@ -133,6 +135,7 @@ function initializeServer(): BrowserAutomationServer {
       title: 'Click Element',
       description:
         'Click an element by its node_id from a previous snapshot_capture. ' +
+        'If page_id is omitted, uses the most recently used page. ' +
         'Uses Playwright for reliable clicking with built-in waits.',
       inputSchema: ActionClickInputSchema.shape,
       outputSchema: ActionClickOutputSchema.shape,
@@ -147,6 +150,7 @@ function initializeServer(): BrowserAutomationServer {
       title: 'Get Node Details',
       description:
         'Get detailed information for specific node(s) from the current snapshot. ' +
+        'If page_id is omitted, uses the most recently used page. ' +
         'Returns full node info including layout, state, and attributes. ' +
         'Use when you need more than the summary provided by navigate/launch.',
       inputSchema: GetNodeDetailsInputSchema.shape,
@@ -162,6 +166,7 @@ function initializeServer(): BrowserAutomationServer {
       title: 'Find Elements',
       description:
         'Find elements in the current snapshot using semantic filters. ' +
+        'If page_id is omitted, uses the most recently used page. ' +
         'Supports filtering by kind (button, link, input), label text, ' +
         'region (header, footer, nav, main), state (visible, enabled, checked), ' +
         'group_id, and heading_context. Returns matched nodes with their selectors.',
@@ -178,6 +183,7 @@ function initializeServer(): BrowserAutomationServer {
       title: 'Get Page FactPack',
       description:
         'Extract semantic facts from the current page snapshot. ' +
+        'If page_id is omitted, uses the most recently used page. ' +
         'Returns page type classification, detected dialogs, forms with fields, ' +
         'and scored key actions. Use this for high-level page understanding ' +
         'without re-capturing the snapshot.',

@@ -28,6 +28,9 @@ describe('BrowserTools', () => {
     closePage: ReturnType<typeof vi.fn>;
     navigateTo: ReturnType<typeof vi.fn>;
     getPageCount: ReturnType<typeof vi.fn>;
+    touchPage: ReturnType<typeof vi.fn>;
+    resolvePage: ReturnType<typeof vi.fn>;
+    resolvePageOrCreate: ReturnType<typeof vi.fn>;
   };
 
   let mockPage: Page;
@@ -88,6 +91,9 @@ describe('BrowserTools', () => {
       closePage: vi.fn().mockResolvedValue(true),
       navigateTo: vi.fn().mockResolvedValue(undefined),
       getPageCount: vi.fn().mockReturnValue(1),
+      touchPage: vi.fn(),
+      resolvePage: vi.fn().mockReturnValue(mockPageHandle),
+      resolvePageOrCreate: vi.fn().mockResolvedValue(mockPageHandle),
     };
 
     // Mock the SessionManager module
@@ -248,7 +254,9 @@ describe('BrowserTools', () => {
     });
 
     it('should throw error if page not found', async () => {
-      mockSessionManager.getPage.mockReturnValue(undefined);
+      mockSessionManager.resolvePageOrCreate.mockRejectedValue(
+        new Error('Page not found: non-existent')
+      );
 
       await expect(
         browserTools.browserNavigate({ page_id: 'non-existent', url: 'https://example.com' })
@@ -343,7 +351,7 @@ describe('BrowserTools', () => {
     });
 
     it('should throw error if page not found', async () => {
-      mockSessionManager.getPage.mockReturnValue(undefined);
+      mockSessionManager.resolvePage.mockReturnValue(undefined);
 
       await expect(browserTools.snapshotCapture({ page_id: 'non-existent' })).rejects.toThrow(
         'Page not found: non-existent'
@@ -433,7 +441,7 @@ describe('BrowserTools', () => {
     });
 
     it('should throw error if page not found', async () => {
-      mockSessionManager.getPage.mockReturnValue(undefined);
+      mockSessionManager.resolvePage.mockReturnValue(undefined);
 
       await expect(
         browserTools.actionClick({ page_id: 'non-existent', node_id: 'n1' })

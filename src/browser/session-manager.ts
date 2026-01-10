@@ -520,12 +520,8 @@ export class SessionManager {
       return handle;
     }
 
-    // Try to get MRU page
-    let handle = this.registry.getMostRecent();
-    if (!handle) {
-      // No pages exist, create one
-      handle = await this.createPage();
-    }
+    // Try to get MRU page, or create one if no pages exist
+    const handle = this.registry.getMostRecent() ?? (await this.createPage());
     return handle;
   }
 

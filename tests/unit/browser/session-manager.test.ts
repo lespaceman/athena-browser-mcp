@@ -797,7 +797,7 @@ describe('SessionManager', () => {
 
     it('should return specified page when page_id provided', async () => {
       const page1 = await sessionManager.createPage();
-      const page2 = await sessionManager.createPage();
+      await sessionManager.createPage(); // Create page2 to have multiple pages
 
       const resolved = sessionManager.resolvePage(page1.page_id);
 
@@ -811,7 +811,7 @@ describe('SessionManager', () => {
     });
 
     it('should return MRU page when page_id omitted', async () => {
-      const page1 = await sessionManager.createPage();
+      await sessionManager.createPage(); // page1
       const page2 = await sessionManager.createPage();
 
       // page2 is MRU (last created)
@@ -847,7 +847,7 @@ describe('SessionManager', () => {
     });
 
     it('should return MRU page when page_id omitted and pages exist', async () => {
-      const page1 = await sessionManager.createPage();
+      await sessionManager.createPage(); // page1
       const page2 = await sessionManager.createPage();
 
       const resolved = await sessionManager.resolvePageOrCreate();
