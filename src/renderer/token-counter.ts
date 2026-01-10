@@ -45,10 +45,7 @@ export function estimateTokens(text: string): number {
  * @param targetTokens - Target token count
  * @returns Tokens over budget (negative if under budget)
  */
-export function tokensOverBudget(
-  currentTokens: number,
-  targetTokens: number
-): number {
+export function tokensOverBudget(currentTokens: number, targetTokens: number): number {
   return currentTokens - targetTokens;
 }
 

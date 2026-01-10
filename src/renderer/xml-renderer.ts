@@ -59,9 +59,7 @@ export function renderFactPackXml(
     page_brief: budgetResult.content,
     page_brief_tokens: budgetResult.tokens,
     was_truncated: budgetResult.was_truncated,
-    original_tokens: budgetResult.was_truncated
-      ? budgetResult.original_tokens
-      : undefined,
+    original_tokens: budgetResult.was_truncated ? budgetResult.original_tokens : undefined,
   };
 }
 
@@ -73,10 +71,7 @@ export function renderFactPackXml(
  * @param options - Render options
  * @returns Raw XML-compact string
  */
-export function renderFactPackXmlRaw(
-  factpack: FactPack,
-  options?: Partial<RenderOptions>
-): string {
+export function renderFactPackXmlRaw(factpack: FactPack, options?: Partial<RenderOptions>): string {
   const opts: RenderOptions = { ...DEFAULT_OPTIONS, ...options };
 
   // Render each section
@@ -121,10 +116,7 @@ export function estimateFactPackTokens(factpack: FactPack): number {
   // Quick estimation based on counts
   const dialogCount = factpack.dialogs.dialogs.length;
   const formCount = factpack.forms.forms.length;
-  const fieldCount = factpack.forms.forms.reduce(
-    (acc, f) => acc + f.fields.length,
-    0
-  );
+  const fieldCount = factpack.forms.forms.reduce((acc, f) => acc + f.fields.length, 0);
   const actionCount = factpack.actions.actions.length;
 
   // Base tokens for structure

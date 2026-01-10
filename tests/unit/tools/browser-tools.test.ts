@@ -507,9 +507,9 @@ describe('BrowserTools', () => {
     });
 
     it('should throw error if no snapshot exists', () => {
-      expect(() =>
-        browserTools.findElements({ page_id: 'page-123', kind: 'link' })
-      ).toThrow('No snapshot for page page-123');
+      expect(() => browserTools.findElements({ page_id: 'page-123', kind: 'link' })).toThrow(
+        'No snapshot for page page-123'
+      );
     });
 
     it('should support label filter with exact mode', async () => {

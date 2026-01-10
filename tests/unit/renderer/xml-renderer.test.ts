@@ -409,18 +409,14 @@ describe('xml-renderer', () => {
       const factpack = createProductPageFactPack();
       const result = generatePageBrief(factpack);
 
-      expect(result.page_brief_tokens).toBeLessThanOrEqual(
-        TOKEN_BUDGETS.standard.cap
-      );
+      expect(result.page_brief_tokens).toBeLessThanOrEqual(TOKEN_BUDGETS.standard.cap);
     });
 
     it('should respect compact budget', () => {
       const factpack = createLoginPageFactPack();
       const result = generatePageBrief(factpack, 'compact');
 
-      expect(result.page_brief_tokens).toBeLessThanOrEqual(
-        TOKEN_BUDGETS.compact.cap
-      );
+      expect(result.page_brief_tokens).toBeLessThanOrEqual(TOKEN_BUDGETS.compact.cap);
     });
   });
 
@@ -466,9 +462,7 @@ describe('xml-renderer', () => {
       const result = renderFactPackXml(factpack, { budget: 'compact' });
 
       // Should be within budget
-      expect(result.page_brief_tokens).toBeLessThanOrEqual(
-        TOKEN_BUDGETS.compact.cap
-      );
+      expect(result.page_brief_tokens).toBeLessThanOrEqual(TOKEN_BUDGETS.compact.cap);
 
       // May or may not be truncated depending on size
       // The key assertion is that it's within budget

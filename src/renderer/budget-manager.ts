@@ -40,10 +40,7 @@ export interface BudgetResult {
  * @param budget - Token budget tier
  * @returns Budget result with final content
  */
-export function applyBudget(
-  sections: RenderedSection[],
-  budget: TokenBudget
-): BudgetResult {
+export function applyBudget(sections: RenderedSection[], budget: TokenBudget): BudgetResult {
   const limits = TOKEN_BUDGETS[budget];
 
   // Join sections with newlines
@@ -83,9 +80,7 @@ export function applyBudget(
 
     // Try to truncate this section
     if (section.can_truncate) {
-      const sectionIndex = workingSections.findIndex(
-        (s) => s.name === section.name
-      );
+      const sectionIndex = workingSections.findIndex((s) => s.name === section.name);
       if (sectionIndex !== -1) {
         const truncatedSection = {
           ...workingSections[sectionIndex],
@@ -179,8 +174,6 @@ export function isWithinBudget(content: string, budget: TokenBudget): boolean {
 /**
  * Get budget limits for a tier.
  */
-export function getBudgetLimits(
-  budget: TokenBudget
-): { target: number; cap: number } {
+export function getBudgetLimits(budget: TokenBudget): { target: number; cap: number } {
   return TOKEN_BUDGETS[budget];
 }

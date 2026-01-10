@@ -604,10 +604,7 @@ describe('QueryEngine', () => {
 
   describe('fuzzy label matching', () => {
     it('should match labels with typos using fuzzy mode', () => {
-      const snapshot = createTestSnapshot([
-        createButtonNode('Submit'),
-        createButtonNode('Cancel'),
-      ]);
+      const snapshot = createTestSnapshot([createButtonNode('Submit'), createButtonNode('Cancel')]);
       const engine = new QueryEngine(snapshot);
 
       const result = engine.find({
@@ -634,10 +631,7 @@ describe('QueryEngine', () => {
     });
 
     it('should not match with fuzzy when difference is too large', () => {
-      const snapshot = createTestSnapshot([
-        createButtonNode('Submit'),
-        createButtonNode('Cancel'),
-      ]);
+      const snapshot = createTestSnapshot([createButtonNode('Submit'), createButtonNode('Cancel')]);
       const engine = new QueryEngine(snapshot);
 
       const result = engine.find({
@@ -710,10 +704,7 @@ describe('QueryEngine', () => {
     });
 
     it('should filter by min_score', () => {
-      const snapshot = createTestSnapshot([
-        createButtonNode('Submit'),
-        createButtonNode('Cancel'),
-      ]);
+      const snapshot = createTestSnapshot([createButtonNode('Submit'), createButtonNode('Cancel')]);
       const engine = new QueryEngine(snapshot);
 
       // High min_score should filter out some results
@@ -728,8 +719,18 @@ describe('QueryEngine', () => {
 
     it('should sort by relevance when requested', () => {
       const snapshot = createTestSnapshot([
-        createTestNode({ node_id: 'btn-main', kind: 'button', label: 'Submit', where: { region: 'main' } }),
-        createTestNode({ node_id: 'btn-header', kind: 'button', label: 'Submit', where: { region: 'header' } }),
+        createTestNode({
+          node_id: 'btn-main',
+          kind: 'button',
+          label: 'Submit',
+          where: { region: 'main' },
+        }),
+        createTestNode({
+          node_id: 'btn-header',
+          kind: 'button',
+          label: 'Submit',
+          where: { region: 'header' },
+        }),
       ]);
       const engine = new QueryEngine(snapshot);
 
@@ -747,9 +748,24 @@ describe('QueryEngine', () => {
   describe('disambiguation suggestions', () => {
     it('should generate suggestions when multiple matches exist', () => {
       const snapshot = createTestSnapshot([
-        createTestNode({ node_id: 'btn-header', kind: 'button', label: 'Submit', where: { region: 'header' } }),
-        createTestNode({ node_id: 'btn-main', kind: 'button', label: 'Submit', where: { region: 'main' } }),
-        createTestNode({ node_id: 'btn-footer', kind: 'button', label: 'Submit', where: { region: 'footer' } }),
+        createTestNode({
+          node_id: 'btn-header',
+          kind: 'button',
+          label: 'Submit',
+          where: { region: 'header' },
+        }),
+        createTestNode({
+          node_id: 'btn-main',
+          kind: 'button',
+          label: 'Submit',
+          where: { region: 'main' },
+        }),
+        createTestNode({
+          node_id: 'btn-footer',
+          kind: 'button',
+          label: 'Submit',
+          where: { region: 'footer' },
+        }),
       ]);
       const engine = new QueryEngine(snapshot);
 
@@ -764,8 +780,18 @@ describe('QueryEngine', () => {
 
     it('should suggest refining by region when matches span regions', () => {
       const snapshot = createTestSnapshot([
-        createTestNode({ node_id: 'btn-header', kind: 'button', label: 'Submit', where: { region: 'header' } }),
-        createTestNode({ node_id: 'btn-footer', kind: 'button', label: 'Submit', where: { region: 'footer' } }),
+        createTestNode({
+          node_id: 'btn-header',
+          kind: 'button',
+          label: 'Submit',
+          where: { region: 'header' },
+        }),
+        createTestNode({
+          node_id: 'btn-footer',
+          kind: 'button',
+          label: 'Submit',
+          where: { region: 'footer' },
+        }),
       ]);
       const engine = new QueryEngine(snapshot);
 
@@ -780,10 +806,7 @@ describe('QueryEngine', () => {
     });
 
     it('should suggest refining by kind when matches have different kinds', () => {
-      const snapshot = createTestSnapshot([
-        createButtonNode('Submit'),
-        createLinkNode('Submit'),
-      ]);
+      const snapshot = createTestSnapshot([createButtonNode('Submit'), createLinkNode('Submit')]);
       const engine = new QueryEngine(snapshot);
 
       const result = engine.find({
@@ -808,10 +831,7 @@ describe('QueryEngine', () => {
     });
 
     it('should not include suggestions when not requested', () => {
-      const snapshot = createTestSnapshot([
-        createButtonNode('Submit'),
-        createButtonNode('Submit'),
-      ]);
+      const snapshot = createTestSnapshot([createButtonNode('Submit'), createButtonNode('Submit')]);
       const engine = new QueryEngine(snapshot);
 
       const result = engine.find({ label: 'Submit' });
@@ -822,12 +842,42 @@ describe('QueryEngine', () => {
     it('should limit suggestions to 5', () => {
       // Create a scenario with many possible suggestions
       const snapshot = createTestSnapshot([
-        createTestNode({ node_id: 'btn-header', kind: 'button', label: 'Action', where: { region: 'header' } }),
-        createTestNode({ node_id: 'link-nav', kind: 'link', label: 'Action', where: { region: 'nav' } }),
-        createTestNode({ node_id: 'btn-main', kind: 'button', label: 'Action', where: { region: 'main' } }),
-        createTestNode({ node_id: 'btn-form1', kind: 'button', label: 'Action', where: { region: 'main', group_id: 'form-1' } }),
-        createTestNode({ node_id: 'link-form2', kind: 'link', label: 'Action', where: { region: 'main', group_id: 'form-2' } }),
-        createTestNode({ node_id: 'btn-footer', kind: 'button', label: 'Action', where: { region: 'footer' } }),
+        createTestNode({
+          node_id: 'btn-header',
+          kind: 'button',
+          label: 'Action',
+          where: { region: 'header' },
+        }),
+        createTestNode({
+          node_id: 'link-nav',
+          kind: 'link',
+          label: 'Action',
+          where: { region: 'nav' },
+        }),
+        createTestNode({
+          node_id: 'btn-main',
+          kind: 'button',
+          label: 'Action',
+          where: { region: 'main' },
+        }),
+        createTestNode({
+          node_id: 'btn-form1',
+          kind: 'button',
+          label: 'Action',
+          where: { region: 'main', group_id: 'form-1' },
+        }),
+        createTestNode({
+          node_id: 'link-form2',
+          kind: 'link',
+          label: 'Action',
+          where: { region: 'main', group_id: 'form-2' },
+        }),
+        createTestNode({
+          node_id: 'btn-footer',
+          kind: 'button',
+          label: 'Action',
+          where: { region: 'footer' },
+        }),
       ]);
       const engine = new QueryEngine(snapshot);
 

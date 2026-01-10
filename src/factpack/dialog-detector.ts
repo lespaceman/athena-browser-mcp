@@ -158,10 +158,7 @@ function classifyActionRole(label: string): DialogActionRole {
 /**
  * Extract dialog title from nearby heading context or first heading-like element.
  */
-function extractDialogTitle(
-  dialogNode: ReadableNode,
-  engine: QueryEngine
-): string | undefined {
+function extractDialogTitle(dialogNode: ReadableNode, engine: QueryEngine): string | undefined {
   // First try heading context
   if (dialogNode.where.heading_context) {
     return dialogNode.where.heading_context;
@@ -185,10 +182,7 @@ function extractDialogTitle(
 /**
  * Find interactive actions within a dialog.
  */
-function extractDialogActions(
-  dialogNode: ReadableNode,
-  engine: QueryEngine
-): DialogAction[] {
+function extractDialogActions(dialogNode: ReadableNode, engine: QueryEngine): DialogAction[] {
   const actions: DialogAction[] = [];
 
   // Find buttons and links in the same group or region as the dialog
@@ -396,8 +390,7 @@ export function detectDialogs(snapshot: BaseSnapshot): DialogDetectionResult {
 
     // Determine if modal (alertdialog or has aria-modal)
     const isModal =
-      detectionMethod === 'role-alertdialog' ||
-      dialogNode.attributes?.role === 'alertdialog';
+      detectionMethod === 'role-alertdialog' || dialogNode.attributes?.role === 'alertdialog';
 
     dialogs.push({
       node_id: dialogNode.node_id,

@@ -36,17 +36,12 @@ export const TRUNCATION_PRIORITY = {
 /**
  * Render the <page> section.
  */
-export function renderPageSection(
-  pageResult: PageClassificationResult
-): RenderedSection {
+export function renderPageSection(pageResult: PageClassificationResult): RenderedSection {
   const { type, confidence, secondary_type } = pageResult.classification;
 
   // Find page title from entities
   const titleEntity = pageResult.classification.entities.find(
-    (e) =>
-      e.type === 'product-name' ||
-      e.type === 'article-title' ||
-      e.type === 'category-name'
+    (e) => e.type === 'product-name' || e.type === 'article-title' || e.type === 'category-name'
   );
   const title = titleEntity?.value ?? '';
 
@@ -69,9 +64,7 @@ export function renderPageSection(
 /**
  * Render the <dialogs> section.
  */
-export function renderDialogsSection(
-  dialogResult: DialogDetectionResult
-): RenderedSection {
+export function renderDialogsSection(dialogResult: DialogDetectionResult): RenderedSection {
   const { dialogs, has_blocking_dialog } = dialogResult;
 
   if (dialogs.length === 0) {
@@ -115,9 +108,7 @@ function renderDialogItem(dialog: DetectedDialog, index: number): string {
   const lines: string[] = [];
 
   // Dialog header
-  lines.push(
-    `${index}. [${dialog.type}] "${dialog.title ?? 'Untitled'}" node:${dialog.node_id}`
-  );
+  lines.push(`${index}. [${dialog.type}] "${dialog.title ?? 'Untitled'}" node:${dialog.node_id}`);
 
   // Dialog actions
   for (const action of dialog.actions) {
@@ -180,18 +171,12 @@ export function renderFormsSection(
 /**
  * Render a single form item with its fields.
  */
-function renderFormItem(
-  form: DetectedForm,
-  index: number,
-  compact: boolean
-): string {
+function renderFormItem(form: DetectedForm, index: number, compact: boolean): string {
   const lines: string[] = [];
 
   // Form header
   const confidenceStr =
-    form.purpose_confidence >= 0.5
-      ? `, ${form.purpose_confidence.toFixed(1)}`
-      : '';
+    form.purpose_confidence >= 0.5 ? `, ${form.purpose_confidence.toFixed(1)}` : '';
   lines.push(
     `${index}. ${form.title ?? 'Form'} [${form.purpose}${confidenceStr}] node:${form.node_id}`
   );
@@ -233,8 +218,7 @@ function renderFormField(field: FormField): string {
   if (field.disabled) stateIndicators.push('disabled');
   if (field.readonly) stateIndicators.push('readonly');
 
-  const state =
-    stateIndicators.length > 0 ? ` (${stateIndicators.join(', ')})` : '';
+  const state = stateIndicators.length > 0 ? ` (${stateIndicators.join(', ')})` : '';
 
   return `   - ${parts.join('')}${state} node:${field.node_id}`;
 }
@@ -273,9 +257,7 @@ export function renderActionsSection(
 
   // Build truncated version (top 5 only)
   const truncatedActions = actions.slice(0, MIN_ACTIONS_ON_TRUNCATE);
-  const truncatedLines = truncatedActions.map((action, i) =>
-    renderActionItem(action, i + 1)
-  );
+  const truncatedLines = truncatedActions.map((action, i) => renderActionItem(action, i + 1));
   const truncatedContent = `<actions${attrStr}>\n${truncatedLines.join('\n')}\n</actions>`;
 
   return {
@@ -297,10 +279,7 @@ function renderActionItem(action: SelectedAction, index: number): string {
 /**
  * Render the <state> section.
  */
-export function renderStateSection(
-  factpack: FactPack,
-  options: RenderOptions
-): RenderedSection {
+export function renderStateSection(factpack: FactPack, options: RenderOptions): RenderedSection {
   const { classification } = factpack.page_type;
   const lines: string[] = [];
 

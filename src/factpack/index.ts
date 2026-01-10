@@ -33,10 +33,7 @@ import type { FactPack, FactPackOptions } from './types.js';
  * @param options - Extraction options
  * @returns Complete FactPack with all extracted facts
  */
-export function extractFactPack(
-  snapshot: BaseSnapshot,
-  options: FactPackOptions = {}
-): FactPack {
+export function extractFactPack(snapshot: BaseSnapshot, options: FactPackOptions = {}): FactPack {
   const startTime = performance.now();
 
   // Step 1: Detect dialogs (independent)

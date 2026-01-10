@@ -353,17 +353,20 @@ describe('classifyPage', () => {
 
   describe('confidence and unknown type', () => {
     it('should return unknown for ambiguous pages', () => {
-      const snapshot = createSnapshot([
-        createNode({
-          node_id: 'random-content',
-          kind: 'paragraph',
-          label: 'Some random content here',
-          where: { region: 'main' },
-        }),
-      ], {
-        url: 'https://example.com/xyz123',
-        title: 'Example',
-      });
+      const snapshot = createSnapshot(
+        [
+          createNode({
+            node_id: 'random-content',
+            kind: 'paragraph',
+            label: 'Some random content here',
+            where: { region: 'main' },
+          }),
+        ],
+        {
+          url: 'https://example.com/xyz123',
+          title: 'Example',
+        }
+      );
       const result = classifyPage(snapshot);
 
       // May be 'unknown' or have low confidence
@@ -399,21 +402,24 @@ describe('classifyPage', () => {
   describe('secondary type', () => {
     it('should provide secondary type for ambiguous pages', () => {
       // A page that could be product-listing or category
-      const snapshot = createSnapshot([
-        createHeadingNode('Running Shoes', 1, { where: { region: 'main' } }),
-        ...Array.from({ length: 5 }, (_, i) =>
-          createNode({
-            node_id: `product-${i}`,
-            kind: 'link',
-            label: `Product ${i + 1}`,
-            where: { region: 'main' },
-            state: { visible: true, enabled: true },
-          })
-        ),
-      ], {
-        url: 'https://example.com/shoes',
-        title: 'Running Shoes',
-      });
+      const snapshot = createSnapshot(
+        [
+          createHeadingNode('Running Shoes', 1, { where: { region: 'main' } }),
+          ...Array.from({ length: 5 }, (_, i) =>
+            createNode({
+              node_id: `product-${i}`,
+              kind: 'link',
+              label: `Product ${i + 1}`,
+              where: { region: 'main' },
+              state: { visible: true, enabled: true },
+            })
+          ),
+        ],
+        {
+          url: 'https://example.com/shoes',
+          title: 'Running Shoes',
+        }
+      );
       const result = classifyPage(snapshot);
 
       // May have secondary type

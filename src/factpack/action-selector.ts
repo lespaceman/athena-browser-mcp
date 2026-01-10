@@ -9,12 +9,7 @@
  * 3. Select top actions above threshold
  */
 
-import type {
-  BaseSnapshot,
-  ReadableNode,
-  NodeKind,
-  Viewport,
-} from '../snapshot/snapshot.types.js';
+import type { BaseSnapshot, ReadableNode, NodeKind, Viewport } from '../snapshot/snapshot.types.js';
 import { QueryEngine } from '../query/query-engine.js';
 import { normalizeText } from '../lib/text-utils.js';
 import type {

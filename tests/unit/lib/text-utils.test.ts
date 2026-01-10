@@ -461,18 +461,14 @@ describe('fuzzyTokensMatch', () => {
   describe('token overlap', () => {
     it('should respect minTokenOverlap', () => {
       // 1 out of 2 tokens match = 0.5 overlap
-      const resultLow = fuzzyTokensMatch(
-        ['submit', 'form'],
-        ['submit', 'cancel'],
-        { minTokenOverlap: 0.5 }
-      );
+      const resultLow = fuzzyTokensMatch(['submit', 'form'], ['submit', 'cancel'], {
+        minTokenOverlap: 0.5,
+      });
       expect(resultLow.isMatch).toBe(true);
 
-      const resultHigh = fuzzyTokensMatch(
-        ['submit', 'form'],
-        ['submit', 'cancel'],
-        { minTokenOverlap: 0.8 }
-      );
+      const resultHigh = fuzzyTokensMatch(['submit', 'form'], ['submit', 'cancel'], {
+        minTokenOverlap: 0.8,
+      });
       expect(resultHigh.isMatch).toBe(false);
     });
   });

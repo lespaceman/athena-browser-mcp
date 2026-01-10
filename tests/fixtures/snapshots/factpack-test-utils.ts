@@ -160,10 +160,7 @@ export function createNewsletterDialog(): ReadableNode[] {
 /**
  * Create a form node
  */
-export function createFormNode(
-  label: string,
-  overrides: Partial<ReadableNode> = {}
-): ReadableNode {
+export function createFormNode(label: string, overrides: Partial<ReadableNode> = {}): ReadableNode {
   return createNode({
     kind: 'form',
     label,
@@ -369,10 +366,7 @@ export function createButtonNode(
 /**
  * Create a link node
  */
-export function createLinkNode(
-  label: string,
-  overrides: Partial<ReadableNode> = {}
-): ReadableNode {
+export function createLinkNode(label: string, overrides: Partial<ReadableNode> = {}): ReadableNode {
   return createNode({
     kind: 'link',
     label,

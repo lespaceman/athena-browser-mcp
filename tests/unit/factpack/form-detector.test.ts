@@ -53,9 +53,7 @@ describe('detectForms', () => {
     });
 
     it('should detect form by kind=form', () => {
-      const snapshot = createSnapshot([
-        createFormNode('My Form'),
-      ]);
+      const snapshot = createSnapshot([createFormNode('My Form')]);
       const result = detectForms(snapshot);
 
       expect(result.forms).toHaveLength(1);
@@ -631,9 +629,7 @@ describe('detectForms', () => {
 
   describe('edge cases', () => {
     it('should handle form with no fields', () => {
-      const snapshot = createSnapshot([
-        createFormNode('Empty Form'),
-      ]);
+      const snapshot = createSnapshot([createFormNode('Empty Form')]);
       const result = detectForms(snapshot);
 
       expect(result.forms).toHaveLength(1);

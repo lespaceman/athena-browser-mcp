@@ -330,11 +330,7 @@ function inferFormPurpose(fields: FormField[]): {
   }
 
   // Newsletter: email only (or email with name)
-  if (
-    semanticTypes.has('email') &&
-    !semanticTypes.has('password') &&
-    fields.length <= 3
-  ) {
+  if (semanticTypes.has('email') && !semanticTypes.has('password') && fields.length <= 3) {
     return { purpose: 'newsletter', confidence: 0.75, signals: ['email-only', 'few-fields'] };
   }
 
@@ -366,9 +362,7 @@ function inferFormPurpose(fields: FormField[]): {
   // Profile: has name/email/phone but no password
   if (
     !semanticTypes.has('password') &&
-    (semanticTypes.has('email') ||
-      semanticTypes.has('phone') ||
-      semanticTypes.has('first-name'))
+    (semanticTypes.has('email') || semanticTypes.has('phone') || semanticTypes.has('first-name'))
   ) {
     return {
       purpose: 'profile',
@@ -385,10 +379,7 @@ function inferFormPurpose(fields: FormField[]): {
 /**
  * Calculate form validation state.
  */
-function calculateValidation(
-  fields: FormField[],
-  submitButton?: FormSubmitButton
-): FormValidation {
+function calculateValidation(fields: FormField[], submitButton?: FormSubmitButton): FormValidation {
   const errorCount = fields.filter((f) => f.invalid).length;
   const requiredUnfilled = fields.filter((f) => f.required && !f.has_value).length;
   const hasErrors = errorCount > 0;
@@ -416,14 +407,7 @@ function findFormFields(
   engine: QueryEngine,
   includeDisabled: boolean
 ): FormField[] {
-  const inputKinds: NodeKind[] = [
-    'input',
-    'textarea',
-    'select',
-    'combobox',
-    'checkbox',
-    'radio',
-  ];
+  const inputKinds: NodeKind[] = ['input', 'textarea', 'select', 'combobox', 'checkbox', 'radio'];
 
   const fields: FormField[] = [];
   const seenIds = new Set<string>();

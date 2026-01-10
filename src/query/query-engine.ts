@@ -130,11 +130,7 @@ export class QueryEngine {
 
     // Score all candidates
     const scoredMatches: MatchedNode[] = candidates.map((node) => {
-      const { relevance, reasons } = this.scoreMatch(
-        node,
-        request,
-        labelScores?.get(node.node_id)
-      );
+      const { relevance, reasons } = this.scoreMatch(node, request, labelScores?.get(node.node_id));
       return { node, relevance, match_reasons: reasons };
     });
 

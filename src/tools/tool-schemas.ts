@@ -359,21 +359,11 @@ export const FindElementsInputSchema = z.object({
   /** Page ID to query */
   page_id: z.string(),
   /** Filter by NodeKind (single or array) */
-  kind: z
-    .union([
-      z.string(),
-      z.array(z.string()),
-    ])
-    .optional(),
+  kind: z.union([z.string(), z.array(z.string())]).optional(),
   /** Filter by label text (string for contains, or object for options) */
   label: LabelFilterSchema.optional(),
   /** Filter by semantic region (single or array) */
-  region: z
-    .union([
-      z.string(),
-      z.array(z.string()),
-    ])
-    .optional(),
+  region: z.union([z.string(), z.array(z.string())]).optional(),
   /** Filter by state constraints */
   state: StateConstraintSchema,
   /** Filter by group identifier (exact match) */

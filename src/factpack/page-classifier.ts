@@ -370,14 +370,15 @@ function calculateSummaryInfo(
   const has_main_content = mainRegion.matches.length > 0;
 
   // Has search
-  const searchForms =
-    formResult?.forms.filter((f) => f.purpose === 'search').length ?? 0;
-  const searchInputs = engine.find({ kind: 'input', limit: 50 }).matches.filter(
-    (m) =>
-      m.node.attributes?.input_type === 'search' ||
-      m.node.attributes?.autocomplete === 'search' ||
-      /search/i.test(m.node.label)
-  );
+  const searchForms = formResult?.forms.filter((f) => f.purpose === 'search').length ?? 0;
+  const searchInputs = engine
+    .find({ kind: 'input', limit: 50 })
+    .matches.filter(
+      (m) =>
+        m.node.attributes?.input_type === 'search' ||
+        m.node.attributes?.autocomplete === 'search' ||
+        /search/i.test(m.node.label)
+    );
   const has_search = searchForms > 0 || searchInputs.length > 0;
 
   return { has_forms, has_navigation, has_main_content, has_search };
@@ -416,7 +417,10 @@ function calculateTypeScores(signals: PageSignal[]): Map<PageType, number> {
   // Accumulate signal weights
   for (const signal of signals) {
     // Extract type from signal name if it follows pattern
-    const match = /-(login|signup|checkout|cart|product|article|error|contact|about|documentation|search-results|homepage|product-listing|category|account)/.exec(signal.signal);
+    const match =
+      /-(login|signup|checkout|cart|product|article|error|contact|about|documentation|search-results|homepage|product-listing|category|account)/.exec(
+        signal.signal
+      );
     if (match) {
       const type = match[1] as PageType;
       const current = scores.get(type) ?? 0;
@@ -434,9 +438,7 @@ function selectTypes(scores: Map<PageType, number>): {
   primary: { type: PageType; score: number };
   secondary?: { type: PageType; score: number };
 } {
-  const sorted = [...scores.entries()]
-    .filter(([, score]) => score > 0)
-    .sort((a, b) => b[1] - a[1]);
+  const sorted = [...scores.entries()].filter(([, score]) => score > 0).sort((a, b) => b[1] - a[1]);
 
   if (sorted.length === 0) {
     return { primary: { type: 'unknown', score: 0.2 } };

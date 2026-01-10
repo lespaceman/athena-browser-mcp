@@ -41,10 +41,7 @@ describe('detectDialogs', () => {
     });
 
     it('should return empty result for snapshot with no dialogs', () => {
-      const snapshot = createSnapshot([
-        createButtonNode('Click Me'),
-        createLinkNode('Home'),
-      ]);
+      const snapshot = createSnapshot([createButtonNode('Click Me'), createLinkNode('Home')]);
       const result = detectDialogs(snapshot);
 
       expect(result.dialogs).toHaveLength(0);
@@ -52,9 +49,7 @@ describe('detectDialogs', () => {
     });
 
     it('should detect dialog by kind=dialog', () => {
-      const snapshot = createSnapshot([
-        createDialogNode('Dialog Title'),
-      ]);
+      const snapshot = createSnapshot([createDialogNode('Dialog Title')]);
       const result = detectDialogs(snapshot);
 
       expect(result.dialogs).toHaveLength(1);
@@ -414,9 +409,7 @@ describe('detectDialogs', () => {
     });
 
     it('should return unknown type for generic dialog', () => {
-      const snapshot = createSnapshot([
-        createDialogNode('Some Generic Content'),
-      ]);
+      const snapshot = createSnapshot([createDialogNode('Some Generic Content')]);
       const result = detectDialogs(snapshot);
 
       // Should still be detected as a dialog
@@ -426,9 +419,7 @@ describe('detectDialogs', () => {
     });
 
     it('should return low confidence for unknown type', () => {
-      const snapshot = createSnapshot([
-        createDialogNode('Random Dialog Content'),
-      ]);
+      const snapshot = createSnapshot([createDialogNode('Random Dialog Content')]);
       const result = detectDialogs(snapshot);
 
       expect(result.dialogs[0].type_confidence).toBeLessThan(0.6);
@@ -449,9 +440,7 @@ describe('detectDialogs', () => {
 
   describe('edge cases', () => {
     it('should handle dialog without actions', () => {
-      const snapshot = createSnapshot([
-        createDialogNode('Information Dialog'),
-      ]);
+      const snapshot = createSnapshot([createDialogNode('Information Dialog')]);
       const result = detectDialogs(snapshot);
 
       expect(result.dialogs[0].actions).toEqual([]);
