@@ -78,7 +78,7 @@ jobs:
           echo "Bumped version to: $NEW_VERSION"
 
       - name: Update package-lock.json
-        run: npm install --package-lock-only
+        run: npm install --package-lock-only --ignore-scripts
 
       - name: Generate changelog
         id: changelog
