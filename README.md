@@ -35,32 +35,32 @@ Minimal MCP server for AI browser automation - 8 simple tools.
 
 ### Session
 
-| Tool | Purpose | Input |
-|------|---------|-------|
-| `open` | Start browser session | `{ headless?, connect_to? }` |
-| `close` | End browser session | `{ page_id? }` |
+| Tool    | Purpose               | Input                        |
+| ------- | --------------------- | ---------------------------- |
+| `open`  | Start browser session | `{ headless?, connect_to? }` |
+| `close` | End browser session   | `{ page_id? }`               |
 
 ### Navigation
 
-| Tool | Purpose | Input |
-|------|---------|-------|
-| `goto` | Navigate to URL | `{ url }` |
-| | Go back/forward/refresh | `{ back: true }` / `{ forward: true }` / `{ refresh: true }` |
+| Tool   | Purpose                 | Input                                                        |
+| ------ | ----------------------- | ------------------------------------------------------------ |
+| `goto` | Navigate to URL         | `{ url }`                                                    |
+|        | Go back/forward/refresh | `{ back: true }` / `{ forward: true }` / `{ refresh: true }` |
 
 ### Query
 
-| Tool | Purpose | Input |
-|------|---------|-------|
+| Tool   | Purpose                   | Input                        |
+| ------ | ------------------------- | ---------------------------- |
 | `find` | Find elements by criteria | `{ kind?, label?, region? }` |
 
 ### Interaction
 
-| Tool | Purpose | Input |
-|------|---------|-------|
-| `click` | Click element | `{ node_id }` |
-| `type` | Type text into element | `{ text, node_id?, clear? }` |
-| `press` | Press keyboard key | `{ key }` (Enter, Tab, Escape, etc.) |
-| `select` | Choose dropdown option | `{ node_id, value }` |
+| Tool     | Purpose                | Input                                |
+| -------- | ---------------------- | ------------------------------------ |
+| `click`  | Click element          | `{ node_id }`                        |
+| `type`   | Type text into element | `{ text, node_id?, clear? }`         |
+| `press`  | Press keyboard key     | `{ key }` (Enter, Tab, Escape, etc.) |
+| `select` | Choose dropdown option | `{ node_id, value }`                 |
 
 ## Response Format
 
@@ -80,17 +80,17 @@ Tools return lightweight deltas describing what changed:
 
 ### Change Types
 
-| Type | Description |
-|------|-------------|
-| `focused` | Element received focus |
-| `filled` | Input field value changed |
-| `selected` | Dropdown option selected |
-| `clicked` | Element was clicked |
-| `navigation` | URL changed |
-| `page_changed` | Page type changed |
-| `modal_opened` | Modal dialog appeared |
-| `modal_closed` | Modal dialog dismissed |
-| `form_submitted` | Form was submitted |
+| Type             | Description               |
+| ---------------- | ------------------------- |
+| `focused`        | Element received focus    |
+| `filled`         | Input field value changed |
+| `selected`       | Dropdown option selected  |
+| `clicked`        | Element was clicked       |
+| `navigation`     | URL changed               |
+| `page_changed`   | Page type changed         |
+| `modal_opened`   | Modal dialog appeared     |
+| `modal_closed`   | Modal dialog dismissed    |
+| `form_submitted` | Form was submitted        |
 
 ## Usage Examples
 
@@ -168,8 +168,8 @@ Add to your Claude Desktop config:
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
+| Variable             | Description               | Default |
+| -------------------- | ------------------------- | ------- |
 | `DEFAULT_TIMEOUT_MS` | Default operation timeout | `30000` |
 
 ## Development
