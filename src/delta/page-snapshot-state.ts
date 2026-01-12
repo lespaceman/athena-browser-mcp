@@ -229,6 +229,10 @@ export class PageSnapshotState {
       return this.handleOverlayClosed(versioned, frameInvalidations);
     }
 
+    if (overlayChange?.type === 'replaced') {
+      return this.handleOverlayReplaced(versioned, overlayChange, frameInvalidations);
+    }
+
     // Compute delta based on current mode
     if (this.mode === 'overlay') {
       return this.handleOverlayContentChange(versioned, frameInvalidations);
@@ -361,6 +365,65 @@ export class PageSnapshotState {
     return {
       type: 'overlay_closed',
       content: formatOverlayClosed(closedOverlay, allInvalidations, baseDelta, this._frameTracker),
+      version: versioned.version,
+    };
+  }
+
+  /**
+   * Handle overlay replacement (one overlay closed, another opened in same render).
+   * This is a combined close + open operation to avoid stale refs.
+   */
+  private handleOverlayReplaced(
+    versioned: VersionedSnapshot,
+    change: OverlayChangeResult,
+    frameInvalidations: ScopedElementRef[]
+  ): SnapshotResponse {
+    const closedOverlay = change.closedOverlay!;
+    const newOverlayInfo = change.newOverlay!;
+
+    // 1. Close old overlay - collect invalidations from captured refs
+    this.overlayStack.pop();
+    const closedInvalidations = [...frameInvalidations, ...closedOverlay.capturedRefs];
+
+    // 2. Open new overlay - extract nodes and capture refs
+    const newOverlayNodes = this.extractOverlayNodes(versioned.snapshot, newOverlayInfo.rootRef);
+    const newCapturedRefs = newOverlayNodes.map((n) => buildRefFromNode(n));
+
+    // Create new overlay state
+    const newOverlayState: OverlayState = {
+      rootRef: newOverlayInfo.rootRef,
+      overlayType: newOverlayInfo.overlayType,
+      snapshot: { ...versioned.snapshot, nodes: newOverlayNodes },
+      contentHash: hashNodes(newOverlayNodes),
+      confidence: newOverlayInfo.confidence,
+      capturedRefs: newCapturedRefs,
+    };
+
+    // Push new overlay to stack
+    this.overlayStack.push(newOverlayState);
+    this.mode = 'overlay';
+    this.updateContextNodes(newOverlayNodes);
+
+    // Prune invalidated refs from old overlay
+    this.pruneRemovedRefs(closedInvalidations);
+
+    // Format combined response: close message + open message
+    const closeContent = formatOverlayClosed(
+      closedOverlay,
+      closedInvalidations,
+      null,
+      this._frameTracker
+    );
+    const openContent = formatOverlayOpened(
+      newOverlayState,
+      newOverlayNodes,
+      [], // No additional invalidations - already handled above
+      this._frameTracker
+    );
+
+    return {
+      type: 'overlay_opened', // Use overlay_opened as primary type since new overlay is now active
+      content: `${closeContent}\n\n${openContent}`,
       version: versioned.version,
     };
   }
