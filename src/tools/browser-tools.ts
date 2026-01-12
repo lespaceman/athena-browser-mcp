@@ -15,6 +15,7 @@ import {
   hoverByBackendNodeId,
   scrollIntoView,
   scrollPage,
+  clearFocusedText,
 } from '../snapshot/index.js';
 import {
   BrowserLaunchInputSchema,
@@ -979,35 +980,7 @@ export async function type(rawInput: unknown): Promise<TypeOutput> {
   } else {
     // Type into currently focused element
     if (input.clear) {
-      // Select all (Ctrl+A) and delete using raw CDP events
-      // Note: pressKey only supports special keys, so we use direct CDP calls for 'a'
-      await handle.cdp.send('Input.dispatchKeyEvent', {
-        type: 'keyDown',
-        key: 'a',
-        code: 'KeyA',
-        modifiers: 2, // Ctrl
-        windowsVirtualKeyCode: 65,
-      });
-      await handle.cdp.send('Input.dispatchKeyEvent', {
-        type: 'keyUp',
-        key: 'a',
-        code: 'KeyA',
-        modifiers: 2,
-        windowsVirtualKeyCode: 65,
-      });
-      // Delete selected text
-      await handle.cdp.send('Input.dispatchKeyEvent', {
-        type: 'keyDown',
-        key: 'Delete',
-        code: 'Delete',
-        windowsVirtualKeyCode: 46,
-      });
-      await handle.cdp.send('Input.dispatchKeyEvent', {
-        type: 'keyUp',
-        key: 'Delete',
-        code: 'Delete',
-        windowsVirtualKeyCode: 46,
-      });
+      await clearFocusedText(handle.cdp);
     }
     await handle.cdp.send('Input.insertText', { text: input.text });
   }

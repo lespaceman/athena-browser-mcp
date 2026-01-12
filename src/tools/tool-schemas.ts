@@ -1015,7 +1015,8 @@ export type HoverOutput = z.infer<typeof HoverOutputSchema>;
 // scroll - Scroll page or element into view
 // ============================================================================
 
-export const ScrollInputSchema = z.object({
+/** Base schema for scroll input (exported for .shape access in MCP registration) */
+export const ScrollInputSchemaBase = z.object({
   /** Node ID to scroll into view */
   node_id: z.string().optional(),
   /** Scroll direction (when no node_id) */
@@ -1025,6 +1026,14 @@ export const ScrollInputSchema = z.object({
   /** Page ID. If omitted, uses most recently used page */
   page_id: z.string().optional(),
 });
+
+/** Full schema with refinement (used for validation) */
+export const ScrollInputSchema = ScrollInputSchemaBase.refine(
+  // Using || for intentional truthy check (not nullish coalescing)
+  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+  (data) => data.node_id || data.direction,
+  { message: 'Must provide node_id or direction' }
+);
 
 export const ScrollOutputSchema = z.object({
   /** Whether scroll succeeded */

@@ -140,6 +140,7 @@ export {
   type HoverInput,
   type HoverOutput,
   // scroll
+  ScrollInputSchemaBase,
   ScrollInputSchema,
   ScrollOutputSchema,
   type ScrollInput,

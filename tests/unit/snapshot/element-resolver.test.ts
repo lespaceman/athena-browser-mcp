@@ -11,6 +11,8 @@ import {
   hoverByBackendNodeId,
   scrollIntoView,
   scrollPage,
+  clearFocusedText,
+  MODIFIER_CTRL,
 } from '../../../src/snapshot/element-resolver.js';
 import type { CdpClient } from '../../../src/cdp/cdp-client.interface.js';
 
@@ -171,7 +173,7 @@ describe('ElementResolver', () => {
         expect.objectContaining({
           type: 'keyDown',
           key: 'a',
-          modifiers: 2, // Ctrl
+          modifiers: MODIFIER_CTRL,
         })
       );
 
@@ -407,6 +409,66 @@ describe('ElementResolver', () => {
       expect(mockCdp.send).toHaveBeenCalledWith('Runtime.evaluate', {
         expression: 'window.scrollBy(0, 1000)',
       });
+    });
+  });
+
+  describe('clearFocusedText()', () => {
+    let mockCdp: { send: ReturnType<typeof vi.fn> };
+
+    beforeEach(() => {
+      mockCdp = {
+        send: vi.fn(),
+      };
+      mockCdp.send.mockResolvedValue(undefined);
+    });
+
+    it('should dispatch Ctrl+A then Delete to clear text', async () => {
+      await clearFocusedText(mockCdp as unknown as CdpClient);
+
+      // Check Ctrl+A keyDown was called
+      expect(mockCdp.send).toHaveBeenCalledWith(
+        'Input.dispatchKeyEvent',
+        expect.objectContaining({
+          type: 'keyDown',
+          key: 'a',
+          code: 'KeyA',
+          modifiers: MODIFIER_CTRL,
+        })
+      );
+
+      // Check Ctrl+A keyUp was called
+      expect(mockCdp.send).toHaveBeenCalledWith(
+        'Input.dispatchKeyEvent',
+        expect.objectContaining({
+          type: 'keyUp',
+          key: 'a',
+          code: 'KeyA',
+          modifiers: MODIFIER_CTRL,
+        })
+      );
+
+      // Check Delete keyDown was called
+      expect(mockCdp.send).toHaveBeenCalledWith(
+        'Input.dispatchKeyEvent',
+        expect.objectContaining({
+          type: 'keyDown',
+          key: 'Delete',
+          code: 'Delete',
+        })
+      );
+
+      // Check Delete keyUp was called
+      expect(mockCdp.send).toHaveBeenCalledWith(
+        'Input.dispatchKeyEvent',
+        expect.objectContaining({
+          type: 'keyUp',
+          key: 'Delete',
+          code: 'Delete',
+        })
+      );
+
+      // Should have exactly 4 CDP calls
+      expect(mockCdp.send).toHaveBeenCalledTimes(4);
     });
   });
 });

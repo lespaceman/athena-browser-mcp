@@ -92,6 +92,19 @@ export async function clickByBackendNodeId(cdp: CdpClient, backendNodeId: number
 }
 
 // ============================================================================
+// Modifier Bitmask Constants
+// ============================================================================
+
+/**
+ * CDP Input modifier bitmask values.
+ * These are ORed together for combined modifiers.
+ */
+export const MODIFIER_ALT = 1;
+export const MODIFIER_CTRL = 2;
+export const MODIFIER_META = 4;
+export const MODIFIER_SHIFT = 8;
+
+// ============================================================================
 // Key Code Mapping
 // ============================================================================
 
@@ -121,7 +134,6 @@ const KEY_DEFINITIONS: Record<
 
 /**
  * Convert modifier names to CDP modifier bitmask.
- * Alt=1, Ctrl=2, Meta=4, Shift=8
  */
 function computeModifiers(modifiers?: string[]): number {
   if (!modifiers) return 0;
@@ -129,19 +141,19 @@ function computeModifiers(modifiers?: string[]): number {
   for (const mod of modifiers) {
     switch (mod.toLowerCase()) {
       case 'alt':
-        bits |= 1;
+        bits |= MODIFIER_ALT;
         break;
       case 'control':
       case 'ctrl':
-        bits |= 2;
+        bits |= MODIFIER_CTRL;
         break;
       case 'meta':
       case 'cmd':
       case 'command':
-        bits |= 4;
+        bits |= MODIFIER_META;
         break;
       case 'shift':
-        bits |= 8;
+        bits |= MODIFIER_SHIFT;
         break;
     }
   }
@@ -206,6 +218,50 @@ async function getElementCenter(
 }
 
 // ============================================================================
+// Clear Text Helper
+// ============================================================================
+
+/**
+ * Clear text in the currently focused element using Ctrl+A then Delete.
+ *
+ * This helper is used by typeByBackendNodeId and can be used directly
+ * when typing into an already-focused element.
+ *
+ * @param cdp - CDP client instance
+ */
+export async function clearFocusedText(cdp: CdpClient): Promise<void> {
+  // Select all (Ctrl+A)
+  await cdp.send('Input.dispatchKeyEvent', {
+    type: 'keyDown',
+    key: 'a',
+    code: 'KeyA',
+    modifiers: MODIFIER_CTRL,
+    windowsVirtualKeyCode: 65,
+  });
+  await cdp.send('Input.dispatchKeyEvent', {
+    type: 'keyUp',
+    key: 'a',
+    code: 'KeyA',
+    modifiers: MODIFIER_CTRL,
+    windowsVirtualKeyCode: 65,
+  });
+
+  // Delete selected text
+  await cdp.send('Input.dispatchKeyEvent', {
+    type: 'keyDown',
+    key: 'Delete',
+    code: 'Delete',
+    windowsVirtualKeyCode: 46,
+  });
+  await cdp.send('Input.dispatchKeyEvent', {
+    type: 'keyUp',
+    key: 'Delete',
+    code: 'Delete',
+    windowsVirtualKeyCode: 46,
+  });
+}
+
+// ============================================================================
 // Type Text
 // ============================================================================
 
@@ -231,35 +287,7 @@ export async function typeByBackendNodeId(
 
   // 2. Clear existing text if requested
   if (options?.clear) {
-    // Select all (Ctrl+A)
-    await cdp.send('Input.dispatchKeyEvent', {
-      type: 'keyDown',
-      key: 'a',
-      code: 'KeyA',
-      modifiers: 2, // Ctrl
-      windowsVirtualKeyCode: 65,
-    });
-    await cdp.send('Input.dispatchKeyEvent', {
-      type: 'keyUp',
-      key: 'a',
-      code: 'KeyA',
-      modifiers: 2,
-      windowsVirtualKeyCode: 65,
-    });
-
-    // Delete selected text
-    await cdp.send('Input.dispatchKeyEvent', {
-      type: 'keyDown',
-      key: 'Delete',
-      code: 'Delete',
-      windowsVirtualKeyCode: 46,
-    });
-    await cdp.send('Input.dispatchKeyEvent', {
-      type: 'keyUp',
-      key: 'Delete',
-      code: 'Delete',
-      windowsVirtualKeyCode: 46,
-    });
+    await clearFocusedText(cdp);
   }
 
   // 3. Insert text

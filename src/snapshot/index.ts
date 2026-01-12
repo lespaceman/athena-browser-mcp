@@ -46,6 +46,11 @@ export {
   hoverByBackendNodeId,
   scrollIntoView,
   scrollPage,
+  clearFocusedText,
+  MODIFIER_ALT,
+  MODIFIER_CTRL,
+  MODIFIER_META,
+  MODIFIER_SHIFT,
 } from './element-resolver.js';
 
 // Snapshot compiler

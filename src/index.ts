@@ -43,7 +43,7 @@ import {
   SelectOutputSchema,
   HoverInputSchema,
   HoverOutputSchema,
-  ScrollInputSchema,
+  ScrollInputSchemaBase,
   ScrollOutputSchema,
 } from './tools/index.js';
 
@@ -239,7 +239,7 @@ function initializeServer(): BrowserAutomationServer {
         'Scroll the page or an element into view. ' +
         'If node_id is provided, scrolls that element into view. ' +
         'Otherwise, scrolls the page up or down by the specified amount.',
-      inputSchema: ScrollInputSchema.shape,
+      inputSchema: ScrollInputSchemaBase.shape,
       outputSchema: ScrollOutputSchema.shape,
     },
     scroll
