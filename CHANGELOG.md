@@ -1,3 +1,7 @@
+## [2.0.2] - 2026-01-12
+
+- fix(ci): add explicit tag_name for gh-release action
+
 ## [2.0.1] - 2026-01-12
 
 - fix(ci): ignore CHANGELOG.md from prettier checks
