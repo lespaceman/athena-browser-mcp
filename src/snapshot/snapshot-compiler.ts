@@ -749,6 +749,7 @@ export class SnapshotCompiler {
           bbox: layout.bbox,
           display: layout.display,
           screen_zone: layout.screenZone,
+          zIndex: layout.zIndex,
         }
       : {
           bbox: { x: 0, y: 0, w: 0, h: 0 },

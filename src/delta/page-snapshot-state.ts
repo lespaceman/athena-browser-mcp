@@ -32,6 +32,7 @@ import {
   isDeltaReliable,
   computeDeltaConfidence,
   buildRefFromNode,
+  hasUnknownFrames,
 } from './utils.js';
 import {
   formatFullSnapshot,
@@ -208,6 +209,23 @@ export class PageSnapshotState {
 
     // Capture current state
     const { versioned, isNew } = await this.versionManager.captureIfChanged(page, cdp);
+
+    // Check for unknown frame loaderIds - delta computation unreliable
+    if (hasUnknownFrames(versioned.snapshot)) {
+      // Fall back to full snapshot when frame data is unreliable
+      this.baseline = versioned;
+      this.baselineMainFrameLoaderId = this._frameTracker.mainFrame?.loaderId ?? null;
+      this.updateBaselineNodes(versioned.snapshot.nodes);
+      this.updateContextNodes(versioned.snapshot.nodes);
+      this._frameTracker.clearAllRefs();
+
+      return {
+        type: 'full',
+        content: formatFullSnapshot(versioned.snapshot, this._frameTracker),
+        version: versioned.version,
+        reason: 'Unknown frame loaderIds - delta computation unreliable',
+      };
+    }
 
     // No change and no frame invalidations
     if (!isNew && frameInvalidations.length === 0) {
@@ -576,8 +594,13 @@ export class PageSnapshotState {
       }
     }
 
-    // Sort by z-index/DOM order for consistent stacking
-    overlays.sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
+    // Sort by z-index for consistent stacking, with backend_node_id as tiebreaker for determinism
+    overlays.sort((a, b) => {
+      const zDiff = (a.zIndex ?? 0) - (b.zIndex ?? 0);
+      if (zDiff !== 0) return zDiff;
+      // Secondary sort by backend_node_id for deterministic ordering when z-index is equal
+      return a.rootRef.backend_node_id - b.rootRef.backend_node_id;
+    });
 
     return overlays;
   }
@@ -646,10 +669,8 @@ export class PageSnapshotState {
     return null;
   }
 
-  private extractZIndex(_node: ReadableNode): number | undefined {
-    // z-index might be in layout or computed styles
-    // For now, return undefined - would need CSS extraction for proper z-index
-    return undefined;
+  private extractZIndex(node: ReadableNode): number | undefined {
+    return node.layout.zIndex;
   }
 
   // ============================================
@@ -658,16 +679,38 @@ export class PageSnapshotState {
 
   /**
    * Extract nodes belonging to an overlay.
-   * For simplicity, returns all nodes with the overlay's region or kind.
+   * Uses region/kind matching plus explicit inclusion of the overlay root.
    */
   private extractOverlayNodes(
     snapshot: BaseSnapshot,
-    _overlayRef: ScopedElementRef
+    overlayRef: ScopedElementRef
   ): ReadableNode[] {
-    // Return nodes in dialog region or with dialog kind
-    return snapshot.nodes.filter(
+    // First, collect all nodes by region/kind (existing logic)
+    const regionMatched = snapshot.nodes.filter(
       (node) => node.where.region === 'dialog' || node.kind === 'dialog'
     );
+
+    // Also find the overlay root node by its ref
+    const overlayRootNode = snapshot.nodes.find(
+      (node) =>
+        node.backend_node_id === overlayRef.backend_node_id &&
+        node.frame_id === overlayRef.frame_id
+    );
+
+    if (!overlayRootNode) {
+      // Fall back to region-based only if overlay root not found
+      return regionMatched;
+    }
+
+    // Build set of matched node IDs for deduplication
+    const matchedIds = new Set(regionMatched.map((n) => n.backend_node_id));
+
+    // Include overlay root if not already matched
+    if (!matchedIds.has(overlayRootNode.backend_node_id)) {
+      return [...regionMatched, overlayRootNode];
+    }
+
+    return regionMatched;
   }
 
   /**

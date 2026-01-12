@@ -15,6 +15,12 @@ import type {
 } from './types.js';
 import { makeCompositeKey } from './utils.js';
 
+/** Maximum number of refs to track before eviction */
+const MAX_ISSUED_REFS = 10000;
+
+/** Number of oldest refs to evict when at capacity */
+const EVICTION_BATCH_SIZE = 1000;
+
 /**
  * FrameTracker class
  *
@@ -166,9 +172,32 @@ export class FrameTracker {
 
     // Use composite key for internal tracking
     const compositeKey = makeCompositeKey(ref);
+
+    // Evict oldest entries if at capacity (prevents unbounded growth)
+    if (this.issuedRefs.size >= MAX_ISSUED_REFS) {
+      this.evictOldestRefs(EVICTION_BATCH_SIZE);
+    }
+
     this.issuedRefs.set(compositeKey, ref);
 
     return ref;
+  }
+
+  /**
+   * Evict oldest refs to prevent unbounded memory growth.
+   * Map preserves insertion order, so we delete from the front.
+   */
+  private evictOldestRefs(count: number): void {
+    const keysToDelete: CompositeNodeKey[] = [];
+    let i = 0;
+    for (const key of this.issuedRefs.keys()) {
+      if (i >= count) break;
+      keysToDelete.push(key);
+      i++;
+    }
+    for (const key of keysToDelete) {
+      this.issuedRefs.delete(key);
+    }
   }
 
   /**

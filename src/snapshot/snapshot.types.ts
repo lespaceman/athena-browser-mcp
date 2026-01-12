@@ -209,6 +209,9 @@ export interface NodeLayout {
 
   /** Coarse screen position */
   screen_zone?: ScreenZone;
+
+  /** CSS z-index value (used for overlay detection) */
+  zIndex?: number;
 }
 
 /**

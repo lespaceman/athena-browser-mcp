@@ -157,6 +157,7 @@ async function extractNodeLayout(
   let bbox: BBox = { x: 0, y: 0, w: 0, h: 0 };
   let display: string | undefined;
   let visibility: string | undefined;
+  let zIndex: number | undefined;
   let boxModelError = false;
 
   // Get box model (uses backendNodeId)
@@ -186,6 +187,12 @@ async function extractNodeLayout(
           display = prop.value;
         } else if (prop.name === 'visibility') {
           visibility = prop.value;
+        } else if (prop.name === 'z-index') {
+          // Parse z-index; 'auto' results in NaN which we ignore
+          const parsed = parseInt(prop.value, 10);
+          if (!isNaN(parsed)) {
+            zIndex = parsed;
+          }
         }
       }
     } catch {
@@ -202,6 +209,7 @@ async function extractNodeLayout(
     visibility,
     isVisible,
     screenZone,
+    zIndex,
   };
 }
 
@@ -300,6 +308,7 @@ interface BatchLayoutResult {
   h: number;
   display: string;
   visibility: string;
+  zIndex: number | null;
 }
 
 /**
@@ -407,7 +416,7 @@ async function extractLayoutBatch(
         let ctx = document;
         for (const segment of path) {
           if (!ctx) return null;
-          
+
           if (ctx instanceof HTMLIFrameElement) {
              try {
                ctx = ctx.contentDocument;
@@ -415,9 +424,9 @@ async function extractLayoutBatch(
           } else if (ctx.shadowRoot) {
              ctx = ctx.shadowRoot;
           }
-          
+
           if (!ctx) return null;
-          
+
           ctx = ctx.querySelector(segment);
         }
         return ctx;
@@ -427,17 +436,20 @@ async function extractLayoutBatch(
         try {
           const node = resolve(item.path);
           if (!node || node.nodeType !== 1) return null;
-          
+
           const rect = node.getBoundingClientRect();
           const style = window.getComputedStyle(node);
-          
+          const zIndexValue = style.zIndex;
+          const zIndex = zIndexValue === 'auto' ? null : parseInt(zIndexValue, 10);
+
           return {
             x: rect.x,
             y: rect.y,
             w: rect.width,
             h: rect.height,
             display: style.display,
-            visibility: style.visibility
+            visibility: style.visibility,
+            zIndex: isNaN(zIndex) ? null : zIndex
           };
         } catch (e) {
           return null;
@@ -472,6 +484,7 @@ async function extractLayoutBatch(
           bbox: { x: res.x, y: res.y, w: res.w, h: res.h },
           display: res.display,
           visibility: res.visibility,
+          zIndex: res.zIndex ?? undefined,
         },
       };
     });

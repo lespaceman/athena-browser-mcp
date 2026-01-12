@@ -131,6 +131,9 @@ export interface NodeLayoutInfo {
 
   /** Coarse screen position (above/below fold, quadrant) */
   screenZone?: ScreenZone;
+
+  /** CSS z-index value (used for overlay detection) */
+  zIndex?: number;
 }
 
 /**
