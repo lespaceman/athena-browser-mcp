@@ -2,124 +2,19 @@
  * Element Resolver Tests
  */
 
-/* eslint-disable @typescript-eslint/unbound-method */
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
-  resolveLocator,
-  parseLocatorString,
   clickByBackendNodeId,
+  typeByBackendNodeId,
+  pressKey,
+  selectOption,
+  hoverByBackendNodeId,
+  scrollIntoView,
+  scrollPage,
 } from '../../../src/snapshot/element-resolver.js';
-import type { ReadableNode } from '../../../src/snapshot/snapshot.types.js';
 import type { CdpClient } from '../../../src/cdp/cdp-client.interface.js';
-import type { Page, Locator } from 'playwright';
 
 describe('ElementResolver', () => {
-  describe('parseLocatorString()', () => {
-    it('should parse role-only locator', () => {
-      const result = parseLocatorString('role=button');
-      expect(result).toEqual({ type: 'role', role: 'button', name: undefined });
-    });
-
-    it('should parse role with name locator', () => {
-      const result = parseLocatorString('role=button[name="Submit"]');
-      expect(result).toEqual({ type: 'role', role: 'button', name: 'Submit' });
-    });
-
-    it('should parse role with name containing special characters', () => {
-      const result = parseLocatorString('role=link[name="More info..."]');
-      expect(result).toEqual({ type: 'role', role: 'link', name: 'More info...' });
-    });
-
-    it('should parse role with single quoted name', () => {
-      const result = parseLocatorString("role=textbox[name='Email']");
-      expect(result).toEqual({ type: 'role', role: 'textbox', name: 'Email' });
-    });
-
-    it('should return css type for non-role selectors', () => {
-      const result = parseLocatorString('button.primary');
-      expect(result).toEqual({ type: 'css', selector: 'button.primary' });
-    });
-
-    it('should return css type for aria-label selectors', () => {
-      const result = parseLocatorString('[aria-label="Submit"]');
-      expect(result).toEqual({ type: 'css', selector: '[aria-label="Submit"]' });
-    });
-  });
-
-  describe('resolveLocator()', () => {
-    let mockPage: Page;
-    let mockLocator: Locator;
-
-    beforeEach(() => {
-      mockLocator = {
-        click: vi.fn(),
-        fill: vi.fn(),
-      } as unknown as Locator;
-
-      mockPage = {
-        getByRole: vi.fn().mockReturnValue(mockLocator),
-        locator: vi.fn().mockReturnValue(mockLocator),
-      } as unknown as Page;
-    });
-
-    function createTestNode(selector: string): ReadableNode {
-      return {
-        node_id: 'node-1',
-        backend_node_id: 12345,
-        kind: 'button',
-        label: 'Test',
-        where: { region: 'main' },
-        layout: { bbox: { x: 0, y: 0, w: 100, h: 30 } },
-        find: { primary: selector },
-      };
-    }
-
-    it('should use getByRole for role=X locators', () => {
-      const node = createTestNode('role=button');
-      const locator = resolveLocator(mockPage, node);
-
-      expect(mockPage.getByRole).toHaveBeenCalledWith('button', {});
-      expect(locator).toBe(mockLocator);
-    });
-
-    it('should use getByRole with name for role=X[name="Y"] locators', () => {
-      const node = createTestNode('role=button[name="Submit"]');
-      const locator = resolveLocator(mockPage, node);
-
-      expect(mockPage.getByRole).toHaveBeenCalledWith('button', { name: 'Submit' });
-      expect(locator).toBe(mockLocator);
-    });
-
-    it('should use page.locator for CSS selectors', () => {
-      const node = createTestNode('button.primary');
-      const locator = resolveLocator(mockPage, node);
-
-      expect(mockPage.locator).toHaveBeenCalledWith('button.primary');
-      expect(locator).toBe(mockLocator);
-    });
-
-    it('should throw error if node has no locator', () => {
-      const node: ReadableNode = {
-        node_id: 'node-1',
-        backend_node_id: 12345,
-        kind: 'button',
-        label: 'Test',
-        where: { region: 'main' },
-        layout: { bbox: { x: 0, y: 0, w: 100, h: 30 } },
-        // No find property
-      };
-
-      expect(() => resolveLocator(mockPage, node)).toThrow('Node node-1 has no locator');
-    });
-
-    it('should handle empty primary locator', () => {
-      const node = createTestNode('');
-
-      expect(() => resolveLocator(mockPage, node)).toThrow('Node node-1 has no locator');
-    });
-  });
-
   describe('clickByBackendNodeId()', () => {
     let mockCdp: { send: ReturnType<typeof vi.fn> };
 
@@ -221,6 +116,297 @@ describe('ElementResolver', () => {
       await expect(clickByBackendNodeId(mockCdp as unknown as CdpClient, 12345)).rejects.toThrow(
         /Invalid click coordinates.*off-screen/
       );
+    });
+  });
+
+  describe('typeByBackendNodeId()', () => {
+    let mockCdp: { send: ReturnType<typeof vi.fn> };
+
+    beforeEach(() => {
+      mockCdp = {
+        send: vi.fn(),
+      };
+    });
+
+    it('should click element and insert text', async () => {
+      mockCdp.send
+        .mockResolvedValueOnce(undefined) // scrollIntoViewIfNeeded (from clickByBackendNodeId)
+        .mockResolvedValueOnce({
+          model: {
+            content: [100, 200, 200, 200, 200, 250, 100, 250],
+          },
+        }) // getBoxModel
+        .mockResolvedValueOnce(undefined) // mousePressed
+        .mockResolvedValueOnce(undefined) // mouseReleased
+        .mockResolvedValueOnce(undefined); // insertText
+
+      await typeByBackendNodeId(mockCdp as unknown as CdpClient, 12345, 'Hello World');
+
+      expect(mockCdp.send).toHaveBeenCalledWith('Input.insertText', { text: 'Hello World' });
+    });
+
+    it('should clear existing text when clear option is true', async () => {
+      mockCdp.send
+        .mockResolvedValueOnce(undefined) // scrollIntoViewIfNeeded
+        .mockResolvedValueOnce({
+          model: {
+            content: [100, 200, 200, 200, 200, 250, 100, 250],
+          },
+        }) // getBoxModel
+        .mockResolvedValueOnce(undefined) // mousePressed
+        .mockResolvedValueOnce(undefined) // mouseReleased
+        .mockResolvedValueOnce(undefined) // keyDown (Ctrl+A)
+        .mockResolvedValueOnce(undefined) // keyUp (Ctrl+A)
+        .mockResolvedValueOnce(undefined) // keyDown (Delete)
+        .mockResolvedValueOnce(undefined) // keyUp (Delete)
+        .mockResolvedValueOnce(undefined); // insertText
+
+      await typeByBackendNodeId(mockCdp as unknown as CdpClient, 12345, 'New Text', {
+        clear: true,
+      });
+
+      // Check Ctrl+A was called
+      expect(mockCdp.send).toHaveBeenCalledWith(
+        'Input.dispatchKeyEvent',
+        expect.objectContaining({
+          type: 'keyDown',
+          key: 'a',
+          modifiers: 2, // Ctrl
+        })
+      );
+
+      // Check Delete was called
+      expect(mockCdp.send).toHaveBeenCalledWith(
+        'Input.dispatchKeyEvent',
+        expect.objectContaining({
+          type: 'keyDown',
+          key: 'Delete',
+        })
+      );
+
+      // Check text was inserted
+      expect(mockCdp.send).toHaveBeenCalledWith('Input.insertText', { text: 'New Text' });
+    });
+  });
+
+  describe('pressKey()', () => {
+    let mockCdp: { send: ReturnType<typeof vi.fn> };
+
+    beforeEach(() => {
+      mockCdp = {
+        send: vi.fn(),
+      };
+      mockCdp.send.mockResolvedValue(undefined);
+    });
+
+    it('should dispatch keyDown and keyUp events for Enter', async () => {
+      await pressKey(mockCdp as unknown as CdpClient, 'Enter');
+
+      expect(mockCdp.send).toHaveBeenCalledWith(
+        'Input.dispatchKeyEvent',
+        expect.objectContaining({
+          type: 'keyDown',
+          key: 'Enter',
+          code: 'Enter',
+          windowsVirtualKeyCode: 13,
+        })
+      );
+      expect(mockCdp.send).toHaveBeenCalledWith(
+        'Input.dispatchKeyEvent',
+        expect.objectContaining({
+          type: 'keyUp',
+          key: 'Enter',
+        })
+      );
+    });
+
+    it('should dispatch keyDown and keyUp events for Tab', async () => {
+      await pressKey(mockCdp as unknown as CdpClient, 'Tab');
+
+      expect(mockCdp.send).toHaveBeenCalledWith(
+        'Input.dispatchKeyEvent',
+        expect.objectContaining({
+          type: 'keyDown',
+          key: 'Tab',
+          code: 'Tab',
+          windowsVirtualKeyCode: 9,
+        })
+      );
+    });
+
+    it('should handle modifier keys', async () => {
+      await pressKey(mockCdp as unknown as CdpClient, 'Enter', ['Control', 'Shift']);
+
+      expect(mockCdp.send).toHaveBeenCalledWith(
+        'Input.dispatchKeyEvent',
+        expect.objectContaining({
+          type: 'keyDown',
+          key: 'Enter',
+          modifiers: 10, // Control (2) + Shift (8)
+        })
+      );
+    });
+
+    it('should throw error for unknown key', async () => {
+      await expect(pressKey(mockCdp as unknown as CdpClient, 'UnknownKey')).rejects.toThrow(
+        /Unknown key.*UnknownKey.*Supported keys/
+      );
+    });
+  });
+
+  describe('selectOption()', () => {
+    let mockCdp: { send: ReturnType<typeof vi.fn> };
+
+    beforeEach(() => {
+      mockCdp = {
+        send: vi.fn(),
+      };
+    });
+
+    it('should select option and return selected text', async () => {
+      mockCdp.send
+        .mockResolvedValueOnce({
+          object: { objectId: 'obj-123' },
+        }) // DOM.resolveNode
+        .mockResolvedValueOnce({
+          result: { value: 'Medium Size' },
+        }); // Runtime.callFunctionOn
+
+      const result = await selectOption(mockCdp as unknown as CdpClient, 12345, 'medium');
+
+      expect(mockCdp.send).toHaveBeenCalledWith('DOM.resolveNode', { backendNodeId: 12345 });
+      expect(mockCdp.send).toHaveBeenCalledWith(
+        'Runtime.callFunctionOn',
+        expect.objectContaining({
+          objectId: 'obj-123',
+          arguments: [{ value: 'medium' }],
+        })
+      );
+      expect(result).toBe('Medium Size');
+    });
+
+    it('should throw error when element cannot be resolved', async () => {
+      mockCdp.send.mockResolvedValueOnce({
+        object: {}, // No objectId
+      });
+
+      await expect(selectOption(mockCdp as unknown as CdpClient, 12345, 'value')).rejects.toThrow(
+        /Failed to resolve element/
+      );
+    });
+
+    it('should throw error when option not found', async () => {
+      mockCdp.send
+        .mockResolvedValueOnce({
+          object: { objectId: 'obj-123' },
+        })
+        .mockResolvedValueOnce({
+          exceptionDetails: {
+            exception: { description: 'Option not found: "invalid"' },
+          },
+        });
+
+      await expect(selectOption(mockCdp as unknown as CdpClient, 12345, 'invalid')).rejects.toThrow(
+        /Failed to select option.*Option not found/
+      );
+    });
+  });
+
+  describe('hoverByBackendNodeId()', () => {
+    let mockCdp: { send: ReturnType<typeof vi.fn> };
+
+    beforeEach(() => {
+      mockCdp = {
+        send: vi.fn(),
+      };
+    });
+
+    it('should scroll into view and move mouse to element center', async () => {
+      mockCdp.send
+        .mockResolvedValueOnce(undefined) // scrollIntoViewIfNeeded
+        .mockResolvedValueOnce({
+          model: {
+            content: [100, 200, 200, 200, 200, 250, 100, 250],
+          },
+        }) // getBoxModel
+        .mockResolvedValueOnce(undefined); // mouseMoved
+
+      await hoverByBackendNodeId(mockCdp as unknown as CdpClient, 12345);
+
+      expect(mockCdp.send).toHaveBeenCalledWith('DOM.scrollIntoViewIfNeeded', {
+        backendNodeId: 12345,
+      });
+      expect(mockCdp.send).toHaveBeenCalledWith(
+        'Input.dispatchMouseEvent',
+        expect.objectContaining({
+          type: 'mouseMoved',
+          x: 150, // center of 100-200
+          y: 225, // center of 200-250
+        })
+      );
+    });
+  });
+
+  describe('scrollIntoView()', () => {
+    let mockCdp: { send: ReturnType<typeof vi.fn> };
+
+    beforeEach(() => {
+      mockCdp = {
+        send: vi.fn(),
+      };
+    });
+
+    it('should call DOM.scrollIntoViewIfNeeded', async () => {
+      mockCdp.send.mockResolvedValueOnce(undefined);
+
+      await scrollIntoView(mockCdp as unknown as CdpClient, 12345);
+
+      expect(mockCdp.send).toHaveBeenCalledWith('DOM.scrollIntoViewIfNeeded', {
+        backendNodeId: 12345,
+      });
+    });
+
+    it('should throw descriptive error on failure', async () => {
+      mockCdp.send.mockRejectedValueOnce(new Error('Node not found'));
+
+      await expect(scrollIntoView(mockCdp as unknown as CdpClient, 12345)).rejects.toThrow(
+        /Failed to scroll element into view.*backendNodeId: 12345/
+      );
+    });
+  });
+
+  describe('scrollPage()', () => {
+    let mockCdp: { send: ReturnType<typeof vi.fn> };
+
+    beforeEach(() => {
+      mockCdp = {
+        send: vi.fn(),
+      };
+      mockCdp.send.mockResolvedValue(undefined);
+    });
+
+    it('should scroll down with default amount', async () => {
+      await scrollPage(mockCdp as unknown as CdpClient, 'down');
+
+      expect(mockCdp.send).toHaveBeenCalledWith('Runtime.evaluate', {
+        expression: 'window.scrollBy(0, 500)',
+      });
+    });
+
+    it('should scroll up with default amount', async () => {
+      await scrollPage(mockCdp as unknown as CdpClient, 'up');
+
+      expect(mockCdp.send).toHaveBeenCalledWith('Runtime.evaluate', {
+        expression: 'window.scrollBy(0, -500)',
+      });
+    });
+
+    it('should scroll with custom amount', async () => {
+      await scrollPage(mockCdp as unknown as CdpClient, 'down', 1000);
+
+      expect(mockCdp.send).toHaveBeenCalledWith('Runtime.evaluate', {
+        expression: 'window.scrollBy(0, 1000)',
+      });
     });
   });
 });

@@ -47,6 +47,10 @@ export interface CdpMethodMap {
     params: Protocol.DOM.ScrollIntoViewIfNeededRequest;
     result: void;
   };
+  'DOM.resolveNode': {
+    params: Protocol.DOM.ResolveNodeRequest;
+    result: Protocol.DOM.ResolveNodeResponse;
+  };
 
   // Page methods
   'Page.navigate': {

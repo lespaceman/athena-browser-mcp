@@ -684,3 +684,358 @@ export const GetFactPackOutputSchema = z.object({
 
 export type GetFactPackInput = z.infer<typeof GetFactPackInputSchema>;
 export type GetFactPackOutput = z.infer<typeof GetFactPackOutputSchema>;
+
+// ============================================================================
+// NEW SIMPLIFIED API - Tools with simple verb names
+// ============================================================================
+
+// ============================================================================
+// open - Start browser session
+// ============================================================================
+
+export const OpenInputSchema = z.object({
+  /** Run browser in headless mode (default: true) */
+  headless: z.boolean().default(true),
+  /** CDP endpoint URL to connect to existing browser (optional) */
+  connect_to: z.string().optional(),
+});
+
+export const OpenOutputSchema = z.object({
+  /** Unique page identifier */
+  page_id: z.string(),
+  /** Current URL of the page */
+  url: z.string(),
+  /** Page title */
+  title: z.string(),
+  /** Connection mode used */
+  mode: z.enum(['launched', 'connected']),
+  /** Snapshot ID for the captured page state */
+  snapshot_id: z.string(),
+  /** Total nodes captured */
+  node_count: z.number(),
+  /** Interactive nodes captured */
+  interactive_count: z.number(),
+  /** XML-compact page brief for LLM context */
+  page_brief: z.string(),
+  /** Token count for page_brief */
+  page_brief_tokens: z.number(),
+});
+
+export type OpenInput = z.infer<typeof OpenInputSchema>;
+export type OpenOutput = z.infer<typeof OpenOutputSchema>;
+
+// ============================================================================
+// close - End browser session
+// ============================================================================
+
+export const CloseInputSchema = z.object({
+  /** Page ID to close. If omitted, closes entire session */
+  page_id: z.string().optional(),
+});
+
+export const CloseOutputSchema = z.object({
+  /** Whether the close operation succeeded */
+  closed: z.boolean(),
+});
+
+export type CloseInput = z.infer<typeof CloseInputSchema>;
+export type CloseOutput = z.infer<typeof CloseOutputSchema>;
+
+// ============================================================================
+// goto - Navigate (URL, back, forward, refresh)
+// ============================================================================
+
+/** Base schema for goto input (exported for .shape access in MCP registration) */
+export const GotoInputSchemaBase = z.object({
+  /** URL to navigate to */
+  url: z.string().url().optional(),
+  /** Go back in history */
+  back: z.boolean().optional(),
+  /** Go forward in history */
+  forward: z.boolean().optional(),
+  /** Refresh the page */
+  refresh: z.boolean().optional(),
+  /** Page ID. If omitted, uses most recently used page */
+  page_id: z.string().optional(),
+});
+
+/** Full schema with refinement (used for validation) */
+export const GotoInputSchema = GotoInputSchemaBase.refine(
+  // Using || for intentional truthy check (not nullish coalescing)
+  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+  (data) => data.url || data.back || data.forward || data.refresh,
+  { message: 'Must provide url, back, forward, or refresh' }
+);
+
+export const GotoOutputSchema = z.object({
+  /** Page ID */
+  page_id: z.string(),
+  /** Final URL after navigation */
+  url: z.string(),
+  /** Page title */
+  title: z.string(),
+  /** Snapshot ID for the captured page state */
+  snapshot_id: z.string(),
+  /** Total nodes captured */
+  node_count: z.number(),
+  /** Interactive nodes captured */
+  interactive_count: z.number(),
+  /** XML-compact page brief for LLM context */
+  page_brief: z.string(),
+  /** Token count for page_brief */
+  page_brief_tokens: z.number(),
+});
+
+export type GotoInput = z.infer<typeof GotoInputSchema>;
+export type GotoOutput = z.infer<typeof GotoOutputSchema>;
+
+// ============================================================================
+// snapshot - Capture/refresh page state
+// ============================================================================
+
+export const SnapshotInputSchema = z.object({
+  /** Page ID. If omitted, uses most recently used page */
+  page_id: z.string().optional(),
+  /** Include raw node summary in response (default: false) */
+  include_nodes: z.boolean().default(false),
+});
+
+export const SnapshotOutputSchema = z.object({
+  /** Snapshot ID */
+  snapshot_id: z.string(),
+  /** Page URL */
+  url: z.string(),
+  /** Page title */
+  title: z.string(),
+  /** Total nodes captured */
+  node_count: z.number(),
+  /** Interactive nodes captured */
+  interactive_count: z.number(),
+  /** XML-compact page brief for LLM context */
+  page_brief: z.string(),
+  /** Token count for page_brief */
+  page_brief_tokens: z.number(),
+  /** Summary of interactive nodes (only when include_nodes: true) */
+  nodes: z.array(NodeSummarySchema).optional(),
+});
+
+export type SnapshotInput = z.infer<typeof SnapshotInputSchema>;
+export type SnapshotOutput = z.infer<typeof SnapshotOutputSchema>;
+
+// ============================================================================
+// find - Find elements by criteria OR get specific node details
+// ============================================================================
+
+export const FindInputSchema = z.object({
+  /** Get specific node details by node_id (detail mode) */
+  node_id: z.string().optional(),
+  /** Filter by NodeKind (query mode) */
+  kind: z.union([z.string(), z.array(z.string())]).optional(),
+  /** Filter by label text */
+  label: z.string().optional(),
+  /** Filter by semantic region */
+  region: z.union([z.string(), z.array(z.string())]).optional(),
+  /** Maximum results (default: 10) */
+  limit: z.number().int().min(1).max(100).default(10),
+  /** Page ID. If omitted, uses most recently used page */
+  page_id: z.string().optional(),
+});
+
+export const FindOutputSchema = z.object({
+  /** Page ID */
+  page_id: z.string(),
+  /** Snapshot ID */
+  snapshot_id: z.string(),
+  /** Matched nodes (query mode) */
+  matches: z
+    .array(
+      z.object({
+        node_id: z.string(),
+        backend_node_id: z.number(),
+        kind: z.string(),
+        label: z.string(),
+        selector: z.string(),
+        region: z.string(),
+      })
+    )
+    .optional(),
+  /** Node details (detail mode) */
+  node: NodeDetailsSchema.optional(),
+});
+
+export type FindInput = z.infer<typeof FindInputSchema>;
+export type FindOutput = z.infer<typeof FindOutputSchema>;
+
+// ============================================================================
+// click - Click an element
+// ============================================================================
+
+export const ClickInputSchema = z.object({
+  /** Node ID to click */
+  node_id: z.string(),
+  /** Page ID. If omitted, uses most recently used page */
+  page_id: z.string().optional(),
+});
+
+export const ClickOutputSchema = z.object({
+  /** Whether click succeeded */
+  success: z.boolean(),
+  /** Node ID that was clicked */
+  node_id: z.string(),
+  /** Label of clicked element */
+  clicked_element: z.string().optional(),
+});
+
+export type ClickInput = z.infer<typeof ClickInputSchema>;
+export type ClickOutput = z.infer<typeof ClickOutputSchema>;
+
+// ============================================================================
+// type - Type text into an element
+// ============================================================================
+
+export const TypeInputSchema = z.object({
+  /** Text to type */
+  text: z.string(),
+  /** Node ID to type into. If omitted, types into focused element */
+  node_id: z.string().optional(),
+  /** Clear existing text before typing (default: false) */
+  clear: z.boolean().default(false),
+  /** Page ID. If omitted, uses most recently used page */
+  page_id: z.string().optional(),
+});
+
+export const TypeOutputSchema = z.object({
+  /** Whether typing succeeded */
+  success: z.boolean(),
+  /** Text that was typed */
+  typed_text: z.string(),
+  /** Node ID that received input */
+  node_id: z.string().optional(),
+  /** Label of element typed into */
+  element_label: z.string().optional(),
+});
+
+export type TypeInput = z.infer<typeof TypeInputSchema>;
+export type TypeOutput = z.infer<typeof TypeOutputSchema>;
+
+// ============================================================================
+// press - Press a keyboard key
+// ============================================================================
+
+/** Supported keyboard keys */
+export const SupportedKeys = [
+  'Enter',
+  'Tab',
+  'Escape',
+  'Backspace',
+  'Delete',
+  'Space',
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'Home',
+  'End',
+  'PageUp',
+  'PageDown',
+] as const;
+
+export const PressInputSchema = z.object({
+  /** Key to press */
+  key: z.enum(SupportedKeys),
+  /** Modifier keys to hold (Control, Shift, Alt, Meta) */
+  modifiers: z.array(z.enum(['Control', 'Shift', 'Alt', 'Meta'])).optional(),
+  /** Page ID. If omitted, uses most recently used page */
+  page_id: z.string().optional(),
+});
+
+export const PressOutputSchema = z.object({
+  /** Whether key press succeeded */
+  success: z.boolean(),
+  /** Key that was pressed */
+  key: z.string(),
+  /** Modifiers that were held */
+  modifiers: z.array(z.string()).optional(),
+});
+
+export type PressInput = z.infer<typeof PressInputSchema>;
+export type PressOutput = z.infer<typeof PressOutputSchema>;
+
+// ============================================================================
+// select - Select a dropdown option
+// ============================================================================
+
+export const SelectInputSchema = z.object({
+  /** Select element node_id */
+  node_id: z.string(),
+  /** Option value or visible text to select */
+  value: z.string(),
+  /** Page ID. If omitted, uses most recently used page */
+  page_id: z.string().optional(),
+});
+
+export const SelectOutputSchema = z.object({
+  /** Whether selection succeeded */
+  success: z.boolean(),
+  /** Node ID of the select element */
+  node_id: z.string(),
+  /** Value that was selected */
+  selected_value: z.string(),
+  /** Visible text of selected option */
+  selected_text: z.string(),
+});
+
+export type SelectInput = z.infer<typeof SelectInputSchema>;
+export type SelectOutput = z.infer<typeof SelectOutputSchema>;
+
+// ============================================================================
+// hover - Hover over an element
+// ============================================================================
+
+export const HoverInputSchema = z.object({
+  /** Node ID to hover over */
+  node_id: z.string(),
+  /** Page ID. If omitted, uses most recently used page */
+  page_id: z.string().optional(),
+});
+
+export const HoverOutputSchema = z.object({
+  /** Whether hover succeeded */
+  success: z.boolean(),
+  /** Node ID that was hovered */
+  node_id: z.string(),
+  /** Label of hovered element */
+  element_label: z.string().optional(),
+});
+
+export type HoverInput = z.infer<typeof HoverInputSchema>;
+export type HoverOutput = z.infer<typeof HoverOutputSchema>;
+
+// ============================================================================
+// scroll - Scroll page or element into view
+// ============================================================================
+
+export const ScrollInputSchema = z.object({
+  /** Node ID to scroll into view */
+  node_id: z.string().optional(),
+  /** Scroll direction (when no node_id) */
+  direction: z.enum(['up', 'down']).optional(),
+  /** Scroll amount in pixels (default: 500) */
+  amount: z.number().default(500),
+  /** Page ID. If omitted, uses most recently used page */
+  page_id: z.string().optional(),
+});
+
+export const ScrollOutputSchema = z.object({
+  /** Whether scroll succeeded */
+  success: z.boolean(),
+  /** What was scrolled */
+  scrolled: z.enum(['element', 'page']),
+  /** Direction scrolled (for page scroll) */
+  direction: z.enum(['up', 'down']).optional(),
+  /** Amount scrolled (for page scroll) */
+  amount: z.number().optional(),
+});
+
+export type ScrollInput = z.infer<typeof ScrollInputSchema>;
+export type ScrollOutput = z.infer<typeof ScrollOutputSchema>;

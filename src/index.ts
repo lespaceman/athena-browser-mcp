@@ -4,37 +4,47 @@
  * Browser Automation MCP Server
  *
  * Main entry point - initializes the MCP server with Playwright-based browser automation.
- * CEFBridge is deprecated - use SessionManager instead.
  */
 
 import { BrowserAutomationServer } from './server/mcp-server.js';
 import { SessionManager } from './browser/session-manager.js';
 import {
   initializeTools,
-  browserLaunch,
-  browserNavigate,
-  browserClose,
-  snapshotCapture,
-  actionClick,
-  getNodeDetails,
-  findElements,
-  getFactPack,
-  BrowserLaunchInputSchema,
-  BrowserLaunchOutputSchema,
-  BrowserNavigateInputSchema,
-  BrowserNavigateOutputSchema,
-  BrowserCloseInputSchema,
-  BrowserCloseOutputSchema,
-  SnapshotCaptureInputSchema,
-  SnapshotCaptureOutputSchema,
-  ActionClickInputSchema,
-  ActionClickOutputSchema,
-  GetNodeDetailsInputSchema,
-  GetNodeDetailsOutputSchema,
-  FindElementsInputSchema,
-  FindElementsOutputSchema,
-  GetFactPackInputSchema,
-  GetFactPackOutputSchema,
+  // New simplified tool handlers
+  open,
+  close,
+  goto,
+  snapshot,
+  find,
+  click,
+  type,
+  press,
+  select,
+  hover,
+  scroll,
+  // New simplified schemas
+  OpenInputSchema,
+  OpenOutputSchema,
+  CloseInputSchema,
+  CloseOutputSchema,
+  GotoInputSchemaBase,
+  GotoOutputSchema,
+  SnapshotInputSchema,
+  SnapshotOutputSchema,
+  FindInputSchema,
+  FindOutputSchema,
+  ClickInputSchema,
+  ClickOutputSchema,
+  TypeInputSchema,
+  TypeOutputSchema,
+  PressInputSchema,
+  PressOutputSchema,
+  SelectInputSchema,
+  SelectOutputSchema,
+  HoverInputSchema,
+  HoverOutputSchema,
+  ScrollInputSchema,
+  ScrollOutputSchema,
 } from './tools/index.js';
 
 // Singleton session manager (initialized lazily on first tool use)
@@ -64,133 +74,175 @@ function initializeServer(): BrowserAutomationServer {
   const session = getSessionManager();
   initializeTools(session);
 
-  // Register browser_launch tool
+  // ============================================================================
+  // SESSION TOOLS
+  // ============================================================================
+
   server.registerTool(
-    'browser_launch',
+    'open',
     {
-      title: 'Launch or Connect Browser',
+      title: 'Open Browser',
       description:
         'Launch a new browser or connect to an existing one (e.g., Athena browser). ' +
-        'Returns page_brief (compact XML) by default. ' +
-        'Use include_factpack: true for full FactPack JSON with dialogs, forms, actions. ' +
+        'Returns page state with page_brief (compact XML) by default. ' +
+        'Use include_factpack: true for FactPack JSON with dialogs, forms, actions. ' +
         'Use include_nodes: true for raw node list.',
-      inputSchema: BrowserLaunchInputSchema.shape,
-      outputSchema: BrowserLaunchOutputSchema.shape,
+      inputSchema: OpenInputSchema.shape,
+      outputSchema: OpenOutputSchema.shape,
     },
-    browserLaunch
+    open
   );
 
-  // Register browser_navigate tool
   server.registerTool(
-    'browser_navigate',
-    {
-      title: 'Navigate to URL',
-      description:
-        'Navigate a page to the specified URL. Wait for page load to complete. ' +
-        'If page_id is omitted, uses the most recently used page (or creates one if none exist). ' +
-        'Returns page_brief (compact XML) by default. ' +
-        'Use include_factpack: true for full FactPack JSON with dialogs, forms, actions. ' +
-        'Use include_nodes: true for raw node list.',
-      inputSchema: BrowserNavigateInputSchema.shape,
-      outputSchema: BrowserNavigateOutputSchema.shape,
-    },
-    browserNavigate
-  );
-
-  // Register browser_close tool
-  server.registerTool(
-    'browser_close',
+    'close',
     {
       title: 'Close Browser',
       description:
         'Close a specific page or the entire browser session. ' +
         'If page_id is omitted, closes the entire session.',
-      inputSchema: BrowserCloseInputSchema.shape,
-      outputSchema: BrowserCloseOutputSchema.shape,
+      inputSchema: CloseInputSchema.shape,
+      outputSchema: CloseOutputSchema.shape,
     },
-    browserClose
+    close
   );
 
-  // Register snapshot_capture tool
+  // ============================================================================
+  // NAVIGATION TOOLS
+  // ============================================================================
+
   server.registerTool(
-    'snapshot_capture',
+    'goto',
     {
-      title: 'Capture Page Snapshot',
+      title: 'Navigate',
+      description:
+        'Navigate a page: go to URL, back, forward, or refresh. ' +
+        'For URL navigation, provide { url: "https://..." }. ' +
+        'For history navigation, use { back: true } or { forward: true }. ' +
+        'For refresh, use { refresh: true }. ' +
+        'Returns page state after navigation.',
+      inputSchema: GotoInputSchemaBase.shape,
+      outputSchema: GotoOutputSchema.shape,
+    },
+    goto
+  );
+
+  // ============================================================================
+  // OBSERVATION TOOLS
+  // ============================================================================
+
+  server.registerTool(
+    'snapshot',
+    {
+      title: 'Capture Snapshot',
       description:
         'Capture a fresh snapshot of the page using CDP accessibility tree. ' +
-        'If page_id is omitted, uses the most recently used page. ' +
         'Returns page_brief (compact XML) by default. ' +
-        'Use include_factpack: true for full FactPack JSON with dialogs, forms, actions. ' +
+        'Use include_factpack: true for FactPack JSON. ' +
         'Use include_nodes: true for raw node list.',
-      inputSchema: SnapshotCaptureInputSchema.shape,
-      outputSchema: SnapshotCaptureOutputSchema.shape,
+      inputSchema: SnapshotInputSchema.shape,
+      outputSchema: SnapshotOutputSchema.shape,
     },
-    snapshotCapture
+    snapshot
   );
 
-  // Register action_click tool
   server.registerTool(
-    'action_click',
-    {
-      title: 'Click Element',
-      description:
-        'Click an element by its node_id from a previous snapshot_capture. ' +
-        'If page_id is omitted, uses the most recently used page. ' +
-        'Uses Playwright for reliable clicking with built-in waits.',
-      inputSchema: ActionClickInputSchema.shape,
-      outputSchema: ActionClickOutputSchema.shape,
-    },
-    actionClick
-  );
-
-  // Register get_node_details tool
-  server.registerTool(
-    'get_node_details',
-    {
-      title: 'Get Node Details',
-      description:
-        'Get detailed information for specific node(s) from the current snapshot. ' +
-        'If page_id is omitted, uses the most recently used page. ' +
-        'Returns full node info including layout, state, and attributes. ' +
-        'Use when you need more than the summary provided by navigate/launch.',
-      inputSchema: GetNodeDetailsInputSchema.shape,
-      outputSchema: GetNodeDetailsOutputSchema.shape,
-    },
-    (input) => Promise.resolve(getNodeDetails(input))
-  );
-
-  // Register find_elements tool
-  server.registerTool(
-    'find_elements',
+    'find',
     {
       title: 'Find Elements',
       description:
-        'Find elements in the current snapshot using semantic filters. ' +
-        'If page_id is omitted, uses the most recently used page. ' +
-        'Supports filtering by kind (button, link, input), label text, ' +
-        'region (header, footer, nav, main), state (visible, enabled, checked), ' +
-        'group_id, and heading_context. Returns matched nodes with their selectors.',
-      inputSchema: FindElementsInputSchema.shape,
-      outputSchema: FindElementsOutputSchema.shape,
+        'Find elements in the current snapshot by semantic filters, OR get details for a specific node. ' +
+        'Query mode: filter by kind (button, link, input), label, region (header, footer, nav, main). ' +
+        'Detail mode: pass node_id to get full info including layout, state, and attributes.',
+      inputSchema: FindInputSchema.shape,
+      outputSchema: FindOutputSchema.shape,
     },
-    (input) => Promise.resolve(findElements(input))
+    (input) => Promise.resolve(find(input))
   );
 
-  // Register get_factpack tool
+  // ============================================================================
+  // INTERACTION TOOLS
+  // ============================================================================
+
   server.registerTool(
-    'get_factpack',
+    'click',
     {
-      title: 'Get Page FactPack',
+      title: 'Click Element',
       description:
-        'Extract semantic facts from the current page snapshot. ' +
-        'If page_id is omitted, uses the most recently used page. ' +
-        'Returns page type classification, detected dialogs, forms with fields, ' +
-        'and scored key actions. Use this for high-level page understanding ' +
-        'without re-capturing the snapshot.',
-      inputSchema: GetFactPackInputSchema.shape,
-      outputSchema: GetFactPackOutputSchema.shape,
+        'Click an element by its node_id from a previous snapshot. ' +
+        'Uses CDP for reliable clicking with scrolling into view.',
+      inputSchema: ClickInputSchema.shape,
+      outputSchema: ClickOutputSchema.shape,
     },
-    (input) => Promise.resolve(getFactPack(input))
+    click
+  );
+
+  server.registerTool(
+    'type',
+    {
+      title: 'Type Text',
+      description:
+        'Type text into an element. ' +
+        'If node_id is provided, clicks the element first to focus it. ' +
+        'Use clear: true to clear existing text before typing.',
+      inputSchema: TypeInputSchema.shape,
+      outputSchema: TypeOutputSchema.shape,
+    },
+    type
+  );
+
+  server.registerTool(
+    'press',
+    {
+      title: 'Press Key',
+      description:
+        'Press a keyboard key. ' +
+        'Supports: Enter, Tab, Escape, Backspace, Delete, Space, ' +
+        'ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Home, End, PageUp, PageDown. ' +
+        'Optional modifiers: Control, Shift, Alt, Meta.',
+      inputSchema: PressInputSchema.shape,
+      outputSchema: PressOutputSchema.shape,
+    },
+    press
+  );
+
+  server.registerTool(
+    'select',
+    {
+      title: 'Select Option',
+      description:
+        'Select an option from a <select> dropdown element. ' +
+        'Provide the node_id of the select element and the value or visible text of the option.',
+      inputSchema: SelectInputSchema.shape,
+      outputSchema: SelectOutputSchema.shape,
+    },
+    select
+  );
+
+  server.registerTool(
+    'hover',
+    {
+      title: 'Hover Element',
+      description:
+        'Hover over an element to reveal menus or tooltips. ' +
+        'Scrolls the element into view and moves the mouse to its center.',
+      inputSchema: HoverInputSchema.shape,
+      outputSchema: HoverOutputSchema.shape,
+    },
+    hover
+  );
+
+  server.registerTool(
+    'scroll',
+    {
+      title: 'Scroll',
+      description:
+        'Scroll the page or an element into view. ' +
+        'If node_id is provided, scrolls that element into view. ' +
+        'Otherwise, scrolls the page up or down by the specified amount.',
+      inputSchema: ScrollInputSchema.shape,
+      outputSchema: ScrollOutputSchema.shape,
+    },
+    scroll
   );
 
   return server;

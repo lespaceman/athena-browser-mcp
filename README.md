@@ -4,7 +4,7 @@
 [![npm version](https://badge.fury.io/js/athena-browser-mcp.svg)](https://www.npmjs.com/package/athena-browser-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Minimal MCP server for AI browser automation - 8 simple tools.
+Minimal MCP server for AI browser automation - 11 simple tools.
 
 ## Design Philosophy
 
@@ -23,7 +23,10 @@ Minimal MCP server for AI browser automation - 8 simple tools.
 └───────────────────────────┬─────────────────────────────────────┘
                             │ MCP Protocol (stdio)
 ┌───────────────────────────▼─────────────────────────────────────┐
-│  open │ close │ goto │ find │ click │ type │ press │ select     │
+│  SESSION: open, close                                            │
+│  NAVIGATION: goto                                                │
+│  OBSERVATION: snapshot, find                                     │
+│  INTERACTION: click, type, press, select, hover, scroll          │
 └───────────────────────────┬─────────────────────────────────────┘
                             │ Playwright + CDP
 ┌───────────────────────────▼─────────────────────────────────────┐
@@ -44,23 +47,27 @@ Minimal MCP server for AI browser automation - 8 simple tools.
 
 | Tool   | Purpose                 | Input                                                        |
 | ------ | ----------------------- | ------------------------------------------------------------ |
-| `goto` | Navigate to URL         | `{ url }`                                                    |
+| `goto` | Navigate to URL         | `{ url: "https://..." }`                                     |
 |        | Go back/forward/refresh | `{ back: true }` / `{ forward: true }` / `{ refresh: true }` |
 
-### Query
+### Observation
 
-| Tool   | Purpose                   | Input                        |
-| ------ | ------------------------- | ---------------------------- |
-| `find` | Find elements by criteria | `{ kind?, label?, region? }` |
+| Tool       | Purpose                       | Input                                   |
+| ---------- | ----------------------------- | --------------------------------------- |
+| `snapshot` | Capture fresh page state      | `{ include_factpack?, include_nodes? }` |
+| `find`     | Find elements by criteria     | `{ kind?, label?, region? }`            |
+|            | Get details for specific node | `{ node_id }`                           |
 
 ### Interaction
 
-| Tool     | Purpose                | Input                                |
-| -------- | ---------------------- | ------------------------------------ |
-| `click`  | Click element          | `{ node_id }`                        |
-| `type`   | Type text into element | `{ text, node_id?, clear? }`         |
-| `press`  | Press keyboard key     | `{ key }` (Enter, Tab, Escape, etc.) |
-| `select` | Choose dropdown option | `{ node_id, value }`                 |
+| Tool     | Purpose                | Input                                      |
+| -------- | ---------------------- | ------------------------------------------ |
+| `click`  | Click element          | `{ node_id }`                              |
+| `type`   | Type text into element | `{ text, node_id?, clear? }`               |
+| `press`  | Press keyboard key     | `{ key }` (Enter, Tab, Escape, etc.)       |
+| `select` | Choose dropdown option | `{ node_id, value }`                       |
+| `hover`  | Hover over element     | `{ node_id }` (reveal menus/tooltips)      |
+| `scroll` | Scroll page or element | `{ node_id? }` or `{ direction, amount? }` |
 
 ## Response Format
 

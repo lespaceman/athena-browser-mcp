@@ -81,9 +81,6 @@ export interface ConnectOptions {
   timeout?: number;
 }
 
-/** @deprecated Use LaunchOptions instead */
-export type SessionManagerOptions = LaunchOptions;
-
 /**
  * Validates that a URL is a valid HTTP/HTTPS endpoint URL.
  *

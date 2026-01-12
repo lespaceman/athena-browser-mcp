@@ -4,7 +4,7 @@
  * Browser automation tools exposed via MCP protocol.
  */
 
-// Tool handlers
+// Tool handlers - Legacy names (for backward compatibility during transition)
 export {
   initializeTools,
   getSnapshotStore,
@@ -18,7 +18,22 @@ export {
   getFactPack,
 } from './browser-tools.js';
 
-// Schemas
+// Tool handlers - New simplified names
+export {
+  open,
+  close,
+  goto,
+  snapshot,
+  find,
+  click,
+  type,
+  press,
+  select,
+  hover,
+  scroll,
+} from './browser-tools.js';
+
+// Schemas - Legacy (for backward compatibility during transition)
 export {
   // browser_launch
   BrowserLaunchInputSchema,
@@ -69,4 +84,64 @@ export {
   FactPackSchema,
   type FactPackOptions,
   type FactPackOutput,
+} from './tool-schemas.js';
+
+// Schemas - New simplified names
+export {
+  // open
+  OpenInputSchema,
+  OpenOutputSchema,
+  type OpenInput,
+  type OpenOutput,
+  // close
+  CloseInputSchema,
+  CloseOutputSchema,
+  type CloseInput,
+  type CloseOutput,
+  // goto
+  GotoInputSchemaBase,
+  GotoInputSchema,
+  GotoOutputSchema,
+  type GotoInput,
+  type GotoOutput,
+  // snapshot
+  SnapshotInputSchema,
+  SnapshotOutputSchema,
+  type SnapshotInput,
+  type SnapshotOutput,
+  // find
+  FindInputSchema,
+  FindOutputSchema,
+  type FindInput,
+  type FindOutput,
+  // click
+  ClickInputSchema,
+  ClickOutputSchema,
+  type ClickInput,
+  type ClickOutput,
+  // type
+  TypeInputSchema,
+  TypeOutputSchema,
+  type TypeInput,
+  type TypeOutput,
+  // press
+  PressInputSchema,
+  PressOutputSchema,
+  type PressInput,
+  type PressOutput,
+  // select
+  SelectInputSchema,
+  SelectOutputSchema,
+  type SelectInput,
+  type SelectOutput,
+  // hover
+  HoverInputSchema,
+  HoverOutputSchema,
+  type HoverInput,
+  type HoverOutput,
+  // scroll
+  ScrollInputSchema,
+  ScrollOutputSchema,
+  type ScrollInput,
+  type ScrollOutput,
 } from './tool-schemas.js';
