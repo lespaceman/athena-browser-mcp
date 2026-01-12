@@ -8,6 +8,7 @@ node_modules/
 
 # Generated files
 *.tsbuildinfo
+CHANGELOG.md
 
 # Documentation (auto-generated or manually formatted)
 .claude/
