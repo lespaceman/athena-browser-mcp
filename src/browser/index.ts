@@ -9,7 +9,6 @@ export {
   SessionManager,
   type LaunchOptions,
   type ConnectOptions,
-  type SessionManagerOptions,
   type ConnectionState,
   type ConnectionStateChangeEvent,
 } from './session-manager.js';

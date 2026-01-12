@@ -1,605 +1,663 @@
-# Manual Test Plan: Browser MCP Tools
+# Manual Test Plan - Athena Browser MCP
 
-This document outlines manual testing procedures for the Athena Browser MCP tools, including the new FactPack extraction and page_brief features.
+Comprehensive test plan for all MCP tools with the new simplified API.
 
 ## Prerequisites
 
-1. Build the project: `npm run build`
-2. Start the MCP server or connect via MCP client
-3. Have a CEF browser running on `localhost:9223` (or configure `CEF_BRIDGE_HOST`/`CEF_BRIDGE_PORT`)
+1. Build: `npm run build`
+2. Start MCP server or use with Claude Desktop
+3. Test sites: public websites or localhost test servers
 
 ---
 
-## Test 1: Browser Launch and Connect
+## Tool Reference
 
-### 1.1 Launch Mode (Headless)
-
-```json
-{
-  "tool": "browser_launch",
-  "input": {
-    "mode": "launch",
-    "headless": true
-  }
-}
-```
-
-**Expected:**
-
-- [ ] Returns `page_id`, `url`, `title`, `mode: "launched"`
-- [ ] Returns `snapshot_id`, `node_count`, `interactive_count`
-- [ ] Returns `factpack` with `page_type`, `dialogs`, `forms`, `actions`
-- [ ] Returns `page_brief` (XML-compact string)
-- [ ] Returns `page_brief_tokens` (number > 0)
-
-### 1.2 Connect Mode (CEF Browser)
-
-```json
-{
-  "tool": "browser_launch",
-  "input": {
-    "mode": "connect"
-  }
-}
-```
-
-**Expected:**
-
-- [ ] Connects to existing CEF browser
-- [ ] Returns `mode: "connected"`
-- [ ] All other fields same as launch mode
+| Tool       | Purpose                                |
+| ---------- | -------------------------------------- |
+| `open`     | Start browser session                  |
+| `close`    | End browser session                    |
+| `goto`     | Navigate (URL, back, forward, refresh) |
+| `snapshot` | Capture page state                     |
+| `find`     | Query elements                         |
+| `click`    | Click element                          |
+| `type`     | Type text                              |
+| `press`    | Press keyboard key                     |
+| `select`   | Choose dropdown option                 |
+| `hover`    | Hover over element                     |
+| `scroll`   | Scroll page/element                    |
 
 ---
 
-## Test 2: Browser Navigate
+## Suite 1: Session Management
 
-### 2.1 Navigate to Product Page
-
-```json
-{
-  "tool": "browser_navigate",
-  "input": {
-    "page_id": "<page_id_from_launch>",
-    "url": "https://www.apple.com/shop/buy-iphone/iphone-16-pro"
-  }
-}
-```
-
-**Expected:**
-
-- [ ] Returns updated `url` and `title`
-- [ ] `factpack.page_type.classification.type` is `"product"` or similar
-- [ ] `factpack.actions.actions` contains cart/buy actions
-- [ ] `page_brief` contains `<page type="product"`
-- [ ] `page_brief` contains `<actions>` with Add to Bag or similar
-
-### 2.2 Navigate to Login Page
+### 1.1 Open Browser (Visible)
 
 ```json
-{
-  "tool": "browser_navigate",
-  "input": {
-    "page_id": "<page_id>",
-    "url": "https://github.com/login"
-  }
-}
+{ "tool": "open", "input": { "headless": false } }
 ```
 
-**Expected:**
+**Verify:**
 
-- [ ] `factpack.page_type.classification.type` is `"login"`
-- [ ] `factpack.forms.forms` contains login form
-- [ ] Form has `purpose: "login"` with email/username and password fields
-- [ ] `page_brief` contains `<forms count="1" primary="login">`
-- [ ] `page_brief` contains field list with `(required)` markers
+- [ ] Browser window opens
+- [ ] Returns `page_id`, `url`, `title`
+- [ ] Returns `page_state` with initial info
 
-### 2.3 Navigate to Page with Cookie Dialog
+### 1.2 Open Browser (Headless)
 
 ```json
-{
-  "tool": "browser_navigate",
-  "input": {
-    "page_id": "<page_id>",
-    "url": "https://www.bbc.com"
-  }
-}
+{ "tool": "open", "input": { "headless": true } }
 ```
 
-**Expected:**
+**Verify:**
 
-- [ ] `factpack.dialogs.dialogs` contains cookie consent dialog
-- [ ] `factpack.dialogs.has_blocking_dialog` is `true`
-- [ ] Dialog has `type: "cookie-consent"`
-- [ ] `page_brief` contains `<dialogs blocking="true">`
-- [ ] `page_brief` contains `[cookie-consent]`
-
----
-
-## Test 3: Snapshot Capture
-
-### 3.1 Basic Snapshot
-
-```json
-{
-  "tool": "snapshot_capture",
-  "input": {
-    "page_id": "<page_id>"
-  }
-}
-```
-
-**Expected:**
-
-- [ ] Returns fresh `snapshot_id`
-- [ ] Returns `factpack` and `page_brief`
-- [ ] `node_count` reflects current page state
-
-### 3.2 Snapshot with Nodes
-
-```json
-{
-  "tool": "snapshot_capture",
-  "input": {
-    "page_id": "<page_id>",
-    "include_nodes": true
-  }
-}
-```
-
-**Expected:**
-
-- [ ] Returns `nodes` array with `node_id`, `kind`, `label`, `selector`
-- [ ] Nodes are interactive elements (buttons, links, inputs)
-
----
-
-## Test 4: Find Elements
-
-### 4.1 Find Buttons
-
-```json
-{
-  "tool": "find_elements",
-  "input": {
-    "page_id": "<page_id>",
-    "kind": "button"
-  }
-}
-```
-
-**Expected:**
-
-- [ ] Returns array of button elements
-- [ ] Each has `node_id`, `label`, `locator`
-
-### 4.2 Find by Label
-
-```json
-{
-  "tool": "find_elements",
-  "input": {
-    "page_id": "<page_id>",
-    "label": "Sign in"
-  }
-}
-```
-
-**Expected:**
-
-- [ ] Returns elements with "Sign in" in label
-- [ ] Case-insensitive by default
-
-### 4.3 Find by Region
-
-```json
-{
-  "tool": "find_elements",
-  "input": {
-    "page_id": "<page_id>",
-    "region": "header",
-    "kind": "link"
-  }
-}
-```
-
-**Expected:**
-
-- [ ] Returns only links in header region
-- [ ] No main/footer elements included
-
-### 4.4 Find by State
-
-```json
-{
-  "tool": "find_elements",
-  "input": {
-    "page_id": "<page_id>",
-    "kind": "input",
-    "state": {
-      "enabled": true,
-      "visible": true
-    }
-  }
-}
-```
-
-**Expected:**
-
-- [ ] Returns only enabled, visible inputs
-- [ ] Disabled inputs excluded
-
----
-
-## Test 5: Action Click
-
-### 5.1 Click Button
-
-```json
-{
-  "tool": "action_click",
-  "input": {
-    "page_id": "<page_id>",
-    "node_id": "<node_id_from_snapshot>"
-  }
-}
-```
-
-**Expected:**
-
-- [ ] Returns `success: true`
-- [ ] Returns `clicked_element` with label
-- [ ] Page responds to click (navigation, state change, etc.)
-
-### 5.2 Click Invalid Node
-
-```json
-{
-  "tool": "action_click",
-  "input": {
-    "page_id": "<page_id>",
-    "node_id": "invalid-node-id"
-  }
-}
-```
-
-**Expected:**
-
-- [ ] Returns error: "Node not found in snapshot"
-
----
-
-## Test 6: Get Node Details
-
-### 6.1 Get Details for Button
-
-```json
-{
-  "tool": "get_node_details",
-  "input": {
-    "page_id": "<page_id>",
-    "node_id": "<node_id>"
-  }
-}
-```
-
-**Expected:**
-
-- [ ] Returns full node info: `kind`, `label`, `where`, `layout`, `state`
-- [ ] `where` includes `region`, `group_id`, `heading_context`
-- [ ] `layout.bbox` has x, y, w, h coordinates
-- [ ] `state` has `visible`, `enabled`, etc.
-
----
-
-## Test 7: Get FactPack
-
-### 7.1 Get FactPack with Default Options
-
-```json
-{
-  "tool": "get_factpack",
-  "input": {
-    "page_id": "<page_id>"
-  }
-}
-```
-
-**Expected:**
-
-- [ ] Returns full FactPack structure
-- [ ] `page_type`, `dialogs`, `forms`, `actions` all present
-
-### 7.2 Get FactPack with Custom Options
-
-```json
-{
-  "tool": "get_factpack",
-  "input": {
-    "page_id": "<page_id>",
-    "max_actions": 5,
-    "min_action_score": 0.5
-  }
-}
-```
-
-**Expected:**
-
-- [ ] `actions.actions` has at most 5 items
-- [ ] All actions have `score >= 0.5`
-
----
-
-## Test 8: Page Brief Quality
-
-### 8.1 Verify XML Structure
-
-For any page_brief output:
-
-**Expected:**
-
-- [ ] Wrapped in `<page_context>...</page_context>`
-- [ ] Contains `<page type="..." confidence="...">` section
-- [ ] Contains `<dialogs blocking="...">` section
-- [ ] Contains `<forms count="...">` section
-- [ ] Contains `<actions>` section with numbered list
-- [ ] All actionable items have `node:` references
-
-### 8.2 Verify Token Count
-
-```json
-{
-  "tool": "browser_navigate",
-  "input": {
-    "page_id": "<page_id>",
-    "url": "https://www.apple.com"
-  }
-}
-```
-
-**Expected:**
-
-- [ ] `page_brief_tokens` is reasonable (typically 200-1000)
-- [ ] `page_brief_tokens <= 2000` (standard budget cap)
-
-### 8.3 Verify Node References Work
-
-1. Get `page_brief` from navigate
-2. Extract a `node:nXXXX` reference from actions
-3. Use that node_id in `action_click`
-
-**Expected:**
-
-- [ ] Click succeeds with the node_id from page_brief
-
----
-
-## Test 9: Browser Close
-
-### 9.1 Close Single Page
-
-```json
-{
-  "tool": "browser_close",
-  "input": {
-    "page_id": "<page_id>"
-  }
-}
-```
-
-**Expected:**
-
-- [ ] Returns `closed: true`
-- [ ] Subsequent operations on that page_id fail
-
-### 9.2 Close Entire Session
-
-```json
-{
-  "tool": "browser_close",
-  "input": {}
-}
-```
-
-**Expected:**
-
-- [ ] Returns `closed: true`
-- [ ] All pages closed
-- [ ] Browser process terminated (launch mode) or disconnected (connect mode)
-
----
-
-## Test 10: Optional page_id (MRU Behavior)
-
-### 10.1 Navigate Without page_id (Auto-create)
-
-First, ensure no browser is running, then:
-
-```json
-{
-  "tool": "browser_launch",
-  "input": { "mode": "launch" }
-}
-```
-
-Then navigate without specifying page_id:
-
-```json
-{
-  "tool": "browser_navigate",
-  "input": {
-    "url": "https://example.com"
-  }
-}
-```
-
-**Expected:**
-
-- [ ] Navigate succeeds using the MRU page from launch
-- [ ] Returns same `page_id` as launch
-
-### 10.2 Snapshot Without page_id
-
-After navigating:
-
-```json
-{
-  "tool": "snapshot_capture",
-  "input": {}
-}
-```
-
-**Expected:**
-
-- [ ] Returns snapshot for the MRU page
-- [ ] `snapshot_id` is new (fresh capture)
-
-### 10.3 Find Elements Without page_id
-
-```json
-{
-  "tool": "find_elements",
-  "input": {
-    "kind": "link"
-  }
-}
-```
-
-**Expected:**
-
-- [ ] Returns links from MRU page
-- [ ] Works same as with explicit page_id
-
-### 10.4 Action Click Without page_id
-
-```json
-{
-  "tool": "action_click",
-  "input": {
-    "node_id": "<node_id_from_snapshot>"
-  }
-}
-```
-
-**Expected:**
-
-- [ ] Click succeeds on MRU page
-- [ ] Returns `success: true`
-
-### 10.5 MRU Tracking Across Pages
-
-1. Launch browser
-2. Navigate to page A (page_id: p1)
-3. Create second page, navigate to page B (page_id: p2)
-4. Call `snapshot_capture` without page_id
-
-**Expected:**
-
-- [ ] Snapshot is from page B (p2) - the most recently used
-
-5. Navigate page A again (with explicit page_id: p1)
-6. Call `snapshot_capture` without page_id
-
-**Expected:**
-
-- [ ] Snapshot is now from page A (p1) - updated MRU
-
-### 10.6 No Pages Available Error
-
-Close all pages, then:
-
-```json
-{
-  "tool": "snapshot_capture",
-  "input": {}
-}
-```
-
-**Expected:**
-
-- [ ] Returns error: "No page available. Use browser_launch first."
-
-### 10.7 Navigate Auto-creates When No Pages
-
-Close all pages, then:
-
-```json
-{
-  "tool": "browser_navigate",
-  "input": {
-    "url": "https://example.com"
-  }
-}
-```
-
-**Expected:**
-
-- [ ] Auto-creates a new page
-- [ ] Navigation succeeds
+- [ ] No visible window
 - [ ] Returns valid `page_id`
 
+### 1.3 Open Browser (Connect Mode)
+
+**Prerequisite:** `google-chrome --remote-debugging-port=9222`
+
+```json
+{ "tool": "open", "input": { "connect_to": "http://localhost:9222" } }
+```
+
+**Verify:**
+
+- [ ] Connects to existing browser
+- [ ] Can interact with existing tabs
+
+### 1.4 Close Session
+
+```json
+{ "tool": "close", "input": {} }
+```
+
+**Verify:**
+
+- [ ] Browser closes
+- [ ] Returns `{ "closed": true }`
+
+### 1.5 Close Specific Page
+
+```json
+{ "tool": "close", "input": { "page_id": "<id>" } }
+```
+
+**Verify:**
+
+- [ ] Only target page closes
+- [ ] Other pages remain
+
 ---
 
-## Test 11: Edge Cases
+## Suite 2: Navigation
 
-### 11.1 Empty Page
+### 2.1 Navigate to URL
 
-Navigate to `about:blank`:
+```json
+{ "tool": "goto", "input": { "url": "https://example.com" } }
+```
 
-- [ ] FactPack has `page_type.type: "unknown"`
-- [ ] `forms.forms` is empty
-- [ ] `dialogs.dialogs` is empty
-- [ ] `actions.actions` is empty or minimal
+**Verify:**
 
-### 11.2 Page with Many Actions
+- [ ] Page loads
+- [ ] Returns `delta.action` describing navigation
+- [ ] `page_state` updated
 
-Navigate to a complex page (e.g., Amazon homepage):
+### 2.2 Navigate to Form Page
 
-- [ ] `page_brief_tokens` stays within budget
-- [ ] Actions are limited to top N (default 12)
-- [ ] Most relevant actions appear first (by score)
+```json
+{ "tool": "goto", "input": { "url": "https://github.com/login" } }
+```
 
-### 11.3 Page with Complex Form
+**Verify:**
 
-Navigate to a checkout page:
+- [ ] `page_state` includes form info
+- [ ] Form fields detected (username, password)
 
-- [ ] Form fields have correct `semantic_type` (email, address, card-number, etc.)
-- [ ] Required fields marked appropriately
-- [ ] Form purpose correctly inferred
+### 2.3 Go Back
+
+**Prerequisite:** Navigate to 2+ pages first
+
+```json
+{ "tool": "goto", "input": { "back": true } }
+```
+
+**Verify:**
+
+- [ ] URL matches previous page
+- [ ] `delta.changes` includes navigation
+
+### 2.4 Go Forward
+
+**Prerequisite:** Went back in history
+
+```json
+{ "tool": "goto", "input": { "forward": true } }
+```
+
+**Verify:**
+
+- [ ] Returns to page before going back
+
+### 2.5 Refresh
+
+```json
+{ "tool": "goto", "input": { "refresh": true } }
+```
+
+**Verify:**
+
+- [ ] Page reloads
+- [ ] Fresh snapshot captured
 
 ---
 
-## Test Results Template
+## Suite 3: Snapshot & Query
 
-| Test                               | Pass/Fail | Notes |
-| ---------------------------------- | --------- | ----- |
-| 1.1 Launch Mode                    |           |       |
-| 1.2 Connect Mode                   |           |       |
-| 2.1 Product Page                   |           |       |
-| 2.2 Login Page                     |           |       |
-| 2.3 Cookie Dialog                  |           |       |
-| 3.1 Basic Snapshot                 |           |       |
-| 3.2 Snapshot with Nodes            |           |       |
-| 4.1 Find Buttons                   |           |       |
-| 4.2 Find by Label                  |           |       |
-| 4.3 Find by Region                 |           |       |
-| 4.4 Find by State                  |           |       |
-| 5.1 Click Button                   |           |       |
-| 5.2 Click Invalid                  |           |       |
-| 6.1 Node Details                   |           |       |
-| 7.1 Get FactPack                   |           |       |
-| 7.2 FactPack Options               |           |       |
-| 8.1 XML Structure                  |           |       |
-| 8.2 Token Count                    |           |       |
-| 8.3 Node References                |           |       |
-| 9.1 Close Page                     |           |       |
-| 9.2 Close Session                  |           |       |
-| 10.1 Navigate Without page_id      |           |       |
-| 10.2 Snapshot Without page_id      |           |       |
-| 10.3 Find Elements Without page_id |           |       |
-| 10.4 Action Click Without page_id  |           |       |
-| 10.5 MRU Tracking Across Pages     |           |       |
-| 10.6 No Pages Available Error      |           |       |
-| 10.7 Navigate Auto-creates         |           |       |
-| 11.1 Empty Page                    |           |       |
-| 11.2 Many Actions                  |           |       |
-| 11.3 Complex Form                  |           |       |
+### 3.1 Capture Snapshot
+
+```json
+{ "tool": "snapshot", "input": {} }
+```
+
+**Verify:**
+
+- [ ] Returns `snapshot_id`
+- [ ] `page_state` includes forms, actions, dialogs
+- [ ] `node_count` > 0
+
+### 3.2 Find by Kind
+
+**Test on Google.com:**
+
+```json
+{ "tool": "find", "input": { "kind": "button" } }
+```
+
+**Verify:**
+
+- [ ] Returns buttons on page
+- [ ] Each has `node_id`, `label`, `kind`
+
+### 3.3 Find by Label
+
+```json
+{ "tool": "find", "input": { "label": "search" } }
+```
+
+**Verify:**
+
+- [ ] Returns elements with "search" in label
+- [ ] Fuzzy matching works
+
+### 3.4 Find by Region
+
+```json
+{ "tool": "find", "input": { "region": "header" } }
+```
+
+**Verify:**
+
+- [ ] Only header elements returned
+
+### 3.5 Combined Filters
+
+```json
+{ "tool": "find", "input": { "kind": "input", "region": "main" } }
+```
+
+**Verify:**
+
+- [ ] Filters combine (AND logic)
+
+---
+
+## Suite 4: Click
+
+### 4.1 Click Element
+
+**Setup:** Find a link first with `find { "kind": "link" }`
+
+```json
+{ "tool": "click", "input": { "node_id": "<link_id>" } }
+```
+
+**Verify:**
+
+- [ ] Element clicked
+- [ ] `delta.action` describes click
+- [ ] Navigation if link
+
+### 4.2 Click Opens Modal
+
+**Test on site with modal:**
+
+```json
+{ "tool": "click", "input": { "node_id": "<modal_trigger>" } }
+```
+
+**Verify:**
+
+- [ ] `delta.changes` includes `{ "type": "modal_opened" }`
+- [ ] Modal info in `page_state`
+
+### 4.3 Click Invalid Element
+
+```json
+{ "tool": "click", "input": { "node_id": "99999999" } }
+```
+
+**Verify:**
+
+- [ ] Error with descriptive message
+- [ ] Browser doesn't crash
+
+---
+
+## Suite 5: Type
+
+### 5.1 Type in Input
+
+**Setup:** Find input with `find { "kind": "input" }`
+
+```json
+{ "tool": "type", "input": { "node_id": "<input_id>", "text": "hello world" } }
+```
+
+**Verify:**
+
+- [ ] Text appears in input
+- [ ] `delta.changes` includes `{ "type": "filled" }`
+
+### 5.2 Type Without node_id
+
+**Setup:** Click input first to focus
+
+```json
+{ "tool": "type", "input": { "text": "typed text" } }
+```
+
+**Verify:**
+
+- [ ] Text in currently focused element
+
+### 5.3 Type with Clear
+
+```json
+{ "tool": "type", "input": { "node_id": "<id>", "text": "new", "clear": true } }
+```
+
+**Verify:**
+
+- [ ] Old text cleared
+- [ ] Only new text present
+
+### 5.4 Type Special Characters
+
+```json
+{ "tool": "type", "input": { "node_id": "<id>", "text": "test@example.com" } }
+```
+
+**Verify:**
+
+- [ ] Email typed correctly
+
+---
+
+## Suite 6: Press Key
+
+### 6.1 Press Enter (Submit Form)
+
+**Setup:** Fill form first
+
+```json
+{ "tool": "press", "input": { "key": "Enter" } }
+```
+
+**Verify:**
+
+- [ ] Form submitted
+- [ ] `delta.changes` may include `form_submitted`, `navigation`
+
+### 6.2 Press Tab (Focus Change)
+
+```json
+{ "tool": "press", "input": { "key": "Tab" } }
+```
+
+**Verify:**
+
+- [ ] Focus moves
+- [ ] `delta.changes` includes `{ "type": "focused" }`
+
+### 6.3 Press Escape (Close Modal)
+
+**Setup:** Open modal first
+
+```json
+{ "tool": "press", "input": { "key": "Escape" } }
+```
+
+**Verify:**
+
+- [ ] Modal closes
+- [ ] `delta.changes` includes `{ "type": "modal_closed" }`
+
+### 6.4 Press Arrow Keys
+
+```json
+{ "tool": "press", "input": { "key": "ArrowDown" } }
+```
+
+**Verify:**
+
+- [ ] Selection/focus moves
+
+### 6.5 Press with Modifiers
+
+```json
+{ "tool": "press", "input": { "key": "a", "modifiers": ["Control"] } }
+```
+
+**Verify:**
+
+- [ ] Ctrl+A selects all (if in input)
+
+### 6.6 Press Unknown Key
+
+```json
+{ "tool": "press", "input": { "key": "InvalidKey" } }
+```
+
+**Verify:**
+
+- [ ] Error lists supported keys
+
+**Supported Keys:** Enter, Tab, Escape, Backspace, Delete, Space, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Home, End, PageUp, PageDown
+
+---
+
+## Suite 7: Select Dropdown
+
+### 7.1 Select by Value
+
+**Test on form with dropdown:**
+
+```json
+{ "tool": "select", "input": { "node_id": "<select_id>", "value": "US" } }
+```
+
+**Verify:**
+
+- [ ] Option selected
+- [ ] `delta.changes` includes `{ "type": "selected" }`
+
+### 7.2 Select by Visible Text
+
+```json
+{ "tool": "select", "input": { "node_id": "<id>", "value": "United States" } }
+```
+
+**Verify:**
+
+- [ ] Matches by visible text
+
+### 7.3 Select Invalid Option
+
+```json
+{ "tool": "select", "input": { "node_id": "<id>", "value": "NotReal" } }
+```
+
+**Verify:**
+
+- [ ] Error lists available options
+
+### 7.4 Select on Non-Select Element
+
+```json
+{ "tool": "select", "input": { "node_id": "<button_id>", "value": "x" } }
+```
+
+**Verify:**
+
+- [ ] Error: "Element is not a <select> element"
+
+---
+
+## Suite 8: Hover
+
+### 8.1 Hover Over Element
+
+```json
+{ "tool": "hover", "input": { "node_id": "<element_id>" } }
+```
+
+**Verify:**
+
+- [ ] Mouse moves to element
+- [ ] Hover effects triggered (if any)
+
+### 8.2 Hover Reveals Menu
+
+**Test on site with hover menus:**
+
+```json
+{ "tool": "hover", "input": { "node_id": "<menu_trigger>" } }
+```
+
+**Verify:**
+
+- [ ] Dropdown menu appears
+- [ ] New elements visible in next snapshot
+
+---
+
+## Suite 9: Scroll
+
+### 9.1 Scroll Element Into View
+
+```json
+{ "tool": "scroll", "input": { "node_id": "<below_fold_id>" } }
+```
+
+**Verify:**
+
+- [ ] Element now visible
+- [ ] Can interact with element
+
+### 9.2 Scroll Page Down
+
+```json
+{ "tool": "scroll", "input": { "direction": "down" } }
+```
+
+**Verify:**
+
+- [ ] Viewport moves down
+
+### 9.3 Scroll Page Up
+
+```json
+{ "tool": "scroll", "input": { "direction": "up" } }
+```
+
+**Verify:**
+
+- [ ] Viewport moves up
+
+### 9.4 Scroll Custom Amount
+
+```json
+{ "tool": "scroll", "input": { "direction": "down", "amount": 1000 } }
+```
+
+**Verify:**
+
+- [ ] Scrolls 1000px
+
+---
+
+## Suite 10: End-to-End Workflows
+
+### 10.1 Google Search
+
+```
+1. open { "headless": false }
+2. goto { "url": "https://www.google.com" }
+3. find { "kind": "input" }
+4. click { "node_id": "<search_input>" }
+5. type { "text": "MCP protocol" }
+6. press { "key": "Enter" }
+7. find { "kind": "link", "region": "main" }
+8. click { "node_id": "<first_result>" }
+9. close {}
+```
+
+**Verify:** All steps complete without errors
+
+---
+
+### 10.2 Login Flow
+
+**Test Site:** https://the-internet.herokuapp.com/login
+
+```
+1. open {}
+2. goto { "url": "https://the-internet.herokuapp.com/login" }
+3. find { "kind": "input" }
+4. type { "node_id": "<username>", "text": "tomsmith" }
+5. press { "key": "Tab" }
+6. type { "text": "SuperSecretPassword!" }
+7. find { "kind": "button", "label": "Login" }
+8. click { "node_id": "<login_btn>" }
+9. Verify success message
+```
+
+**Verify:** Login succeeds, success message displayed
+
+---
+
+### 10.3 Form with Dropdown
+
+```
+1. goto { "url": "<form_url>" }
+2. find { "kind": "select" }
+3. select { "node_id": "<dropdown>", "value": "<option>" }
+4. find { "kind": "input" }
+5. type { "node_id": "<input>", "text": "test" }
+6. find { "kind": "button", "label": "submit" }
+7. click { "node_id": "<submit>" }
+```
+
+**Verify:** Form submits with selections
+
+---
+
+### 10.4 Navigation History
+
+```
+1. open {}
+2. goto { "url": "https://example.com" }
+3. find { "kind": "link" }
+4. click { "node_id": "<link>" }
+5. goto { "back": true }  // Should return to example.com
+6. goto { "forward": true }  // Should return to linked page
+7. goto { "refresh": true }  // Should reload
+```
+
+**Verify:** Back/forward/refresh all work
+
+---
+
+### 10.5 Modal Handling
+
+```
+1. goto { "url": "<site_with_modal>" }
+2. click { "node_id": "<modal_trigger>" }
+3. Verify modal_opened in delta
+4. press { "key": "Escape" }
+5. Verify modal_closed in delta
+```
+
+**Verify:** Modal detection and dismissal work
+
+---
+
+### 10.6 Scroll and Interact
+
+```
+1. goto { "url": "<long_page>" }
+2. scroll { "direction": "down", "amount": 2000 }
+3. snapshot {}
+4. find { "kind": "button" }  // Find below-fold button
+5. scroll { "node_id": "<button_id>" }  // Scroll to it
+6. click { "node_id": "<button_id>" }
+```
+
+**Verify:** Can scroll and interact with below-fold elements
+
+---
+
+## Test Results
+
+| Suite | Test                  | Pass | Fail | Notes |
+| ----- | --------------------- | ---- | ---- | ----- |
+| 1     | 1.1 Open Visible      |      |      |       |
+| 1     | 1.2 Open Headless     |      |      |       |
+| 1     | 1.3 Open Connect      |      |      |       |
+| 1     | 1.4 Close Session     |      |      |       |
+| 1     | 1.5 Close Page        |      |      |       |
+| 2     | 2.1 Navigate URL      |      |      |       |
+| 2     | 2.2 Navigate Form     |      |      |       |
+| 2     | 2.3 Go Back           |      |      |       |
+| 2     | 2.4 Go Forward        |      |      |       |
+| 2     | 2.5 Refresh           |      |      |       |
+| 3     | 3.1 Snapshot          |      |      |       |
+| 3     | 3.2 Find Kind         |      |      |       |
+| 3     | 3.3 Find Label        |      |      |       |
+| 3     | 3.4 Find Region       |      |      |       |
+| 3     | 3.5 Find Combined     |      |      |       |
+| 4     | 4.1 Click             |      |      |       |
+| 4     | 4.2 Click Modal       |      |      |       |
+| 4     | 4.3 Click Invalid     |      |      |       |
+| 5     | 5.1 Type Input        |      |      |       |
+| 5     | 5.2 Type Focused      |      |      |       |
+| 5     | 5.3 Type Clear        |      |      |       |
+| 5     | 5.4 Type Special      |      |      |       |
+| 6     | 6.1 Press Enter       |      |      |       |
+| 6     | 6.2 Press Tab         |      |      |       |
+| 6     | 6.3 Press Escape      |      |      |       |
+| 6     | 6.4 Press Arrow       |      |      |       |
+| 6     | 6.5 Press Modifier    |      |      |       |
+| 6     | 6.6 Press Unknown     |      |      |       |
+| 7     | 7.1 Select Value      |      |      |       |
+| 7     | 7.2 Select Text       |      |      |       |
+| 7     | 7.3 Select Invalid    |      |      |       |
+| 7     | 7.4 Select Non-Select |      |      |       |
+| 8     | 8.1 Hover             |      |      |       |
+| 8     | 8.2 Hover Menu        |      |      |       |
+| 9     | 9.1 Scroll Element    |      |      |       |
+| 9     | 9.2 Scroll Down       |      |      |       |
+| 9     | 9.3 Scroll Up         |      |      |       |
+| 9     | 9.4 Scroll Amount     |      |      |       |
+| 10    | 10.1 Google Search    |      |      |       |
+| 10    | 10.2 Login Flow       |      |      |       |
+| 10    | 10.3 Form Dropdown    |      |      |       |
+| 10    | 10.4 Nav History      |      |      |       |
+| 10    | 10.5 Modal            |      |      |       |
+| 10    | 10.6 Scroll Interact  |      |      |       |
+
+---
+
+## Regression Checklist
+
+After code changes:
+
+- [ ] All 10 suites pass
+- [ ] Error messages are descriptive
+- [ ] No memory leaks (browser cleanup)
+- [ ] Headless mode works
+- [ ] Connect mode works
+- [ ] Delta responses accurate
+- [ ] Page state updates correctly

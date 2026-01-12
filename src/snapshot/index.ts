@@ -37,12 +37,20 @@ export {
   type SnapshotStoreStats,
 } from './snapshot-store.js';
 
-// Element resolver
+// Element resolver - CDP input functions
 export {
-  resolveLocator,
-  parseLocatorString,
   clickByBackendNodeId,
-  type ParsedLocator,
+  typeByBackendNodeId,
+  pressKey,
+  selectOption,
+  hoverByBackendNodeId,
+  scrollIntoView,
+  scrollPage,
+  clearFocusedText,
+  MODIFIER_ALT,
+  MODIFIER_CTRL,
+  MODIFIER_META,
+  MODIFIER_SHIFT,
 } from './element-resolver.js';
 
 // Snapshot compiler

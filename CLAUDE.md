@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Athena Browser MCP is an MCP (Model Context Protocol) server for browser automation via CDP (Chrome DevTools Protocol). It connects to a CEF-based browser.
+Athena Browser MCP is an MCP (Model Context Protocol) server for browser automation via Playwright and CDP (Chrome DevTools Protocol). It can launch new browsers or connect to existing Chromium-based browsers.
 
-**Current State**: The codebase has been cleaned up and prepared for a major overhaul to implement:
+**Key Features**:
 
 - **BaseSnapshot**: Canonical semantic representation of web pages
 - **Page Brief**: Compact Markdown summary for LLM context
@@ -34,38 +34,37 @@ npm run test:coverage      # With coverage
 
 ```
 src/
-├── bridge/
-│   └── cef-bridge.ts           # CDP connection to CEF browser
+├── browser/
+│   ├── session-manager.ts      # Browser lifecycle (launch/connect/shutdown)
+│   └── page-registry.ts        # Page tracking with MRU support
+├── cdp/
+│   ├── cdp-client.interface.ts # Generic CDP abstraction
+│   └── playwright-cdp-client.ts # Playwright CDPSession implementation
 ├── server/
-│   └── mcp-server.ts           # MCP server shell (minimal)
-├── shared/
-│   ├── services/
-│   │   ├── logging.service.ts       # Structured logging with MCP support
-│   │   ├── selector-builder.service.ts  # CSS/XPath selector generation
-│   │   └── dom-transformer.service.ts   # DOM tree utilities
-│   └── types/
-│       └── base.types.ts        # Shared types (BBox, Selectors, DomTreeNode)
-├── lib/                         # Extracted reusable algorithms
-│   ├── constants.ts             # INTERACTIVE_ROLES, INTERACTIVE_TAGS, etc.
-│   ├── regions.ts               # Semantic region resolution
-│   ├── scoring.ts               # Multi-signal element scoring
-│   ├── text-utils.ts            # Text normalization utilities
-│   ├── selectors.ts             # Selector building utilities
-│   └── index.ts                 # Re-exports
+│   └── mcp-server.ts           # MCP server with tool registration
+├── tools/
+│   └── browser-tools.ts        # Tool handler implementations
+├── snapshot/                    # BaseSnapshot extraction system
+│   ├── snapshot-compiler.ts    # Orchestrates extraction
+│   └── extractors/             # Modular extraction algorithms
+├── factpack/                    # High-level semantic extraction
+├── query/                       # Snapshot query engine
+├── renderer/                    # XML output rendering
+├── lib/                         # Reusable algorithms
 └── index.ts                     # Entry point
 ```
 
 ## Key Components
 
-### CEF Bridge (`src/bridge/cef-bridge.ts`)
+### Session Manager (`src/browser/session-manager.ts`)
 
-- Connects to CEF browser via CDP (chrome-remote-interface)
-- Auto-reconnect on disconnect
-- Environment variables: `CEF_BRIDGE_HOST` (default: 127.0.0.1), `CEF_BRIDGE_PORT` (default: 9223)
+- Manages browser lifecycle (launch/connect/shutdown)
+- Supports two modes: launch new browser or connect to existing (e.g., Athena)
+- Uses Playwright for browser automation and CDP for low-level operations
 
 ### MCP Server (`src/server/mcp-server.ts`)
 
-- Minimal shell ready for new tool registrations
+- MCP server with tool registration
 - Uses stdio transport
 - `registerTool()` method for adding new tools
 
