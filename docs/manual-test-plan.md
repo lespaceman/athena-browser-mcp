@@ -599,6 +599,83 @@ Comprehensive test plan for all MCP tools with the new simplified API.
 
 ---
 
+## Suite 11: Advanced Scenarios
+
+### 11.1 Multi-page switching
+
+**Setup:** Open two different URLs in sequence.
+
+```json
+1. open { "headless": false }
+2. goto { "url": "https://example.com" }
+3. goto { "url": "https://google.com" }
+4. snapshot {}
+```
+
+**Verify:**
+
+- [ ] `page_state` reflects the most recent page
+- [ ] Multiple pages are active in the browser (if visible)
+
+### 11.2 Iframe interaction
+
+**Test Site:** https://the-internet.herokuapp.com/iframe
+
+```json
+1. goto { "url": "https://the-internet.herokuapp.com/iframe" }
+2. find { "kind": "text" }
+```
+
+**Verify:**
+
+- [ ] Elements inside IFrames are detected and interactable
+
+### 11.3 Checkboxes and Radio Buttons
+
+**Test Site:** https://the-internet.herokuapp.com/checkboxes
+
+```json
+1. goto { "url": "https://the-internet.herokuapp.com/checkboxes" }
+2. find { "kind": "checkbox" }
+3. click { "node_id": "<checkbox_id>" }
+```
+
+**Verify:**
+
+- [ ] Checkboxes are detected
+- [ ] `click` toggles the state
+
+### 11.4 Handling JS Alerts
+
+**Test Site:** https://the-internet.herokuapp.com/javascript_alerts
+
+```json
+1. goto { "url": "https://the-internet.herokuapp.com/javascript_alerts" }
+2. click { "node_id": "<alert_trigger_btn>" }
+3. Verify if snapshot captures alert state or if MCP provides a way to dismiss
+```
+
+**Verify:**
+
+- [ ] Browser doesn't hang on native dialogs
+- [ ] (If supported) Dialog info appears in `page_state`
+
+### 11.5 Dynamic Content loading
+
+**Test Site:** https://the-internet.herokuapp.com/dynamic_loading/1
+
+```json
+1. goto { "url": "https://the-internet.herokuapp.com/dynamic_loading/1" }
+2. click { "node_id": "<start_btn>" }
+3. snapshot {} // Wait and repeat until "Hello World!" appears
+```
+
+**Verify:**
+
+- [ ] `snapshot` eventually captures the dynamically loaded element
+
+---
+
 ## Test Results
 
 | Suite | Test                  | Pass | Fail | Notes |
@@ -647,6 +724,11 @@ Comprehensive test plan for all MCP tools with the new simplified API.
 | 10    | 10.4 Nav History      |      |      |       |
 | 10    | 10.5 Modal            |      |      |       |
 | 10    | 10.6 Scroll Interact  |      |      |       |
+| 11    | 11.1 Multi-page       |      |      |       |
+| 11    | 11.2 Iframe           |      |      |       |
+| 11    | 11.3 Checkbox/Radio   |      |      |       |
+| 11    | 11.4 JS Alerts        |      |      |       |
+| 11    | 11.5 Dynamic Content  |      |      |       |
 
 ---
 
@@ -654,7 +736,7 @@ Comprehensive test plan for all MCP tools with the new simplified API.
 
 After code changes:
 
-- [ ] All 10 suites pass
+- [ ] All 11 suites pass
 - [ ] Error messages are descriptive
 - [ ] No memory leaks (browser cleanup)
 - [ ] Headless mode works
