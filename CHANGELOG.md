@@ -1,3 +1,33 @@
+## [2.0.3] - 2026-01-13
+
+- Merge pull request #11 from lespaceman/feat/delta-factpack
+- docs: add cookie consent test scenarios to manual test plan
+- feat: add include_readable param and proactive staleness detection
+- feat: include shadow path in EID computation for shadow DOM
+- feat: add multi-frame AX extraction for iframe support
+- test: add comprehensive tests for state modules and refactor execute-action
+- chore: remove outdated planning and debug docs
+- docs: extend manual test plan with Suite 11 advanced scenarios
+- refactor: unify on eid across all discovery and action tools
+- fix: EID lookup mismatch between XML response and registry
+- refactor!: remove deprecated node_id API and consolidate code patterns
+- chore: add .gemini to gitignore
+- test: suppress log pollution during test runs
+- chore: remove deprecated design docs and unused code
+- fix: false navigation detection and diff-only rendering
+- feat: add ElementRegistry, CDP recovery, and XML response format
+- feat: implement StateHandle + Diff + Actionables system
+- docs: add delta removal and page_summary optimization design docs
+- refactor: remove delta system and simplify to page_summary responses
+- refactor: optimize page_summary schema to reduce token count by 51%
+- fix: default connect_browser endpoint
+- chore: remove legacy tool contracts
+- feat: add structured delta payloads and v2 tools
+- fix: address PR review - remove redundant casts and add unit tests
+- fix: address delta FactPack review issues
+- fix: handle overlay replacements to avoid stale refs
+- feat: implement delta FactPack for mutation tools
+
 ## [2.0.2] - 2026-01-12
 
 - fix(ci): add explicit tag_name for gh-release action
