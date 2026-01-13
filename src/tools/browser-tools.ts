@@ -7,64 +7,66 @@
 import type { SessionManager } from '../browser/session-manager.js';
 import {
   SnapshotStore,
-  compileSnapshot,
   clickByBackendNodeId,
   typeByBackendNodeId,
   pressKey,
   selectOption,
   hoverByBackendNodeId,
   scrollIntoView,
-  scrollPage,
-  clearFocusedText,
+  scrollPage as scrollPageByAmount,
 } from '../snapshot/index.js';
+import type { NodeDetails } from './tool-schemas.js';
 import {
-  BrowserLaunchInputSchema,
-  BrowserNavigateInputSchema,
-  BrowserCloseInputSchema,
-  SnapshotCaptureInputSchema,
-  ActionClickInputSchema,
-  GetNodeDetailsInputSchema,
+  LaunchBrowserInputSchema,
+  ConnectBrowserInputSchema,
+  ClosePageInputSchema,
+  CloseSessionInputSchema,
+  NavigateInputSchema,
+  GoBackInputSchema,
+  GoForwardInputSchema,
+  ReloadInputSchema,
+  CaptureSnapshotInputSchema,
   FindElementsInputSchema,
-  GetFactPackInputSchema,
-  type BrowserLaunchOutput,
-  type BrowserNavigateOutput,
-  type BrowserCloseOutput,
-  type SnapshotCaptureOutput,
-  type ActionClickOutput,
-  type GetNodeDetailsOutput,
-  type FindElementsOutput,
-  type GetFactPackOutput,
-  type NodeDetails,
-  // New simplified API schemas
-  OpenInputSchema,
-  CloseInputSchema,
-  GotoInputSchema,
-  SnapshotInputSchema,
-  FindInputSchema,
+  GetNodeDetailsInputSchema,
+  ScrollElementIntoViewInputSchema,
+  ScrollPageInputSchema,
   ClickInputSchema,
   TypeInputSchema,
   PressInputSchema,
   SelectInputSchema,
   HoverInputSchema,
-  ScrollInputSchema,
-  type OpenOutput,
-  type CloseOutput,
-  type GotoOutput,
-  type SnapshotOutput,
-  type FindOutput,
-  type ClickOutput,
-  type TypeOutput,
-  type PressOutput,
-  type SelectOutput,
-  type HoverOutput,
-  type ScrollOutput,
 } from './tool-schemas.js';
 import { QueryEngine } from '../query/query-engine.js';
 import type { FindElementsRequest } from '../query/types/query.types.js';
-import type { NodeKind, SemanticRegion } from '../snapshot/snapshot.types.js';
-import type { BaseSnapshot } from '../snapshot/snapshot.types.js';
-import { extractFactPack, type FactPackOptions } from '../factpack/index.js';
-import { generatePageBrief } from '../renderer/index.js';
+import type { BaseSnapshot, NodeKind, SemanticRegion } from '../snapshot/snapshot.types.js';
+import { isReadableNode, isStructuralNode } from '../snapshot/snapshot.types.js';
+import { computeEid } from '../state/element-identity.js';
+import {
+  captureWithStabilization,
+  determineHealthCode,
+  type CaptureWithStabilizationResult,
+} from '../snapshot/snapshot-health.js';
+import {
+  executeAction,
+  executeActionWithRetry,
+  executeActionWithOutcome,
+  type CaptureSnapshotFn,
+  getStateManager,
+  removeStateManager,
+  clearAllStateManagers,
+} from './execute-action.js';
+import type { PageHandle } from '../browser/page-registry.js';
+import { createHealthyRuntime, createRecoveredCdpRuntime } from '../state/health.types.js';
+import type { RuntimeHealth } from '../state/health.types.js';
+import {
+  buildClosePageResponse,
+  buildCloseSessionResponse,
+  buildFindElementsResponse,
+  buildGetNodeDetailsResponse,
+  type FindElementsMatch,
+} from './response-builder.js';
+import { ElementNotFoundError, StaleElementError, SnapshotRequiredError } from './errors.js';
+import type { ReadableNode } from '../snapshot/snapshot.types.js';
 
 // Module-level state
 let sessionManager: SessionManager | null = null;
@@ -98,32 +100,6 @@ export function getSnapshotStore(): SnapshotStore {
 }
 
 /**
- * Build CDP endpoint URL from environment variables.
- */
-function buildEndpointUrl(): string {
-  const host = process.env.CEF_BRIDGE_HOST ?? '127.0.0.1';
-  const port = process.env.CEF_BRIDGE_PORT ?? '9223';
-  return `http://${host}:${port}`;
-}
-
-/**
- * Build node summary array from a snapshot.
- */
-function buildNodeSummary(snapshot: BaseSnapshot): {
-  node_id: string;
-  kind: string;
-  label: string;
-  selector: string;
-}[] {
-  return snapshot.nodes.map((node) => ({
-    node_id: node.node_id,
-    kind: node.kind,
-    label: node.label,
-    selector: node.find?.primary ?? '',
-  }));
-}
-
-/**
  * Resolve page_id to a PageHandle, throwing if not found.
  * Also touches the page to mark it as MRU.
  *
@@ -132,16 +108,13 @@ function buildNodeSummary(snapshot: BaseSnapshot): {
  * @returns PageHandle for the resolved page
  * @throws Error if no page available
  */
-function resolveExistingPage(
-  session: SessionManager,
-  page_id: string | undefined
-): import('../browser/page-registry.js').PageHandle {
+function resolveExistingPage(session: SessionManager, page_id: string | undefined): PageHandle {
   const handle = session.resolvePage(page_id);
   if (!handle) {
     if (page_id) {
       throw new Error(`Page not found: ${page_id}`);
     } else {
-      throw new Error('No page available. Use browser_launch first.');
+      throw new Error('No page available. Use launch_browser first.');
     }
   }
   session.touchPage(handle.page_id);
@@ -149,686 +122,452 @@ function resolveExistingPage(
 }
 
 /**
- * Launch a new browser or connect to an existing one.
- * Automatically captures a snapshot of the page.
+ * Ensure CDP session is healthy, attempting repair if needed.
+ *
+ * Call this before any CDP operation to auto-repair dead sessions.
+ *
+ * @param session - SessionManager instance
+ * @param handle - Current page handle
+ * @returns Updated handle (may be same or new if recovered) and recovery status
+ */
+async function ensureCdpSession(
+  session: SessionManager,
+  handle: PageHandle
+): Promise<{ handle: PageHandle; recovered: boolean; runtime_health: RuntimeHealth }> {
+  // Fast path: CDP is active and responds to a lightweight probe
+  if (handle.cdp.isActive()) {
+    try {
+      await handle.cdp.send('Page.getFrameTree', undefined);
+      return { handle, recovered: false, runtime_health: createHealthyRuntime() };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[RECOVERY] CDP probe failed for ${handle.page_id}: ${message}. Attempting rebind`
+      );
+    }
+  }
+
+  // Slow path: CDP needs repair
+  console.warn(`[RECOVERY] CDP session dead for ${handle.page_id}, attempting rebind`);
+
+  const newHandle = await session.rebindCdpSession(handle.page_id);
+  return {
+    handle: newHandle,
+    recovered: true,
+    runtime_health: createRecoveredCdpRuntime('HEALTHY'),
+  };
+}
+
+/**
+ * Build runtime health details from a capture attempt.
+ */
+function buildRuntimeHealth(
+  cdpHealth: RuntimeHealth['cdp'],
+  result: CaptureWithStabilizationResult
+): RuntimeHealth {
+  const code = determineHealthCode(result);
+
+  return {
+    cdp: cdpHealth,
+    snapshot: {
+      ok: code === 'HEALTHY',
+      code,
+      attempts: result.attempts,
+      message: result.health.message,
+    },
+  };
+}
+
+/**
+ * Capture a snapshot with stabilization and CDP recovery when empty.
+ */
+async function captureSnapshotWithRecovery(
+  session: SessionManager,
+  handle: PageHandle,
+  pageId: string
+): Promise<{ snapshot: BaseSnapshot; handle: PageHandle; runtime_health: RuntimeHealth }> {
+  const ensureResult = await ensureCdpSession(session, handle);
+  handle = ensureResult.handle;
+
+  let result = await captureWithStabilization(handle.cdp, handle.page, pageId);
+  let runtime_health = buildRuntimeHealth(ensureResult.runtime_health.cdp, result);
+
+  if (!result.health.valid) {
+    const healthCode = determineHealthCode(result);
+    console.warn(`[RECOVERY] Empty snapshot for ${pageId} (${healthCode}); rebinding CDP session`);
+
+    handle = await session.rebindCdpSession(pageId);
+    result = await captureWithStabilization(handle.cdp, handle.page, pageId, { maxRetries: 1 });
+    runtime_health = buildRuntimeHealth(
+      { ok: true, recovered: true, recovery_method: 'rebind' },
+      result
+    );
+  }
+
+  return { snapshot: result.snapshot, handle, runtime_health };
+}
+
+/**
+ * Create a capture function that keeps the handle updated after recovery.
+ */
+function createActionCapture(
+  session: SessionManager,
+  handleRef: { current: PageHandle },
+  pageId: string
+): CaptureSnapshotFn {
+  return async () => {
+    const captureResult = await captureSnapshotWithRecovery(session, handleRef.current, pageId);
+    handleRef.current = captureResult.handle;
+    return {
+      snapshot: captureResult.snapshot,
+      runtime_health: captureResult.runtime_health,
+    };
+  };
+}
+
+// ============================================================================
+// Action Context Helpers
+// ============================================================================
+
+/**
+ * Context for action execution.
+ */
+interface ActionContext {
+  /** Mutable reference to page handle (updated on recovery) */
+  handleRef: { current: PageHandle };
+  /** Resolved page ID */
+  pageId: string;
+  /** Snapshot capture function */
+  captureSnapshot: CaptureSnapshotFn;
+  /** Session manager instance */
+  session: SessionManager;
+}
+
+/**
+ * Prepare context for action execution.
+ * Resolves page, ensures CDP session health, and creates capture function.
+ *
+ * @param pageId - Optional page ID to resolve
+ * @returns Action context with handle, capture function, and session
+ */
+async function prepareActionContext(pageId: string | undefined): Promise<ActionContext> {
+  const session = getSessionManager();
+  const handleRef = { current: resolveExistingPage(session, pageId) };
+  const resolvedPageId = handleRef.current.page_id;
+
+  handleRef.current = (await ensureCdpSession(session, handleRef.current)).handle;
+  const captureSnapshot = createActionCapture(session, handleRef, resolvedPageId);
+
+  return { handleRef, pageId: resolvedPageId, captureSnapshot, session };
+}
+
+/**
+ * Resolve element by eid for action tools.
+ * Looks up element in registry and finds corresponding node in snapshot.
+ * Includes proactive staleness detection before CDP interaction.
+ *
+ * @param pageId - Page ID for registry lookup
+ * @param eid - Element ID to resolve
+ * @param snapshot - Current snapshot to search
+ * @returns Resolved node from snapshot
+ * @throws {ElementNotFoundError} If eid not found in registry
+ * @throws {StaleElementError} If eid reference is stale or element not in current snapshot
+ */
+function resolveElementByEid(pageId: string, eid: string, snapshot: BaseSnapshot): ReadableNode {
+  const stateManager = getStateManager(pageId);
+  const registry = stateManager.getElementRegistry();
+  const elementRef = registry.getByEid(eid);
+
+  if (!elementRef) {
+    throw new ElementNotFoundError(eid);
+  }
+
+  // Proactive staleness check - detect stale elements before CDP interaction
+  // This catches elements that haven't been seen in recent snapshots
+  if (registry.isStale(eid)) {
+    throw new StaleElementError(eid);
+  }
+
+  const node = snapshot.nodes.find((n) => n.backend_node_id === elementRef.ref.backend_node_id);
+  if (!node) {
+    throw new StaleElementError(eid);
+  }
+
+  return node;
+}
+
+/**
+ * Require snapshot for action, throwing consistent error if missing.
+ *
+ * @param pageId - Page ID to look up snapshot
+ * @returns Snapshot for the page
+ * @throws {SnapshotRequiredError} If no snapshot exists
+ */
+function requireSnapshot(pageId: string): BaseSnapshot {
+  const snap = snapshotStore.getByPageId(pageId);
+  if (!snap) {
+    throw new SnapshotRequiredError(pageId);
+  }
+  return snap;
+}
+
+/**
+ * Navigation action types.
+ */
+type NavigationAction = 'back' | 'forward' | 'reload';
+
+/**
+ * Execute a navigation action with snapshot capture.
+ * Consolidates goBack, goForward, and reload handlers.
+ *
+ * @param pageId - Optional page ID
+ * @param action - Navigation action to execute
+ * @returns State response after navigation
+ */
+async function executeNavigationAction(
+  pageId: string | undefined,
+  action: NavigationAction
+): Promise<string> {
+  const session = getSessionManager();
+
+  let handle = await session.resolvePageOrCreate(pageId);
+  const page_id = handle.page_id;
+  session.touchPage(page_id);
+
+  // Execute navigation
+  switch (action) {
+    case 'back':
+      await handle.page.goBack();
+      break;
+    case 'forward':
+      await handle.page.goForward();
+      break;
+    case 'reload':
+      await handle.page.reload();
+      break;
+  }
+
+  // Auto-capture snapshot after navigation
+  const captureResult = await captureSnapshotWithRecovery(session, handle, page_id);
+  handle = captureResult.handle;
+  const snapshot = captureResult.snapshot;
+  snapshotStore.store(page_id, snapshot);
+
+  // Return XML state response
+  const stateManager = getStateManager(page_id);
+  return stateManager.generateResponse(snapshot);
+}
+
+// ============================================================================
+// SIMPLIFIED API - Tool handlers with clearer contracts
+// ============================================================================
+
+/**
+ * Launch a new browser instance.
  *
  * @param rawInput - Launch options (will be validated)
  * @returns Page info with snapshot data
  */
-export async function browserLaunch(rawInput: unknown): Promise<BrowserLaunchOutput> {
-  const input = BrowserLaunchInputSchema.parse(rawInput);
+export async function launchBrowser(
+  rawInput: unknown
+): Promise<import('./tool-schemas.js').LaunchBrowserOutput> {
+  const input = LaunchBrowserInputSchema.parse(rawInput);
   const session = getSessionManager();
 
-  let handle;
-  let mode: 'launched' | 'connected';
-
-  if (input.mode === 'connect') {
-    const endpointUrl = input.endpoint_url ?? buildEndpointUrl();
-    await session.connect({ endpointUrl });
-
-    // Try to adopt existing page, or create one if none exist
-    // Use try-catch to handle race condition where page count changes between check and adopt
-    try {
-      if (session.getPageCount() > 0) {
-        handle = await session.adoptPage(0);
-      } else {
-        // No pages in connected browser, create a new one
-        handle = await session.createPage();
-      }
-    } catch (error) {
-      // If adoptPage fails due to race condition (pages changed), create new page
-      if (error instanceof Error && error.message.includes('Invalid page index')) {
-        handle = await session.createPage();
-      } else {
-        throw error;
-      }
-    }
-    mode = 'connected';
-  } else {
-    // Launch mode
-    await session.launch({ headless: input.headless });
-    handle = await session.createPage();
-    mode = 'launched';
-  }
+  await session.launch({ headless: input.headless });
+  let handle = await session.createPage();
 
   // Auto-capture snapshot
-  const snapshot = await compileSnapshot(handle.cdp, handle.page, handle.page_id);
+  const captureResult = await captureSnapshotWithRecovery(session, handle, handle.page_id);
+  handle = captureResult.handle;
+  const snapshot = captureResult.snapshot;
   snapshotStore.store(handle.page_id, snapshot);
 
-  // Extract FactPack
-  const factpackOptions: FactPackOptions = {
-    max_actions: input.factpack_options?.max_actions,
-    min_action_score: input.factpack_options?.min_action_score,
-    include_disabled_fields: input.factpack_options?.include_disabled_fields,
-  };
-  const factpack = extractFactPack(snapshot, factpackOptions);
-
-  // Generate page_brief (always included)
-  const pageBriefResult = generatePageBrief(factpack);
-
-  const result: BrowserLaunchOutput = {
-    page_id: handle.page_id,
-    url: handle.url ?? handle.page.url(),
-    title: await handle.page.title(),
-    mode,
-    snapshot_id: snapshot.snapshot_id,
-    node_count: snapshot.meta.node_count,
-    interactive_count: snapshot.meta.interactive_count,
-    page_brief: pageBriefResult.page_brief,
-    page_brief_tokens: pageBriefResult.page_brief_tokens,
-  };
-
-  // Only include factpack if explicitly requested
-  if (input.include_factpack) {
-    result.factpack = factpack;
-  }
-
-  // Only include nodes if explicitly requested
-  if (input.include_nodes) {
-    result.nodes = buildNodeSummary(snapshot);
-  }
-
-  return result;
+  // Return XML state response directly
+  const stateManager = getStateManager(handle.page_id);
+  return stateManager.generateResponse(snapshot);
 }
 
 /**
- * Navigate a page to a URL.
- * Automatically captures a snapshot after navigation.
+ * Connect to an existing browser instance.
+ *
+ * @param rawInput - Connection options (will be validated)
+ * @returns Page info with snapshot data
+ */
+export async function connectBrowser(
+  rawInput: unknown
+): Promise<import('./tool-schemas.js').ConnectBrowserOutput> {
+  const input = ConnectBrowserInputSchema.parse(rawInput);
+  const session = getSessionManager();
+
+  if (input.endpoint_url) {
+    await session.connect({ endpointUrl: input.endpoint_url });
+  } else {
+    await session.connect();
+  }
+
+  // Try to adopt existing page, or create one if none exist
+  let handle;
+  try {
+    if (session.getPageCount() > 0) {
+      handle = await session.adoptPage(0);
+    } else {
+      handle = await session.createPage();
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Invalid page index')) {
+      handle = await session.createPage();
+    } else {
+      throw error;
+    }
+  }
+
+  // Auto-capture snapshot
+  const captureResult = await captureSnapshotWithRecovery(session, handle, handle.page_id);
+  handle = captureResult.handle;
+  const snapshot = captureResult.snapshot;
+  snapshotStore.store(handle.page_id, snapshot);
+
+  // Return XML state response directly
+  const stateManager = getStateManager(handle.page_id);
+  return stateManager.generateResponse(snapshot);
+}
+
+/**
+ * Close a specific page.
+ *
+ * @param rawInput - Close options (will be validated)
+ * @returns Close result
+ */
+export async function closePage(
+  rawInput: unknown
+): Promise<import('./tool-schemas.js').ClosePageOutput> {
+  const input = ClosePageInputSchema.parse(rawInput);
+  const session = getSessionManager();
+
+  await session.closePage(input.page_id);
+  snapshotStore.removeByPageId(input.page_id);
+  removeStateManager(input.page_id); // Clean up state manager
+
+  return buildClosePageResponse(input.page_id);
+}
+
+/**
+ * Close the entire browser session.
+ *
+ * @param rawInput - Close options (will be validated)
+ * @returns Close result
+ */
+export async function closeSession(
+  rawInput: unknown
+): Promise<import('./tool-schemas.js').CloseSessionOutput> {
+  CloseSessionInputSchema.parse(rawInput);
+  const session = getSessionManager();
+
+  await session.shutdown();
+  snapshotStore.clear();
+  clearAllStateManagers(); // Clean up all state managers
+
+  return buildCloseSessionResponse();
+}
+
+/**
+ * Navigate to a URL.
  *
  * @param rawInput - Navigation options (will be validated)
  * @returns Navigation result with snapshot data
  */
-export async function browserNavigate(rawInput: unknown): Promise<BrowserNavigateOutput> {
-  const input = BrowserNavigateInputSchema.parse(rawInput);
+export async function navigate(
+  rawInput: unknown
+): Promise<import('./tool-schemas.js').NavigateOutput> {
+  const input = NavigateInputSchema.parse(rawInput);
   const session = getSessionManager();
 
-  // Resolve page_id with auto-create if not specified
-  const handle = await session.resolvePageOrCreate(input.page_id);
+  let handle = await session.resolvePageOrCreate(input.page_id);
   const page_id = handle.page_id;
   session.touchPage(page_id);
 
   await session.navigateTo(page_id, input.url);
 
   // Auto-capture snapshot after navigation
-  const snapshot = await compileSnapshot(handle.cdp, handle.page, page_id);
+  const captureResult = await captureSnapshotWithRecovery(session, handle, page_id);
+  handle = captureResult.handle;
+  const snapshot = captureResult.snapshot;
   snapshotStore.store(page_id, snapshot);
 
-  // Extract FactPack
-  const factpackOptions: FactPackOptions = {
-    max_actions: input.factpack_options?.max_actions,
-    min_action_score: input.factpack_options?.min_action_score,
-    include_disabled_fields: input.factpack_options?.include_disabled_fields,
-  };
-  const factpack = extractFactPack(snapshot, factpackOptions);
-
-  // Generate page_brief (always included)
-  const pageBriefResult = generatePageBrief(factpack);
-
-  const result: BrowserNavigateOutput = {
-    page_id,
-    url: handle.page.url(),
-    title: await handle.page.title(),
-    snapshot_id: snapshot.snapshot_id,
-    node_count: snapshot.meta.node_count,
-    interactive_count: snapshot.meta.interactive_count,
-    page_brief: pageBriefResult.page_brief,
-    page_brief_tokens: pageBriefResult.page_brief_tokens,
-  };
-
-  // Only include factpack if explicitly requested
-  if (input.include_factpack) {
-    result.factpack = factpack;
-  }
-
-  // Only include nodes if explicitly requested
-  if (input.include_nodes) {
-    result.nodes = buildNodeSummary(snapshot);
-  }
-
-  return result;
+  // Return XML state response directly
+  const stateManager = getStateManager(page_id);
+  return stateManager.generateResponse(snapshot);
 }
 
 /**
- * Close a page or the entire browser session.
- *
- * @param rawInput - Close options (will be validated)
- * @returns Close result
- */
-export async function browserClose(rawInput: unknown): Promise<BrowserCloseOutput> {
-  const input = BrowserCloseInputSchema.parse(rawInput);
-  const session = getSessionManager();
-
-  if (input.page_id) {
-    await session.closePage(input.page_id);
-    // Also remove any cached snapshot for this page
-    snapshotStore.removeByPageId(input.page_id);
-  } else {
-    await session.shutdown();
-    // Clear all snapshots on full shutdown
-    snapshotStore.clear();
-  }
-
-  return { closed: true };
-}
-
-/**
- * Capture a fresh snapshot of the page's interactive elements.
- * Use this to refresh the snapshot if page content has changed dynamically.
- *
- * @param rawInput - Snapshot options (will be validated)
- * @returns Snapshot info with node summaries
- */
-export async function snapshotCapture(rawInput: unknown): Promise<SnapshotCaptureOutput> {
-  const input = SnapshotCaptureInputSchema.parse(rawInput);
-  const session = getSessionManager();
-
-  // Resolve page_id (no auto-create for snapshot)
-  const handle = resolveExistingPage(session, input.page_id);
-  const page_id = handle.page_id;
-
-  // Extract snapshot using CDP
-  const snapshot = await compileSnapshot(handle.cdp, handle.page, page_id);
-
-  // Store for later use by actions
-  snapshotStore.store(page_id, snapshot);
-
-  // Extract FactPack
-  const factpackOptions: FactPackOptions = {
-    max_actions: input.factpack_options?.max_actions,
-    min_action_score: input.factpack_options?.min_action_score,
-    include_disabled_fields: input.factpack_options?.include_disabled_fields,
-  };
-  const factpack = extractFactPack(snapshot, factpackOptions);
-
-  // Generate page_brief (always included)
-  const pageBriefResult = generatePageBrief(factpack);
-
-  const result: SnapshotCaptureOutput = {
-    snapshot_id: snapshot.snapshot_id,
-    url: snapshot.url,
-    title: snapshot.title,
-    node_count: snapshot.meta.node_count,
-    interactive_count: snapshot.meta.interactive_count,
-    page_brief: pageBriefResult.page_brief,
-    page_brief_tokens: pageBriefResult.page_brief_tokens,
-  };
-
-  // Only include factpack if explicitly requested
-  if (input.include_factpack) {
-    result.factpack = factpack;
-  }
-
-  // Only include nodes if explicitly requested
-  if (input.include_nodes) {
-    result.nodes = buildNodeSummary(snapshot);
-  }
-
-  return result;
-}
-
-/**
- * Click an element identified by node_id from a previous snapshot.
- *
- * @param rawInput - Click options (will be validated)
- * @returns Click result
- */
-export async function actionClick(rawInput: unknown): Promise<ActionClickOutput> {
-  const input = ActionClickInputSchema.parse(rawInput);
-  const session = getSessionManager();
-
-  // Resolve page_id (no auto-create for click)
-  const handle = resolveExistingPage(session, input.page_id);
-  const page_id = handle.page_id;
-
-  // Get snapshot for this page
-  const snapshot = snapshotStore.getByPageId(page_id);
-  if (!snapshot) {
-    throw new Error(`No snapshot for page ${page_id} - capture a snapshot first`);
-  }
-
-  // Find node in snapshot
-  const node = snapshot.nodes.find((n) => n.node_id === input.node_id);
-  if (!node) {
-    throw new Error(`Node ${input.node_id} not found in snapshot`);
-  }
-
-  // Click using CDP backendNodeId (guaranteed unique, avoids Playwright strict mode violation)
-  await clickByBackendNodeId(handle.cdp, node.backend_node_id);
-
-  return {
-    success: true,
-    node_id: input.node_id,
-    clicked_element: node.label,
-  };
-}
-
-/**
- * Get detailed information for specific node(s) from the current snapshot.
- * Use this when you need full node details (layout, state, attributes).
- *
- * @param rawInput - Node details request (will be validated)
- * @returns Full node details
- */
-export function getNodeDetails(rawInput: unknown): GetNodeDetailsOutput {
-  const input = GetNodeDetailsInputSchema.parse(rawInput);
-  const session = getSessionManager();
-
-  // Resolve page_id (no auto-create for read-only operation)
-  const handle = resolveExistingPage(session, input.page_id);
-  const page_id = handle.page_id;
-
-  // Get snapshot for this page
-  const snapshot = snapshotStore.getByPageId(page_id);
-  if (!snapshot) {
-    throw new Error(`No snapshot for page ${page_id} - navigate to a page first`);
-  }
-
-  // Find the node
-  const node = snapshot.nodes.find((n) => n.node_id === input.node_id);
-
-  if (!node) {
-    return {
-      page_id,
-      snapshot_id: snapshot.snapshot_id,
-      nodes: [],
-      not_found: [input.node_id],
-    };
-  }
-
-  // Build full node details
-  const details: NodeDetails = {
-    node_id: node.node_id,
-    backend_node_id: node.backend_node_id,
-    kind: node.kind,
-    label: node.label,
-    where: {
-      region: node.where.region,
-      group_id: node.where.group_id,
-      group_path: node.where.group_path,
-      heading_context: node.where.heading_context,
-    },
-    layout: {
-      bbox: node.layout.bbox,
-      display: node.layout.display,
-      screen_zone: node.layout.screen_zone,
-    },
-  };
-
-  // Add optional state if present
-  if (node.state) {
-    details.state = {
-      visible: node.state.visible,
-      enabled: node.state.enabled,
-      checked: node.state.checked,
-      expanded: node.state.expanded,
-      selected: node.state.selected,
-      focused: node.state.focused,
-      required: node.state.required,
-      invalid: node.state.invalid,
-      readonly: node.state.readonly,
-    };
-  }
-
-  // Add optional find if present
-  if (node.find) {
-    details.find = {
-      primary: node.find.primary,
-      alternates: node.find.alternates,
-    };
-  }
-
-  // Add optional attributes if present
-  if (node.attributes) {
-    details.attributes = {
-      input_type: node.attributes.input_type,
-      placeholder: node.attributes.placeholder,
-      value: node.attributes.value,
-      href: node.attributes.href,
-      alt: node.attributes.alt,
-      src: node.attributes.src,
-      heading_level: node.attributes.heading_level,
-      action: node.attributes.action,
-      method: node.attributes.method,
-      autocomplete: node.attributes.autocomplete,
-      role: node.attributes.role,
-      test_id: node.attributes.test_id,
-    };
-  }
-
-  return {
-    page_id,
-    snapshot_id: snapshot.snapshot_id,
-    nodes: [details],
-  };
-}
-
-/**
- * Find elements in a snapshot using semantic filters.
- * Supports filtering by kind, label, region, state, group_id, and heading_context.
- *
- * @param rawInput - Query filters (will be validated)
- * @returns Matched nodes with query statistics
- */
-export function findElements(rawInput: unknown): FindElementsOutput {
-  const input = FindElementsInputSchema.parse(rawInput);
-  const session = getSessionManager();
-
-  // Resolve page_id (no auto-create for query)
-  const handle = resolveExistingPage(session, input.page_id);
-  const page_id = handle.page_id;
-
-  // Get snapshot for this page
-  const snapshot = snapshotStore.getByPageId(page_id);
-  if (!snapshot) {
-    throw new Error(`No snapshot for page ${page_id} - capture a snapshot first`);
-  }
-
-  // Build query request from input
-  const request: FindElementsRequest = {
-    limit: input.limit,
-  };
-
-  // Cast kind to NodeKind type (schema validates string format)
-  if (input.kind !== undefined) {
-    request.kind = input.kind as NodeKind | NodeKind[];
-  }
-
-  // Label can be string or LabelFilter
-  if (input.label !== undefined) {
-    request.label = input.label;
-  }
-
-  // Cast region to SemanticRegion type (schema validates string format)
-  if (input.region !== undefined) {
-    request.region = input.region as SemanticRegion | SemanticRegion[];
-  }
-
-  // State constraints
-  if (input.state !== undefined) {
-    request.state = input.state;
-  }
-
-  // Group ID (exact match)
-  if (input.group_id !== undefined) {
-    request.group_id = input.group_id;
-  }
-
-  // Heading context (exact match)
-  if (input.heading_context !== undefined) {
-    request.heading_context = input.heading_context;
-  }
-
-  // New options: min_score, sort_by_relevance, include_suggestions
-  if (input.min_score !== undefined) {
-    request.min_score = input.min_score;
-  }
-  if (input.sort_by_relevance !== undefined) {
-    request.sort_by_relevance = input.sort_by_relevance;
-  }
-  if (input.include_suggestions !== undefined) {
-    request.include_suggestions = input.include_suggestions;
-  }
-
-  // Create query engine and execute query
-  const engine = new QueryEngine(snapshot);
-  const response = engine.find(request);
-
-  // Build output with simplified node info (including relevance)
-  const matches = response.matches.map((m) => ({
-    node_id: m.node.node_id,
-    backend_node_id: m.node.backend_node_id,
-    kind: m.node.kind,
-    label: m.node.label,
-    selector: m.node.find?.primary ?? '',
-    region: m.node.where.region,
-    group_id: m.node.where.group_id,
-    heading_context: m.node.where.heading_context,
-    relevance: m.relevance,
-  }));
-
-  return {
-    page_id,
-    snapshot_id: snapshot.snapshot_id,
-    matches,
-    stats: response.stats,
-    suggestions: response.suggestions,
-  };
-}
-
-/**
- * Get FactPack for an existing snapshot.
- * Useful for re-analyzing with different options or getting fresh semantic analysis
- * without re-capturing the page.
- *
- * @param rawInput - FactPack request options (will be validated)
- * @returns FactPack extraction result
- */
-export function getFactPack(rawInput: unknown): GetFactPackOutput {
-  const input = GetFactPackInputSchema.parse(rawInput);
-  const session = getSessionManager();
-
-  // Resolve page_id (no auto-create for FactPack extraction)
-  const handle = resolveExistingPage(session, input.page_id);
-  const page_id = handle.page_id;
-
-  // Get snapshot (by ID or latest for page)
-  let snapshot: BaseSnapshot | undefined;
-  if (input.snapshot_id) {
-    snapshot = snapshotStore.get(input.snapshot_id);
-    if (!snapshot) {
-      throw new Error(`Snapshot not found: ${input.snapshot_id}`);
-    }
-  } else {
-    snapshot = snapshotStore.getByPageId(page_id);
-    if (!snapshot) {
-      throw new Error(`No snapshot for page ${page_id} - navigate to a page first`);
-    }
-  }
-
-  // Extract FactPack with options
-  const options: FactPackOptions = {
-    max_actions: input.max_actions,
-    min_action_score: input.min_action_score,
-    include_disabled_fields: input.include_disabled_fields,
-  };
-  const factpack = extractFactPack(snapshot, options);
-
-  const result: GetFactPackOutput = {
-    page_id,
-    snapshot_id: snapshot.snapshot_id,
-    factpack,
-  };
-
-  // Include page_brief if requested
-  if (input.include_page_brief) {
-    const pageBriefResult = generatePageBrief(factpack);
-    result.page_brief = pageBriefResult.page_brief;
-    result.page_brief_tokens = pageBriefResult.page_brief_tokens;
-  }
-
-  return result;
-}
-
-// ============================================================================
-// NEW SIMPLIFIED API - Tool handlers with simple verb names
-// ============================================================================
-
-/**
- * Open browser session (launch or connect).
- * Simplified version of browserLaunch with minimal options.
- *
- * @param rawInput - Open options (will be validated)
- * @returns Page info with snapshot data
- */
-export async function open(rawInput: unknown): Promise<OpenOutput> {
-  const input = OpenInputSchema.parse(rawInput);
-  const session = getSessionManager();
-
-  let handle;
-  let mode: 'launched' | 'connected';
-
-  if (input.connect_to) {
-    await session.connect({ endpointUrl: input.connect_to });
-    // Try to adopt existing page, or create one if none exist
-    // Use try-catch to handle race condition where page count changes between check and adopt
-    try {
-      if (session.getPageCount() > 0) {
-        handle = await session.adoptPage(0);
-      } else {
-        handle = await session.createPage();
-      }
-    } catch (error) {
-      // If adoptPage fails due to race condition (pages changed), create new page
-      if (error instanceof Error && error.message.includes('Invalid page index')) {
-        handle = await session.createPage();
-      } else {
-        throw error;
-      }
-    }
-    mode = 'connected';
-  } else {
-    await session.launch({ headless: input.headless });
-    handle = await session.createPage();
-    mode = 'launched';
-  }
-
-  // Auto-capture snapshot
-  const snapshot = await compileSnapshot(handle.cdp, handle.page, handle.page_id);
-  snapshotStore.store(handle.page_id, snapshot);
-
-  // Extract FactPack and generate page_brief
-  const factpack = extractFactPack(snapshot);
-  const pageBriefResult = generatePageBrief(factpack);
-
-  return {
-    page_id: handle.page_id,
-    url: handle.url ?? handle.page.url(),
-    title: await handle.page.title(),
-    mode,
-    snapshot_id: snapshot.snapshot_id,
-    node_count: snapshot.meta.node_count,
-    interactive_count: snapshot.meta.interactive_count,
-    page_brief: pageBriefResult.page_brief,
-    page_brief_tokens: pageBriefResult.page_brief_tokens,
-  };
-}
-
-/**
- * Close browser session.
- *
- * @param rawInput - Close options (will be validated)
- * @returns Close result
- */
-export async function close(rawInput: unknown): Promise<CloseOutput> {
-  const input = CloseInputSchema.parse(rawInput);
-  const session = getSessionManager();
-
-  if (input.page_id) {
-    await session.closePage(input.page_id);
-    snapshotStore.removeByPageId(input.page_id);
-  } else {
-    await session.shutdown();
-    snapshotStore.clear();
-  }
-
-  return { closed: true };
-}
-
-/**
- * Navigate to URL or use browser history (back/forward/refresh).
+ * Go back in browser history.
  *
  * @param rawInput - Navigation options (will be validated)
  * @returns Navigation result with snapshot data
  */
-export async function goto(rawInput: unknown): Promise<GotoOutput> {
-  const input = GotoInputSchema.parse(rawInput);
+export async function goBack(rawInput: unknown): Promise<import('./tool-schemas.js').GoBackOutput> {
+  const input = GoBackInputSchema.parse(rawInput);
+  return executeNavigationAction(input.page_id, 'back');
+}
+
+/**
+ * Go forward in browser history.
+ *
+ * @param rawInput - Navigation options (will be validated)
+ * @returns Navigation result with snapshot data
+ */
+export async function goForward(
+  rawInput: unknown
+): Promise<import('./tool-schemas.js').GoForwardOutput> {
+  const input = GoForwardInputSchema.parse(rawInput);
+  return executeNavigationAction(input.page_id, 'forward');
+}
+
+/**
+ * Reload the current page.
+ *
+ * @param rawInput - Navigation options (will be validated)
+ * @returns Navigation result with snapshot data
+ */
+export async function reload(rawInput: unknown): Promise<import('./tool-schemas.js').ReloadOutput> {
+  const input = ReloadInputSchema.parse(rawInput);
+  return executeNavigationAction(input.page_id, 'reload');
+}
+
+/**
+ * Capture a fresh snapshot of the current page.
+ *
+ * @param rawInput - Capture options (will be validated)
+ * @returns Snapshot data for the current page
+ */
+export async function captureSnapshot(
+  rawInput: unknown
+): Promise<import('./tool-schemas.js').CaptureSnapshotOutput> {
+  const input = CaptureSnapshotInputSchema.parse(rawInput);
   const session = getSessionManager();
 
-  const handle = await session.resolvePageOrCreate(input.page_id);
+  let handle = resolveExistingPage(session, input.page_id);
   const page_id = handle.page_id;
-  session.touchPage(page_id);
 
-  // Navigate based on action type
-  if (input.back) {
-    await handle.page.goBack();
-  } else if (input.forward) {
-    await handle.page.goForward();
-  } else if (input.refresh) {
-    await handle.page.reload();
-  } else if (input.url) {
-    await session.navigateTo(page_id, input.url);
-  } else {
-    throw new Error('Must specify url, back, forward, or refresh');
-  }
-
-  // Auto-capture snapshot after navigation
-  const snapshot = await compileSnapshot(handle.cdp, handle.page, page_id);
+  const captureResult = await captureSnapshotWithRecovery(session, handle, page_id);
+  handle = captureResult.handle;
+  const snapshot = captureResult.snapshot;
   snapshotStore.store(page_id, snapshot);
 
-  // Extract FactPack and generate page_brief
-  const factpack = extractFactPack(snapshot);
-  const pageBriefResult = generatePageBrief(factpack);
-
-  return {
-    page_id,
-    url: handle.page.url(),
-    title: await handle.page.title(),
-    snapshot_id: snapshot.snapshot_id,
-    node_count: snapshot.meta.node_count,
-    interactive_count: snapshot.meta.interactive_count,
-    page_brief: pageBriefResult.page_brief,
-    page_brief_tokens: pageBriefResult.page_brief_tokens,
-  };
+  // Return XML state response directly
+  const stateManager = getStateManager(page_id);
+  return stateManager.generateResponse(snapshot);
 }
 
 /**
- * Capture/refresh page snapshot.
- * Simplified version of snapshotCapture.
+ * Find elements by semantic criteria.
  *
- * @param rawInput - Snapshot options (will be validated)
- * @returns Snapshot info
+ * @param rawInput - Query filters (will be validated)
+ * @returns Matched nodes
  */
-export async function snapshot(rawInput: unknown): Promise<SnapshotOutput> {
-  const input = SnapshotInputSchema.parse(rawInput);
-  const session = getSessionManager();
-
-  const handle = resolveExistingPage(session, input.page_id);
-  const page_id = handle.page_id;
-
-  const snap = await compileSnapshot(handle.cdp, handle.page, page_id);
-  snapshotStore.store(page_id, snap);
-
-  const factpack = extractFactPack(snap);
-  const pageBriefResult = generatePageBrief(factpack);
-
-  const result: SnapshotOutput = {
-    snapshot_id: snap.snapshot_id,
-    url: snap.url,
-    title: snap.title,
-    node_count: snap.meta.node_count,
-    interactive_count: snap.meta.interactive_count,
-    page_brief: pageBriefResult.page_brief,
-    page_brief_tokens: pageBriefResult.page_brief_tokens,
-  };
-
-  if (input.include_nodes) {
-    result.nodes = buildNodeSummary(snap);
-  }
-
-  return result;
-}
-
-/**
- * Find elements by criteria OR get specific node details.
- *
- * If node_id is provided, returns full details for that node (detail mode).
- * Otherwise, searches for elements matching the criteria (query mode).
- *
- * @param rawInput - Find options (will be validated)
- * @returns Matched nodes or node details
- */
-export function find(rawInput: unknown): FindOutput {
-  const input = FindInputSchema.parse(rawInput);
+export function findElements(rawInput: unknown): import('./tool-schemas.js').FindElementsOutput {
+  const input = FindElementsInputSchema.parse(rawInput);
   const session = getSessionManager();
 
   const handle = resolveExistingPage(session, input.page_id);
@@ -839,49 +578,7 @@ export function find(rawInput: unknown): FindOutput {
     throw new Error(`No snapshot for page ${page_id} - capture a snapshot first`);
   }
 
-  // Detail mode: get specific node
-  if (input.node_id) {
-    const node = snap.nodes.find((n) => n.node_id === input.node_id);
-    if (!node) {
-      throw new Error(`Node ${input.node_id} not found in snapshot`);
-    }
-
-    const details: NodeDetails = {
-      node_id: node.node_id,
-      backend_node_id: node.backend_node_id,
-      kind: node.kind,
-      label: node.label,
-      where: {
-        region: node.where.region,
-        group_id: node.where.group_id,
-        group_path: node.where.group_path,
-        heading_context: node.where.heading_context,
-      },
-      layout: {
-        bbox: node.layout.bbox,
-        display: node.layout.display,
-        screen_zone: node.layout.screen_zone,
-      },
-    };
-
-    if (node.state) {
-      details.state = { ...node.state };
-    }
-    if (node.find) {
-      details.find = { primary: node.find.primary, alternates: node.find.alternates };
-    }
-    if (node.attributes) {
-      details.attributes = { ...node.attributes };
-    }
-
-    return {
-      page_id,
-      snapshot_id: snap.snapshot_id,
-      node: details,
-    };
-  }
-
-  // Query mode: find matching elements
+  // Build query request from input
   const request: FindElementsRequest = {
     limit: input.limit,
   };
@@ -899,230 +596,340 @@ export function find(rawInput: unknown): FindOutput {
   const engine = new QueryEngine(snap);
   const response = engine.find(request);
 
-  const matches = response.matches.map((m) => ({
-    node_id: m.node.node_id,
-    backend_node_id: m.node.backend_node_id,
-    kind: m.node.kind,
-    label: m.node.label,
-    selector: m.node.find?.primary ?? '',
-    region: m.node.where.region,
-  }));
+  // Get registry and state manager for EID lookup
+  const stateManager = getStateManager(page_id);
+  const registry = stateManager.getElementRegistry();
+  const activeLayer = stateManager.getActiveLayer();
 
-  return {
-    page_id,
-    snapshot_id: snap.snapshot_id,
-    matches,
+  const matches: FindElementsMatch[] = response.matches.map((m) => {
+    // Check if this is a readable/structural (non-interactive) node
+    const isNonInteractive = isReadableNode(m.node) || isStructuralNode(m.node);
+
+    // Look up EID from registry (for interactive nodes)
+    const registryEid = registry.getEidBySnapshotAndBackendNodeId(
+      snap.snapshot_id,
+      m.node.backend_node_id
+    );
+
+    // Determine EID:
+    // - Interactive nodes: use registry EID
+    // - Non-interactive nodes with include_readable: compute rd-* ID on-demand
+    // - Non-interactive nodes without include_readable: use unknown-* fallback
+    let eid: string;
+    if (registryEid) {
+      eid = registryEid;
+    } else if (isNonInteractive && input.include_readable) {
+      // Compute on-demand semantic ID for readable content with rd- prefix
+      eid = `rd-${computeEid(m.node, activeLayer).substring(0, 10)}`;
+    } else {
+      eid = `unknown-${m.node.backend_node_id}`;
+    }
+
+    const match: FindElementsMatch = {
+      eid,
+      kind: m.node.kind,
+      label: m.node.label,
+      selector: m.node.find?.primary ?? '',
+      region: m.node.where.region,
+    };
+
+    // Include state if present (type-safe assignment via NodeState interface)
+    if (m.node.state) {
+      match.state = m.node.state;
+    }
+
+    // Include attributes if present (filter to common ones)
+    if (m.node.attributes) {
+      const attrs: Record<string, string> = {};
+      if (m.node.attributes.input_type) attrs.input_type = m.node.attributes.input_type;
+      if (m.node.attributes.placeholder) attrs.placeholder = m.node.attributes.placeholder;
+      if (m.node.attributes.value) attrs.value = m.node.attributes.value;
+      if (m.node.attributes.href) attrs.href = m.node.attributes.href;
+      if (m.node.attributes.alt) attrs.alt = m.node.attributes.alt;
+      if (m.node.attributes.src) attrs.src = m.node.attributes.src;
+      if (Object.keys(attrs).length > 0) {
+        match.attributes = attrs;
+      }
+    }
+
+    return match;
+  });
+
+  return buildFindElementsResponse(page_id, snap.snapshot_id, matches);
+}
+
+/**
+ * Get full details for a specific node.
+ *
+ * @param rawInput - Node details request (will be validated)
+ * @returns Full node details
+ */
+export function getNodeDetails(
+  rawInput: unknown
+): import('./tool-schemas.js').GetNodeDetailsOutput {
+  const input = GetNodeDetailsInputSchema.parse(rawInput);
+  const session = getSessionManager();
+
+  const handle = resolveExistingPage(session, input.page_id);
+  const page_id = handle.page_id;
+
+  const snap = snapshotStore.getByPageId(page_id);
+  if (!snap) {
+    throw new Error(`No snapshot for page ${page_id} - capture a snapshot first`);
+  }
+
+  // Look up element by EID from registry
+  const stateManager = getStateManager(page_id);
+  const elementRef = stateManager.getElementRegistry().getByEid(input.eid);
+  if (!elementRef) {
+    throw new Error(`Element with eid ${input.eid} not found in registry`);
+  }
+
+  // Find the node by backend_node_id
+  const node = snap.nodes.find((n) => n.backend_node_id === elementRef.ref.backend_node_id);
+  if (!node) {
+    throw new Error(`Element with eid ${input.eid} has stale reference`);
+  }
+
+  const details: NodeDetails = {
+    eid: input.eid,
+    kind: node.kind,
+    label: node.label,
+    where: {
+      region: node.where.region,
+      group_id: node.where.group_id,
+      group_path: node.where.group_path,
+      heading_context: node.where.heading_context,
+    },
+    layout: {
+      bbox: node.layout.bbox,
+      display: node.layout.display,
+      screen_zone: node.layout.screen_zone,
+    },
   };
+
+  if (node.state) {
+    details.state = { ...node.state };
+  }
+  if (node.find) {
+    details.find = { primary: node.find.primary, alternates: node.find.alternates };
+  }
+  if (node.attributes) {
+    details.attributes = { ...node.attributes };
+  }
+
+  return buildGetNodeDetailsResponse(page_id, snap.snapshot_id, details);
+}
+
+/**
+ * Scroll an element into view.
+ *
+ * @param rawInput - Scroll options (will be validated)
+ * @returns Scroll result with delta
+ */
+export async function scrollElementIntoView(
+  rawInput: unknown
+): Promise<import('./tool-schemas.js').ScrollElementIntoViewOutput> {
+  const input = ScrollElementIntoViewInputSchema.parse(rawInput);
+  const { handleRef, pageId, captureSnapshot } = await prepareActionContext(input.page_id);
+
+  const snap = requireSnapshot(pageId);
+  const node = resolveElementByEid(pageId, input.eid, snap);
+
+  // Execute action with automatic retry on stale elements
+  const result = await executeActionWithRetry(
+    handleRef.current,
+    node,
+    async (backendNodeId) => {
+      await scrollIntoView(handleRef.current.cdp, backendNodeId);
+    },
+    snapshotStore,
+    captureSnapshot
+  );
+
+  // Store snapshot for future queries
+  snapshotStore.store(pageId, result.snapshot);
+
+  // Return XML state response directly
+  return result.state_response;
+}
+
+/**
+ * Scroll the page up or down.
+ *
+ * @param rawInput - Scroll options (will be validated)
+ * @returns Scroll result with delta
+ */
+export async function scrollPage(
+  rawInput: unknown
+): Promise<import('./tool-schemas.js').ScrollPageOutput> {
+  const input = ScrollPageInputSchema.parse(rawInput);
+  const { handleRef, pageId, captureSnapshot } = await prepareActionContext(input.page_id);
+
+  // Execute action with new simplified wrapper
+  const result = await executeAction(
+    handleRef.current,
+    async () => {
+      await scrollPageByAmount(handleRef.current.cdp, input.direction, input.amount);
+    },
+    captureSnapshot
+  );
+
+  // Store snapshot for future queries
+  snapshotStore.store(pageId, result.snapshot);
+
+  // Return XML state response directly
+  return result.state_response;
 }
 
 /**
  * Click an element.
  *
  * @param rawInput - Click options (will be validated)
- * @returns Click result
+ * @returns Click result with navigation-aware outcome
  */
-export async function click(rawInput: unknown): Promise<ClickOutput> {
+export async function click(rawInput: unknown): Promise<import('./tool-schemas.js').ClickOutput> {
   const input = ClickInputSchema.parse(rawInput);
-  const session = getSessionManager();
+  const { handleRef, pageId, captureSnapshot } = await prepareActionContext(input.page_id);
 
-  const handle = resolveExistingPage(session, input.page_id);
-  const page_id = handle.page_id;
+  const snap = requireSnapshot(pageId);
+  const node = resolveElementByEid(pageId, input.eid, snap);
 
-  const snap = snapshotStore.getByPageId(page_id);
-  if (!snap) {
-    throw new Error(`No snapshot for page ${page_id} - capture a snapshot first`);
-  }
+  // Execute action with navigation-aware outcome detection
+  const result = await executeActionWithOutcome(
+    handleRef.current,
+    node,
+    async (backendNodeId) => {
+      await clickByBackendNodeId(handleRef.current.cdp, backendNodeId);
+    },
+    snapshotStore,
+    captureSnapshot
+  );
 
-  const node = snap.nodes.find((n) => n.node_id === input.node_id);
-  if (!node) {
-    throw new Error(`Node ${input.node_id} not found in snapshot`);
-  }
+  // Store snapshot for future queries
+  snapshotStore.store(pageId, result.snapshot);
 
-  await clickByBackendNodeId(handle.cdp, node.backend_node_id);
-
-  return {
-    success: true,
-    node_id: input.node_id,
-    clicked_element: node.label,
-  };
+  // Return XML state response directly
+  return result.state_response;
 }
 
 /**
  * Type text into an element.
  *
  * @param rawInput - Type options (will be validated)
- * @returns Type result
+ * @returns Type result with delta
  */
-export async function type(rawInput: unknown): Promise<TypeOutput> {
+export async function type(rawInput: unknown): Promise<import('./tool-schemas.js').TypeOutput> {
   const input = TypeInputSchema.parse(rawInput);
-  const session = getSessionManager();
+  const { handleRef, pageId, captureSnapshot } = await prepareActionContext(input.page_id);
 
-  const handle = resolveExistingPage(session, input.page_id);
-  const page_id = handle.page_id;
+  const snap = requireSnapshot(pageId);
+  const node = resolveElementByEid(pageId, input.eid, snap);
 
-  let nodeLabel: string | undefined;
-  const nodeId = input.node_id;
+  // Execute action with automatic retry on stale elements
+  const result = await executeActionWithRetry(
+    handleRef.current,
+    node,
+    async (backendNodeId) => {
+      await typeByBackendNodeId(handleRef.current.cdp, backendNodeId, input.text, {
+        clear: input.clear,
+      });
+    },
+    snapshotStore,
+    captureSnapshot
+  );
 
-  // If node_id specified, click it first to focus
-  if (input.node_id) {
-    const snap = snapshotStore.getByPageId(page_id);
-    if (!snap) {
-      throw new Error(`No snapshot for page ${page_id} - capture a snapshot first`);
-    }
+  // Store snapshot for future queries
+  snapshotStore.store(pageId, result.snapshot);
 
-    const node = snap.nodes.find((n) => n.node_id === input.node_id);
-    if (!node) {
-      throw new Error(`Node ${input.node_id} not found in snapshot`);
-    }
-
-    nodeLabel = node.label;
-    await typeByBackendNodeId(handle.cdp, node.backend_node_id, input.text, { clear: input.clear });
-  } else {
-    // Type into currently focused element
-    if (input.clear) {
-      await clearFocusedText(handle.cdp);
-    }
-    await handle.cdp.send('Input.insertText', { text: input.text });
-  }
-
-  return {
-    success: true,
-    typed_text: input.text,
-    node_id: nodeId,
-    element_label: nodeLabel,
-  };
+  // Return XML state response directly
+  return result.state_response;
 }
 
 /**
- * Press a keyboard key.
+ * Press a keyboard key (no agent_version).
  *
  * @param rawInput - Press options (will be validated)
- * @returns Press result
+ * @returns Press result with delta
  */
-export async function press(rawInput: unknown): Promise<PressOutput> {
+export async function press(rawInput: unknown): Promise<import('./tool-schemas.js').PressOutput> {
   const input = PressInputSchema.parse(rawInput);
-  const session = getSessionManager();
+  const { handleRef, pageId, captureSnapshot } = await prepareActionContext(input.page_id);
 
-  const handle = resolveExistingPage(session, input.page_id);
+  // Execute action with new simplified wrapper
+  const result = await executeAction(
+    handleRef.current,
+    async () => {
+      await pressKey(handleRef.current.cdp, input.key, input.modifiers);
+    },
+    captureSnapshot
+  );
 
-  await pressKey(handle.cdp, input.key, input.modifiers);
+  // Store snapshot for future queries
+  snapshotStore.store(pageId, result.snapshot);
 
-  return {
-    success: true,
-    key: input.key,
-    modifiers: input.modifiers,
-  };
+  // Return XML state response directly
+  return result.state_response;
 }
 
 /**
  * Select a dropdown option.
  *
  * @param rawInput - Select options (will be validated)
- * @returns Select result
+ * @returns Select result with delta
  */
-export async function select(rawInput: unknown): Promise<SelectOutput> {
+export async function select(rawInput: unknown): Promise<import('./tool-schemas.js').SelectOutput> {
   const input = SelectInputSchema.parse(rawInput);
-  const session = getSessionManager();
+  const { handleRef, pageId, captureSnapshot } = await prepareActionContext(input.page_id);
 
-  const handle = resolveExistingPage(session, input.page_id);
-  const page_id = handle.page_id;
+  const snap = requireSnapshot(pageId);
+  const node = resolveElementByEid(pageId, input.eid, snap);
 
-  const snap = snapshotStore.getByPageId(page_id);
-  if (!snap) {
-    throw new Error(`No snapshot for page ${page_id} - capture a snapshot first`);
-  }
+  // Execute action with automatic retry on stale elements
+  const result = await executeActionWithRetry(
+    handleRef.current,
+    node,
+    async (backendNodeId) => {
+      await selectOption(handleRef.current.cdp, backendNodeId, input.value);
+    },
+    snapshotStore,
+    captureSnapshot
+  );
 
-  const node = snap.nodes.find((n) => n.node_id === input.node_id);
-  if (!node) {
-    throw new Error(`Node ${input.node_id} not found in snapshot`);
-  }
+  // Store snapshot for future queries
+  snapshotStore.store(pageId, result.snapshot);
 
-  const selectedText = await selectOption(handle.cdp, node.backend_node_id, input.value);
-
-  return {
-    success: true,
-    node_id: input.node_id,
-    selected_value: input.value,
-    selected_text: selectedText,
-  };
+  // Return XML state response directly
+  return result.state_response;
 }
 
 /**
  * Hover over an element.
  *
  * @param rawInput - Hover options (will be validated)
- * @returns Hover result
+ * @returns Hover result with delta
  */
-export async function hover(rawInput: unknown): Promise<HoverOutput> {
+export async function hover(rawInput: unknown): Promise<import('./tool-schemas.js').HoverOutput> {
   const input = HoverInputSchema.parse(rawInput);
-  const session = getSessionManager();
+  const { handleRef, pageId, captureSnapshot } = await prepareActionContext(input.page_id);
 
-  const handle = resolveExistingPage(session, input.page_id);
-  const page_id = handle.page_id;
+  const snap = requireSnapshot(pageId);
+  const node = resolveElementByEid(pageId, input.eid, snap);
 
-  const snap = snapshotStore.getByPageId(page_id);
-  if (!snap) {
-    throw new Error(`No snapshot for page ${page_id} - capture a snapshot first`);
-  }
+  // Execute action with automatic retry on stale elements
+  const result = await executeActionWithRetry(
+    handleRef.current,
+    node,
+    async (backendNodeId) => {
+      await hoverByBackendNodeId(handleRef.current.cdp, backendNodeId);
+    },
+    snapshotStore,
+    captureSnapshot
+  );
 
-  const node = snap.nodes.find((n) => n.node_id === input.node_id);
-  if (!node) {
-    throw new Error(`Node ${input.node_id} not found in snapshot`);
-  }
+  // Store snapshot for future queries
+  snapshotStore.store(pageId, result.snapshot);
 
-  await hoverByBackendNodeId(handle.cdp, node.backend_node_id);
-
-  return {
-    success: true,
-    node_id: input.node_id,
-    element_label: node.label,
-  };
-}
-
-/**
- * Scroll page or element into view.
- *
- * @param rawInput - Scroll options (will be validated)
- * @returns Scroll result
- */
-export async function scroll(rawInput: unknown): Promise<ScrollOutput> {
-  const input = ScrollInputSchema.parse(rawInput);
-  const session = getSessionManager();
-
-  const handle = resolveExistingPage(session, input.page_id);
-  const page_id = handle.page_id;
-
-  // Scroll element into view
-  if (input.node_id) {
-    const snap = snapshotStore.getByPageId(page_id);
-    if (!snap) {
-      throw new Error(`No snapshot for page ${page_id} - capture a snapshot first`);
-    }
-
-    const node = snap.nodes.find((n) => n.node_id === input.node_id);
-    if (!node) {
-      throw new Error(`Node ${input.node_id} not found in snapshot`);
-    }
-
-    await scrollIntoView(handle.cdp, node.backend_node_id);
-
-    return {
-      success: true,
-      scrolled: 'element',
-    };
-  }
-
-  // Scroll page
-  if (input.direction) {
-    await scrollPage(handle.cdp, input.direction, input.amount);
-
-    return {
-      success: true,
-      scrolled: 'page',
-      direction: input.direction,
-      amount: input.amount,
-    };
-  }
-
-  throw new Error('Must specify node_id or direction');
+  // Return XML state response directly
+  return result.state_response;
 }

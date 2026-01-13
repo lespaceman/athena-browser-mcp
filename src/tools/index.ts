@@ -4,123 +4,107 @@
  * Browser automation tools exposed via MCP protocol.
  */
 
-// Tool handlers - Legacy names (for backward compatibility during transition)
-export {
-  initializeTools,
-  getSnapshotStore,
-  browserLaunch,
-  browserNavigate,
-  browserClose,
-  snapshotCapture,
-  actionClick,
-  getNodeDetails,
-  findElements,
-  getFactPack,
-} from './browser-tools.js';
+export { initializeTools, getSnapshotStore } from './browser-tools.js';
 
-// Tool handlers - New simplified names
+// Tool handlers - Simplified API
 export {
-  open,
-  close,
-  goto,
-  snapshot,
-  find,
+  launchBrowser,
+  connectBrowser,
+  closePage,
+  closeSession,
+  navigate,
+  goBack,
+  goForward,
+  reload,
+  captureSnapshot,
+  findElements,
+  getNodeDetails,
+  scrollElementIntoView,
+  scrollPage,
   click,
   type,
   press,
   select,
   hover,
-  scroll,
 } from './browser-tools.js';
 
-// Schemas - Legacy (for backward compatibility during transition)
+// Schemas - Simplified API
 export {
-  // browser_launch
-  BrowserLaunchInputSchema,
-  BrowserLaunchOutputSchema,
-  type BrowserLaunchInput,
-  type BrowserLaunchOutput,
-  // browser_navigate
-  BrowserNavigateInputSchema,
-  BrowserNavigateOutputSchema,
-  type BrowserNavigateInput,
-  type BrowserNavigateOutput,
-  // browser_close
-  BrowserCloseInputSchema,
-  BrowserCloseOutputSchema,
-  type BrowserCloseInput,
-  type BrowserCloseOutput,
-  // snapshot_capture
-  SnapshotCaptureInputSchema,
-  SnapshotCaptureOutputSchema,
-  NodeSummarySchema,
-  type SnapshotCaptureInput,
-  type SnapshotCaptureOutput,
-  type NodeSummary,
-  // action_click
-  ActionClickInputSchema,
-  ActionClickOutputSchema,
-  type ActionClickInput,
-  type ActionClickOutput,
-  // get_node_details
-  GetNodeDetailsInputSchema,
-  GetNodeDetailsOutputSchema,
-  NodeDetailsSchema,
-  type GetNodeDetailsInput,
-  type GetNodeDetailsOutput,
-  type NodeDetails,
+  // launch_browser
+  LaunchBrowserInputSchema,
+  LaunchBrowserOutputSchema,
+  type LaunchBrowserInput,
+  type LaunchBrowserOutput,
+  // connect_browser
+  ConnectBrowserInputSchema,
+  ConnectBrowserOutputSchema,
+  type ConnectBrowserInput,
+  type ConnectBrowserOutput,
+  // close_page
+  ClosePageInputSchema,
+  ClosePageOutputSchema,
+  type ClosePageInput,
+  type ClosePageOutput,
+  // close_session
+  CloseSessionInputSchema,
+  CloseSessionOutputSchema,
+  type CloseSessionInput,
+  type CloseSessionOutput,
+  // navigate
+  NavigateInputSchema,
+  NavigateOutputSchema,
+  type NavigateInput,
+  type NavigateOutput,
+  // go_back
+  GoBackInputSchema,
+  GoBackOutputSchema,
+  type GoBackInput,
+  type GoBackOutput,
+  // go_forward
+  GoForwardInputSchema,
+  GoForwardOutputSchema,
+  type GoForwardInput,
+  type GoForwardOutput,
+  // reload
+  ReloadInputSchema,
+  ReloadOutputSchema,
+  type ReloadInput,
+  type ReloadOutput,
+  // capture_snapshot
+  CaptureSnapshotInputSchema,
+  CaptureSnapshotOutputSchema,
+  type CaptureSnapshotInput,
+  type CaptureSnapshotOutput,
   // find_elements
   FindElementsInputSchema,
   FindElementsOutputSchema,
   type FindElementsInput,
   type FindElementsOutput,
-  // get_factpack
-  GetFactPackInputSchema,
-  GetFactPackOutputSchema,
-  type GetFactPackInput,
-  type GetFactPackOutput,
-  // FactPack schemas
-  FactPackOptionsSchema,
-  FactPackSchema,
-  type FactPackOptions,
-  type FactPackOutput,
-} from './tool-schemas.js';
-
-// Schemas - New simplified names
-export {
-  // open
-  OpenInputSchema,
-  OpenOutputSchema,
-  type OpenInput,
-  type OpenOutput,
-  // close
-  CloseInputSchema,
-  CloseOutputSchema,
-  type CloseInput,
-  type CloseOutput,
-  // goto
-  GotoInputSchemaBase,
-  GotoInputSchema,
-  GotoOutputSchema,
-  type GotoInput,
-  type GotoOutput,
-  // snapshot
-  SnapshotInputSchema,
-  SnapshotOutputSchema,
-  type SnapshotInput,
-  type SnapshotOutput,
-  // find
-  FindInputSchema,
-  FindOutputSchema,
-  type FindInput,
-  type FindOutput,
+  // get_node_details
+  GetNodeDetailsInputSchema,
+  GetNodeDetailsOutputSchema,
+  type GetNodeDetailsInput,
+  type GetNodeDetailsOutput,
+  // scroll_element_into_view
+  ScrollElementIntoViewInputSchema,
+  ScrollElementIntoViewInputSchemaBase,
+  ScrollElementIntoViewOutputSchema,
+  type ScrollElementIntoViewInput,
+  type ScrollElementIntoViewOutput,
+  // scroll_page
+  ScrollPageInputSchema,
+  ScrollPageOutputSchema,
+  type ScrollPageInput,
+  type ScrollPageOutput,
   // click
   ClickInputSchema,
+  ClickInputSchemaBase,
   ClickOutputSchema,
   type ClickInput,
   type ClickOutput,
   // type
   TypeInputSchema,
+  TypeInputSchemaBase,
   TypeOutputSchema,
   type TypeInput,
   type TypeOutput,
@@ -131,18 +115,14 @@ export {
   type PressOutput,
   // select
   SelectInputSchema,
+  SelectInputSchemaBase,
   SelectOutputSchema,
   type SelectInput,
   type SelectOutput,
   // hover
   HoverInputSchema,
+  HoverInputSchemaBase,
   HoverOutputSchema,
   type HoverInput,
   type HoverOutput,
-  // scroll
-  ScrollInputSchemaBase,
-  ScrollInputSchema,
-  ScrollOutputSchema,
-  type ScrollInput,
-  type ScrollOutput,
 } from './tool-schemas.js';

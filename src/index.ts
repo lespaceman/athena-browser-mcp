@@ -10,41 +10,44 @@ import { BrowserAutomationServer } from './server/mcp-server.js';
 import { SessionManager } from './browser/session-manager.js';
 import {
   initializeTools,
-  // New simplified tool handlers
-  open,
-  close,
-  goto,
-  snapshot,
-  find,
+  // Tool handlers
+  launchBrowser,
+  connectBrowser,
+  closePage,
+  closeSession,
+  navigate,
+  goBack,
+  goForward,
+  reload,
+  captureSnapshot,
+  findElements,
+  getNodeDetails,
+  scrollElementIntoView,
+  scrollPage,
   click,
   type,
   press,
   select,
   hover,
-  scroll,
-  // New simplified schemas
-  OpenInputSchema,
-  OpenOutputSchema,
-  CloseInputSchema,
-  CloseOutputSchema,
-  GotoInputSchemaBase,
-  GotoOutputSchema,
-  SnapshotInputSchema,
-  SnapshotOutputSchema,
-  FindInputSchema,
-  FindOutputSchema,
-  ClickInputSchema,
-  ClickOutputSchema,
-  TypeInputSchema,
-  TypeOutputSchema,
+  // Input schemas only (all outputs are XML strings now)
+  LaunchBrowserInputSchema,
+  ConnectBrowserInputSchema,
+  ClosePageInputSchema,
+  CloseSessionInputSchema,
+  NavigateInputSchema,
+  GoBackInputSchema,
+  GoForwardInputSchema,
+  ReloadInputSchema,
+  CaptureSnapshotInputSchema,
+  FindElementsInputSchema,
+  GetNodeDetailsInputSchema,
+  ScrollElementIntoViewInputSchemaBase,
+  ScrollPageInputSchema,
+  ClickInputSchemaBase,
+  TypeInputSchemaBase,
   PressInputSchema,
-  PressOutputSchema,
-  SelectInputSchema,
-  SelectOutputSchema,
-  HoverInputSchema,
-  HoverOutputSchema,
-  ScrollInputSchemaBase,
-  ScrollOutputSchema,
+  SelectInputSchemaBase,
+  HoverInputSchemaBase,
 } from './tools/index.js';
 
 // Singleton session manager (initialized lazily on first tool use)
@@ -79,31 +82,44 @@ function initializeServer(): BrowserAutomationServer {
   // ============================================================================
 
   server.registerTool(
-    'open',
+    'launch_browser',
     {
-      title: 'Open Browser',
-      description:
-        'Launch a new browser or connect to an existing one (e.g., Athena browser). ' +
-        'Returns page state with page_brief (compact XML) by default. ' +
-        'Use include_factpack: true for FactPack JSON with dialogs, forms, actions. ' +
-        'Use include_nodes: true for raw node list.',
-      inputSchema: OpenInputSchema.shape,
-      outputSchema: OpenOutputSchema.shape,
+      title: 'Launch Browser',
+      description: 'Launch a new browser instance and return the initial page snapshot.',
+      inputSchema: LaunchBrowserInputSchema.shape,
     },
-    open
+    launchBrowser
   );
 
   server.registerTool(
-    'close',
+    'connect_browser',
     {
-      title: 'Close Browser',
+      title: 'Connect Browser',
       description:
-        'Close a specific page or the entire browser session. ' +
-        'If page_id is omitted, closes the entire session.',
-      inputSchema: CloseInputSchema.shape,
-      outputSchema: CloseOutputSchema.shape,
+        'Connect to an existing browser instance via CDP. Defaults to the Athena CEF bridge endpoint.',
+      inputSchema: ConnectBrowserInputSchema.shape,
     },
-    close
+    connectBrowser
+  );
+
+  server.registerTool(
+    'close_page',
+    {
+      title: 'Close Page',
+      description: 'Close a specific page by page_id.',
+      inputSchema: ClosePageInputSchema.shape,
+    },
+    closePage
+  );
+
+  server.registerTool(
+    'close_session',
+    {
+      title: 'Close Session',
+      description: 'Close the entire browser session.',
+      inputSchema: CloseSessionInputSchema.shape,
+    },
+    closeSession
   );
 
   // ============================================================================
@@ -111,19 +127,53 @@ function initializeServer(): BrowserAutomationServer {
   // ============================================================================
 
   server.registerTool(
-    'goto',
+    'navigate',
     {
       title: 'Navigate',
-      description:
-        'Navigate a page: go to URL, back, forward, or refresh. ' +
-        'For URL navigation, provide { url: "https://..." }. ' +
-        'For history navigation, use { back: true } or { forward: true }. ' +
-        'For refresh, use { refresh: true }. ' +
-        'Returns page state after navigation.',
-      inputSchema: GotoInputSchemaBase.shape,
-      outputSchema: GotoOutputSchema.shape,
+      description: 'Navigate directly to a URL and return the new snapshot.',
+      inputSchema: NavigateInputSchema.shape,
     },
-    goto
+    navigate
+  );
+
+  server.registerTool(
+    'go_back',
+    {
+      title: 'Go Back',
+      description: 'Navigate back in browser history.',
+      inputSchema: GoBackInputSchema.shape,
+    },
+    goBack
+  );
+
+  server.registerTool(
+    'go_forward',
+    {
+      title: 'Go Forward',
+      description: 'Navigate forward in browser history.',
+      inputSchema: GoForwardInputSchema.shape,
+    },
+    goForward
+  );
+
+  server.registerTool(
+    'reload',
+    {
+      title: 'Reload',
+      description: 'Reload the current page and return the refreshed snapshot.',
+      inputSchema: ReloadInputSchema.shape,
+    },
+    reload
+  );
+
+  server.registerTool(
+    'capture_snapshot',
+    {
+      title: 'Capture Snapshot',
+      description: 'Capture a fresh snapshot of the current page.',
+      inputSchema: CaptureSnapshotInputSchema.shape,
+    },
+    captureSnapshot
   );
 
   // ============================================================================
@@ -131,32 +181,23 @@ function initializeServer(): BrowserAutomationServer {
   // ============================================================================
 
   server.registerTool(
-    'snapshot',
+    'find_elements',
     {
-      title: 'Capture Snapshot',
-      description:
-        'Capture a fresh snapshot of the page using CDP accessibility tree. ' +
-        'Returns page_brief (compact XML) by default. ' +
-        'Use include_factpack: true for FactPack JSON. ' +
-        'Use include_nodes: true for raw node list.',
-      inputSchema: SnapshotInputSchema.shape,
-      outputSchema: SnapshotOutputSchema.shape,
+      title: 'Find Elements',
+      description: 'Find elements by kind, label, or region in the current snapshot.',
+      inputSchema: FindElementsInputSchema.shape,
     },
-    snapshot
+    (input) => Promise.resolve(findElements(input))
   );
 
   server.registerTool(
-    'find',
+    'get_node_details',
     {
-      title: 'Find Elements',
-      description:
-        'Find elements in the current snapshot by semantic filters, OR get details for a specific node. ' +
-        'Query mode: filter by kind (button, link, input), label, region (header, footer, nav, main). ' +
-        'Detail mode: pass node_id to get full info including layout, state, and attributes.',
-      inputSchema: FindInputSchema.shape,
-      outputSchema: FindOutputSchema.shape,
+      title: 'Get Node Details',
+      description: 'Return full details for a single node_id.',
+      inputSchema: GetNodeDetailsInputSchema.shape,
     },
-    (input) => Promise.resolve(find(input))
+    (input) => Promise.resolve(getNodeDetails(input))
   );
 
   // ============================================================================
@@ -164,14 +205,31 @@ function initializeServer(): BrowserAutomationServer {
   // ============================================================================
 
   server.registerTool(
+    'scroll_element_into_view',
+    {
+      title: 'Scroll Element Into View',
+      description: 'Scroll a specific element into view and return a delta.',
+      inputSchema: ScrollElementIntoViewInputSchemaBase.shape,
+    },
+    scrollElementIntoView
+  );
+
+  server.registerTool(
+    'scroll_page',
+    {
+      title: 'Scroll Page',
+      description: 'Scroll the page up or down by a specified amount and return a delta.',
+      inputSchema: ScrollPageInputSchema.shape,
+    },
+    scrollPage
+  );
+
+  server.registerTool(
     'click',
     {
       title: 'Click Element',
-      description:
-        'Click an element by its node_id from a previous snapshot. ' +
-        'Uses CDP for reliable clicking with scrolling into view.',
-      inputSchema: ClickInputSchema.shape,
-      outputSchema: ClickOutputSchema.shape,
+      description: 'Click an element by eid (or node_id) with automatic delta reporting.',
+      inputSchema: ClickInputSchemaBase.shape,
     },
     click
   );
@@ -180,12 +238,8 @@ function initializeServer(): BrowserAutomationServer {
     'type',
     {
       title: 'Type Text',
-      description:
-        'Type text into an element. ' +
-        'If node_id is provided, clicks the element first to focus it. ' +
-        'Use clear: true to clear existing text before typing.',
-      inputSchema: TypeInputSchema.shape,
-      outputSchema: TypeOutputSchema.shape,
+      description: 'Type text into a specific element (by eid or node_id) with optional clearing.',
+      inputSchema: TypeInputSchemaBase.shape,
     },
     type
   );
@@ -194,13 +248,8 @@ function initializeServer(): BrowserAutomationServer {
     'press',
     {
       title: 'Press Key',
-      description:
-        'Press a keyboard key. ' +
-        'Supports: Enter, Tab, Escape, Backspace, Delete, Space, ' +
-        'ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Home, End, PageUp, PageDown. ' +
-        'Optional modifiers: Control, Shift, Alt, Meta.',
+      description: 'Press a keyboard key with optional modifiers.',
       inputSchema: PressInputSchema.shape,
-      outputSchema: PressOutputSchema.shape,
     },
     press
   );
@@ -209,11 +258,8 @@ function initializeServer(): BrowserAutomationServer {
     'select',
     {
       title: 'Select Option',
-      description:
-        'Select an option from a <select> dropdown element. ' +
-        'Provide the node_id of the select element and the value or visible text of the option.',
-      inputSchema: SelectInputSchema.shape,
-      outputSchema: SelectOutputSchema.shape,
+      description: 'Select an option from a <select> element (by eid or node_id) by value or text.',
+      inputSchema: SelectInputSchemaBase.shape,
     },
     select
   );
@@ -222,27 +268,10 @@ function initializeServer(): BrowserAutomationServer {
     'hover',
     {
       title: 'Hover Element',
-      description:
-        'Hover over an element to reveal menus or tooltips. ' +
-        'Scrolls the element into view and moves the mouse to its center.',
-      inputSchema: HoverInputSchema.shape,
-      outputSchema: HoverOutputSchema.shape,
+      description: 'Hover over an element by eid (or node_id) and return a delta.',
+      inputSchema: HoverInputSchemaBase.shape,
     },
     hover
-  );
-
-  server.registerTool(
-    'scroll',
-    {
-      title: 'Scroll',
-      description:
-        'Scroll the page or an element into view. ' +
-        'If node_id is provided, scrolls that element into view. ' +
-        'Otherwise, scrolls the page up or down by the specified amount.',
-      inputSchema: ScrollInputSchemaBase.shape,
-      outputSchema: ScrollOutputSchema.shape,
-    },
-    scroll
   );
 
   return server;

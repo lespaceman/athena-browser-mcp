@@ -599,54 +599,222 @@ Comprehensive test plan for all MCP tools with the new simplified API.
 
 ---
 
+## Suite 11: Advanced Scenarios
+
+### 11.1 Multi-page switching
+
+**Setup:** Open two different URLs in sequence.
+
+```json
+1. open { "headless": false }
+2. goto { "url": "https://example.com" }
+3. goto { "url": "https://google.com" }
+4. snapshot {}
+```
+
+**Verify:**
+
+- [ ] `page_state` reflects the most recent page
+- [ ] Multiple pages are active in the browser (if visible)
+
+### 11.2 Iframe interaction
+
+**Test Site:** https://the-internet.herokuapp.com/iframe
+
+```json
+1. goto { "url": "https://the-internet.herokuapp.com/iframe" }
+2. find { "kind": "text" }
+```
+
+**Verify:**
+
+- [ ] Elements inside IFrames are detected and interactable
+
+### 11.3 Checkboxes and Radio Buttons
+
+**Test Site:** https://the-internet.herokuapp.com/checkboxes
+
+```json
+1. goto { "url": "https://the-internet.herokuapp.com/checkboxes" }
+2. find { "kind": "checkbox" }
+3. click { "node_id": "<checkbox_id>" }
+```
+
+**Verify:**
+
+- [ ] Checkboxes are detected
+- [ ] `click` toggles the state
+
+### 11.4 Handling JS Alerts
+
+**Test Site:** https://the-internet.herokuapp.com/javascript_alerts
+
+```json
+1. goto { "url": "https://the-internet.herokuapp.com/javascript_alerts" }
+2. click { "node_id": "<alert_trigger_btn>" }
+3. Verify if snapshot captures alert state or if MCP provides a way to dismiss
+```
+
+**Verify:**
+
+- [ ] Browser doesn't hang on native dialogs
+- [ ] (If supported) Dialog info appears in `page_state`
+
+### 11.5 Dynamic Content loading
+
+**Test Site:** https://the-internet.herokuapp.com/dynamic_loading/1
+
+```json
+1. goto { "url": "https://the-internet.herokuapp.com/dynamic_loading/1" }
+2. click { "node_id": "<start_btn>" }
+3. snapshot {} // Wait and repeat until "Hello World!" appears
+```
+
+**Verify:**
+
+- [ ] `snapshot` eventually captures the dynamically loaded element
+
+### 11.6 Cookie Consent Popup (Multi-Frame)
+
+**Test Site:** https://www.economist.com (or any site with iframe-based cookie consent)
+
+```json
+1. connect_browser {} // Connect to existing Athena session
+2. navigate { "url": "https://www.economist.com" }
+3. find_elements { "label": "cookie" }
+4. click { "eid": "<manage_cookies_btn>" }
+5. capture_snapshot {}
+6. find_elements { "label": "accept" }
+7. click { "eid": "<accept_all_btn>" }
+```
+
+**Verify:**
+
+- [ ] Cookie consent dialog elements are detected (buttons, checkboxes, toggles)
+- [ ] Layer changes to `modal` when dialog opens
+- [ ] Internal iframe elements have valid eids (not `unknown-*`)
+- [ ] Can interact with dialog elements (Accept all, Reject all, individual toggles)
+- [ ] Layer returns to `main` after dialog dismissed
+- [ ] Works for common CMPs: OneTrust, TrustArc, Didomi, CookieBot
+
+**Technical Note:** This tests multi-frame accessibility extraction where the AX tree is fetched from both the main frame and iframe frames discovered during DOM extraction.
+
+### 11.7 Cookie Consent - Efficient Extraction Pattern
+
+**Test Site:** https://www.economist.com
+
+**Purpose:** Validate the optimized tool call pattern for cookie consent extraction.
+
+```
+1. launch_browser { "headless": false }
+2. navigate { "url": "https://www.economist.com" }
+3. find_elements { "label": "Manage cookies", "kind": "button" }
+4. click { "eid": "<from_step_3>" }
+5. Verify layer="modal" in response
+6. If modal closes: re-trigger find_elements + click (expected for "Manage" navigation)
+7. Parallel search: find_elements with label="advertising", "analytics", "marketing" (include_readable=true)
+8. Parallel search: find_elements with label="Accept", "Reject" (kind="button")
+9. Tab navigation: find_elements label="PURPOSES" → click, repeat for "FEATURES", "PARTNERS"
+10. close_session {}
+```
+
+**Verify:**
+
+- [ ] Total tool calls ≤ 20 for full extraction
+- [ ] No hardcoded eids used (all discovered via label search)
+- [ ] Toggles detected as `kind="switch"` (not checkbox)
+- [ ] `include_readable=true` returns descriptions in label field
+- [ ] Parallel searches executed in single message
+- [ ] Modal re-trigger works after "Manage" navigation closes modal
+
+**Anti-patterns to avoid:**
+
+- [ ] `get_node_details` on `rd-*` elements (will fail)
+- [ ] `region` filter for modal content (returns main page)
+- [ ] `scroll_page` for modal scrolling (scrolls main viewport)
+
+### 11.8 Cookie Consent - Enable Specific Non-Essential Cookies
+
+**Test Site:** https://www.economist.com
+
+**Goal:** Enable exactly 3 non-essential cookie purposes and save preferences.
+
+```
+1. launch_browser { "headless": false }
+2. navigate { "url": "https://www.economist.com" }
+3. Open cookie preferences
+4. Navigate to detailed purpose management
+5. Enable: "Create profiles for personalised advertising"
+6. Enable: "Measure advertising performance"
+7. Enable: "Analytics"
+8. Save preferences
+9. close_session {}
+```
+
+**Verify:**
+
+- [ ] Only 3 specified purposes enabled
+- [ ] Preferences saved successfully
+- [ ] Modal dismisses after save
+
+---
+
 ## Test Results
 
-| Suite | Test                  | Pass | Fail | Notes |
-| ----- | --------------------- | ---- | ---- | ----- |
-| 1     | 1.1 Open Visible      |      |      |       |
-| 1     | 1.2 Open Headless     |      |      |       |
-| 1     | 1.3 Open Connect      |      |      |       |
-| 1     | 1.4 Close Session     |      |      |       |
-| 1     | 1.5 Close Page        |      |      |       |
-| 2     | 2.1 Navigate URL      |      |      |       |
-| 2     | 2.2 Navigate Form     |      |      |       |
-| 2     | 2.3 Go Back           |      |      |       |
-| 2     | 2.4 Go Forward        |      |      |       |
-| 2     | 2.5 Refresh           |      |      |       |
-| 3     | 3.1 Snapshot          |      |      |       |
-| 3     | 3.2 Find Kind         |      |      |       |
-| 3     | 3.3 Find Label        |      |      |       |
-| 3     | 3.4 Find Region       |      |      |       |
-| 3     | 3.5 Find Combined     |      |      |       |
-| 4     | 4.1 Click             |      |      |       |
-| 4     | 4.2 Click Modal       |      |      |       |
-| 4     | 4.3 Click Invalid     |      |      |       |
-| 5     | 5.1 Type Input        |      |      |       |
-| 5     | 5.2 Type Focused      |      |      |       |
-| 5     | 5.3 Type Clear        |      |      |       |
-| 5     | 5.4 Type Special      |      |      |       |
-| 6     | 6.1 Press Enter       |      |      |       |
-| 6     | 6.2 Press Tab         |      |      |       |
-| 6     | 6.3 Press Escape      |      |      |       |
-| 6     | 6.4 Press Arrow       |      |      |       |
-| 6     | 6.5 Press Modifier    |      |      |       |
-| 6     | 6.6 Press Unknown     |      |      |       |
-| 7     | 7.1 Select Value      |      |      |       |
-| 7     | 7.2 Select Text       |      |      |       |
-| 7     | 7.3 Select Invalid    |      |      |       |
-| 7     | 7.4 Select Non-Select |      |      |       |
-| 8     | 8.1 Hover             |      |      |       |
-| 8     | 8.2 Hover Menu        |      |      |       |
-| 9     | 9.1 Scroll Element    |      |      |       |
-| 9     | 9.2 Scroll Down       |      |      |       |
-| 9     | 9.3 Scroll Up         |      |      |       |
-| 9     | 9.4 Scroll Amount     |      |      |       |
-| 10    | 10.1 Google Search    |      |      |       |
-| 10    | 10.2 Login Flow       |      |      |       |
-| 10    | 10.3 Form Dropdown    |      |      |       |
-| 10    | 10.4 Nav History      |      |      |       |
-| 10    | 10.5 Modal            |      |      |       |
-| 10    | 10.6 Scroll Interact  |      |      |       |
+| Suite | Test                   | Pass | Fail | Notes |
+| ----- | ---------------------- | ---- | ---- | ----- |
+| 1     | 1.1 Open Visible       |      |      |       |
+| 1     | 1.2 Open Headless      |      |      |       |
+| 1     | 1.3 Open Connect       |      |      |       |
+| 1     | 1.4 Close Session      |      |      |       |
+| 1     | 1.5 Close Page         |      |      |       |
+| 2     | 2.1 Navigate URL       |      |      |       |
+| 2     | 2.2 Navigate Form      |      |      |       |
+| 2     | 2.3 Go Back            |      |      |       |
+| 2     | 2.4 Go Forward         |      |      |       |
+| 2     | 2.5 Refresh            |      |      |       |
+| 3     | 3.1 Snapshot           |      |      |       |
+| 3     | 3.2 Find Kind          |      |      |       |
+| 3     | 3.3 Find Label         |      |      |       |
+| 3     | 3.4 Find Region        |      |      |       |
+| 3     | 3.5 Find Combined      |      |      |       |
+| 4     | 4.1 Click              |      |      |       |
+| 4     | 4.2 Click Modal        |      |      |       |
+| 4     | 4.3 Click Invalid      |      |      |       |
+| 5     | 5.1 Type Input         |      |      |       |
+| 5     | 5.2 Type Focused       |      |      |       |
+| 5     | 5.3 Type Clear         |      |      |       |
+| 5     | 5.4 Type Special       |      |      |       |
+| 6     | 6.1 Press Enter        |      |      |       |
+| 6     | 6.2 Press Tab          |      |      |       |
+| 6     | 6.3 Press Escape       |      |      |       |
+| 6     | 6.4 Press Arrow        |      |      |       |
+| 6     | 6.5 Press Modifier     |      |      |       |
+| 6     | 6.6 Press Unknown      |      |      |       |
+| 7     | 7.1 Select Value       |      |      |       |
+| 7     | 7.2 Select Text        |      |      |       |
+| 7     | 7.3 Select Invalid     |      |      |       |
+| 7     | 7.4 Select Non-Select  |      |      |       |
+| 8     | 8.1 Hover              |      |      |       |
+| 8     | 8.2 Hover Menu         |      |      |       |
+| 9     | 9.1 Scroll Element     |      |      |       |
+| 9     | 9.2 Scroll Down        |      |      |       |
+| 9     | 9.3 Scroll Up          |      |      |       |
+| 9     | 9.4 Scroll Amount      |      |      |       |
+| 10    | 10.1 Google Search     |      |      |       |
+| 10    | 10.2 Login Flow        |      |      |       |
+| 10    | 10.3 Form Dropdown     |      |      |       |
+| 10    | 10.4 Nav History       |      |      |       |
+| 10    | 10.5 Modal             |      |      |       |
+| 10    | 10.6 Scroll Interact   |      |      |       |
+| 11    | 11.1 Multi-page        |      |      |       |
+| 11    | 11.2 Iframe            |      |      |       |
+| 11    | 11.3 Checkbox/Radio    |      |      |       |
+| 11    | 11.4 JS Alerts         |      |      |       |
+| 11    | 11.5 Dynamic Content   |      |      |       |
+| 11    | 11.6 Cookie Consent    |      |      |       |
+| 11    | 11.7 Efficient Extract |      |      |       |
+| 11    | 11.8 Specific Cookies  |      |      |       |
 
 ---
 
@@ -654,7 +822,7 @@ Comprehensive test plan for all MCP tools with the new simplified API.
 
 After code changes:
 
-- [ ] All 10 suites pass
+- [ ] All 11 suites pass
 - [ ] Error messages are descriptive
 - [ ] No memory leaks (browser cleanup)
 - [ ] Headless mode works

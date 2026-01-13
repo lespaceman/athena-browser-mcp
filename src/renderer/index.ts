@@ -1,10 +1,10 @@
 /**
  * Renderer Module
  *
- * Exports for FactPack rendering to XML-compact format.
+ * Exports for FactPack rendering to XML format.
  */
 
-// Main renderer functions
+// XML renderer
 export {
   renderFactPackXml,
   renderFactPackXmlRaw,
