@@ -349,7 +349,7 @@ const DEFAULT_OPTIONS: Required<CompileOptions> = {
   max_nodes: 2000,
   timeout: 30000,
   redact_sensitive: true,
-  include_values: false,
+  include_values: true, // Enable value extraction with password redaction
   includeReadable: true,
   includeLayout: true,
 };

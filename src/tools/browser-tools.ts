@@ -14,15 +14,15 @@ import {
   selectOption,
   hoverByBackendNodeId,
   scrollIntoView,
-  scrollPage,
+  scrollPage as scrollPageByAmount,
 } from '../snapshot/index.js';
 import type { NodeDetails } from './tool-schemas.js';
 import { QueryEngine } from '../query/query-engine.js';
 import type { FindElementsRequest } from '../query/types/query.types.js';
 import type { NodeKind, SemanticRegion } from '../snapshot/snapshot.types.js';
 import { extractFactPack } from '../factpack/index.js';
-import { generatePageBrief } from '../renderer/index.js';
-import { executeWithDelta, extractDeltaFields, clearPageState } from '../delta/index.js';
+import { generatePageSummary } from '../renderer/index.js';
+import { executeAction, executeActionWithRetry } from './execute-action.js';
 
 // Module-level state
 let sessionManager: SessionManager | null = null;
@@ -81,7 +81,7 @@ function resolveExistingPage(
 }
 
 // ============================================================================
-// SIMPLIFIED V2 API - Tool handlers with clearer contracts
+// SIMPLIFIED API - Tool handlers with clearer contracts
 // ============================================================================
 
 /**
@@ -104,9 +104,9 @@ export async function launchBrowser(
   const snapshot = await compileSnapshot(handle.cdp, handle.page, handle.page_id);
   snapshotStore.store(handle.page_id, snapshot);
 
-  // Extract FactPack and generate page_brief
+  // Extract FactPack and generate page_summary
   const factpack = extractFactPack(snapshot);
-  const pageBriefResult = generatePageBrief(factpack);
+  const { page_summary, page_summary_tokens } = generatePageSummary(snapshot, factpack);
 
   return {
     session_id: 'default', // TODO: Track actual session ID
@@ -116,8 +116,8 @@ export async function launchBrowser(
     snapshot_id: snapshot.snapshot_id,
     node_count: snapshot.meta.node_count,
     interactive_count: snapshot.meta.interactive_count,
-    page_brief: pageBriefResult.page_brief,
-    page_brief_tokens: pageBriefResult.page_brief_tokens,
+    page_summary,
+    page_summary_tokens,
   };
 }
 
@@ -160,9 +160,9 @@ export async function connectBrowser(
   const snapshot = await compileSnapshot(handle.cdp, handle.page, handle.page_id);
   snapshotStore.store(handle.page_id, snapshot);
 
-  // Extract FactPack and generate page_brief
+  // Extract FactPack and generate page_summary
   const factpack = extractFactPack(snapshot);
-  const pageBriefResult = generatePageBrief(factpack);
+  const { page_summary, page_summary_tokens } = generatePageSummary(snapshot, factpack);
 
   return {
     session_id: 'default', // TODO: Track actual session ID
@@ -172,8 +172,8 @@ export async function connectBrowser(
     snapshot_id: snapshot.snapshot_id,
     node_count: snapshot.meta.node_count,
     interactive_count: snapshot.meta.interactive_count,
-    page_brief: pageBriefResult.page_brief,
-    page_brief_tokens: pageBriefResult.page_brief_tokens,
+    page_summary,
+    page_summary_tokens,
   };
 }
 
@@ -189,12 +189,6 @@ export async function closePage(
   const { ClosePageInputSchema } = await import('./tool-schemas.js');
   const input = ClosePageInputSchema.parse(rawInput);
   const session = getSessionManager();
-
-  // Clear delta state before closing page
-  const handle = session.resolvePage(input.page_id);
-  if (handle) {
-    clearPageState(handle.page);
-  }
 
   await session.closePage(input.page_id);
   snapshotStore.removeByPageId(input.page_id);
@@ -247,9 +241,9 @@ export async function navigate(
   const snapshot = await compileSnapshot(handle.cdp, handle.page, page_id);
   snapshotStore.store(page_id, snapshot);
 
-  // Extract FactPack and generate page_brief
+  // Extract FactPack and generate page_summary
   const factpack = extractFactPack(snapshot);
-  const pageBriefResult = generatePageBrief(factpack);
+  const { page_summary, page_summary_tokens } = generatePageSummary(snapshot, factpack);
 
   return {
     page_id,
@@ -258,8 +252,8 @@ export async function navigate(
     snapshot_id: snapshot.snapshot_id,
     node_count: snapshot.meta.node_count,
     interactive_count: snapshot.meta.interactive_count,
-    page_brief: pageBriefResult.page_brief,
-    page_brief_tokens: pageBriefResult.page_brief_tokens,
+    page_summary,
+    page_summary_tokens,
   };
 }
 
@@ -286,9 +280,9 @@ export async function goBack(
   const snapshot = await compileSnapshot(handle.cdp, handle.page, page_id);
   snapshotStore.store(page_id, snapshot);
 
-  // Extract FactPack and generate page_brief
+  // Extract FactPack and generate page_summary
   const factpack = extractFactPack(snapshot);
-  const pageBriefResult = generatePageBrief(factpack);
+  const { page_summary, page_summary_tokens } = generatePageSummary(snapshot, factpack);
 
   return {
     page_id,
@@ -297,8 +291,8 @@ export async function goBack(
     snapshot_id: snapshot.snapshot_id,
     node_count: snapshot.meta.node_count,
     interactive_count: snapshot.meta.interactive_count,
-    page_brief: pageBriefResult.page_brief,
-    page_brief_tokens: pageBriefResult.page_brief_tokens,
+    page_summary,
+    page_summary_tokens,
   };
 }
 
@@ -325,9 +319,9 @@ export async function goForward(
   const snapshot = await compileSnapshot(handle.cdp, handle.page, page_id);
   snapshotStore.store(page_id, snapshot);
 
-  // Extract FactPack and generate page_brief
+  // Extract FactPack and generate page_summary
   const factpack = extractFactPack(snapshot);
-  const pageBriefResult = generatePageBrief(factpack);
+  const { page_summary, page_summary_tokens } = generatePageSummary(snapshot, factpack);
 
   return {
     page_id,
@@ -336,8 +330,8 @@ export async function goForward(
     snapshot_id: snapshot.snapshot_id,
     node_count: snapshot.meta.node_count,
     interactive_count: snapshot.meta.interactive_count,
-    page_brief: pageBriefResult.page_brief,
-    page_brief_tokens: pageBriefResult.page_brief_tokens,
+    page_summary,
+    page_summary_tokens,
   };
 }
 
@@ -364,9 +358,9 @@ export async function reload(
   const snapshot = await compileSnapshot(handle.cdp, handle.page, page_id);
   snapshotStore.store(page_id, snapshot);
 
-  // Extract FactPack and generate page_brief
+  // Extract FactPack and generate page_summary
   const factpack = extractFactPack(snapshot);
-  const pageBriefResult = generatePageBrief(factpack);
+  const { page_summary, page_summary_tokens } = generatePageSummary(snapshot, factpack);
 
   return {
     page_id,
@@ -375,8 +369,42 @@ export async function reload(
     snapshot_id: snapshot.snapshot_id,
     node_count: snapshot.meta.node_count,
     interactive_count: snapshot.meta.interactive_count,
-    page_brief: pageBriefResult.page_brief,
-    page_brief_tokens: pageBriefResult.page_brief_tokens,
+    page_summary,
+    page_summary_tokens,
+  };
+}
+
+/**
+ * Capture a fresh snapshot of the current page.
+ *
+ * @param rawInput - Capture options (will be validated)
+ * @returns Snapshot data for the current page
+ */
+export async function captureSnapshot(
+  rawInput: unknown
+): Promise<import('./tool-schemas.js').CaptureSnapshotOutput> {
+  const { CaptureSnapshotInputSchema } = await import('./tool-schemas.js');
+  const input = CaptureSnapshotInputSchema.parse(rawInput);
+  const session = getSessionManager();
+
+  const handle = resolveExistingPage(session, input.page_id);
+  const page_id = handle.page_id;
+
+  const snapshot = await compileSnapshot(handle.cdp, handle.page, page_id);
+  snapshotStore.store(page_id, snapshot);
+
+  const factpack = extractFactPack(snapshot);
+  const { page_summary, page_summary_tokens } = generatePageSummary(snapshot, factpack);
+
+  return {
+    page_id,
+    url: handle.page.url(),
+    title: await handle.page.title(),
+    snapshot_id: snapshot.snapshot_id,
+    node_count: snapshot.meta.node_count,
+    interactive_count: snapshot.meta.interactive_count,
+    page_summary,
+    page_summary_tokens,
   };
 }
 
@@ -386,11 +414,11 @@ export async function reload(
  * @param rawInput - Query filters (will be validated)
  * @returns Matched nodes
  */
-export async function findElementsV2(
+export async function findElements(
   rawInput: unknown
-): Promise<import('./tool-schemas.js').FindElementsV2Output> {
-  const { FindElementsV2InputSchema } = await import('./tool-schemas.js');
-  const input = FindElementsV2InputSchema.parse(rawInput);
+): Promise<import('./tool-schemas.js').FindElementsOutput> {
+  const { FindElementsInputSchema } = await import('./tool-schemas.js');
+  const input = FindElementsInputSchema.parse(rawInput);
   const session = getSessionManager();
 
   const handle = resolveExistingPage(session, input.page_id);
@@ -419,14 +447,46 @@ export async function findElementsV2(
   const engine = new QueryEngine(snap);
   const response = engine.find(request);
 
-  const matches = response.matches.map((m) => ({
-    node_id: m.node.node_id,
-    backend_node_id: m.node.backend_node_id,
-    kind: m.node.kind,
-    label: m.node.label,
-    selector: m.node.find?.primary ?? '',
-    region: m.node.where.region,
-  }));
+  const matches = response.matches.map((m) => {
+    const match: {
+      node_id: string;
+      backend_node_id: number;
+      kind: string;
+      label: string;
+      selector: string;
+      region: string;
+      state?: Record<string, boolean | undefined>;
+      attributes?: Record<string, string>;
+    } = {
+      node_id: m.node.node_id,
+      backend_node_id: m.node.backend_node_id,
+      kind: m.node.kind,
+      label: m.node.label,
+      selector: m.node.find?.primary ?? '',
+      region: m.node.where.region,
+    };
+
+    // Include state if present
+    if (m.node.state) {
+      match.state = m.node.state as unknown as Record<string, boolean | undefined>;
+    }
+
+    // Include attributes if present (filter to common ones)
+    if (m.node.attributes) {
+      const attrs: Record<string, string> = {};
+      if (m.node.attributes.input_type) attrs.input_type = m.node.attributes.input_type;
+      if (m.node.attributes.placeholder) attrs.placeholder = m.node.attributes.placeholder;
+      if (m.node.attributes.value) attrs.value = m.node.attributes.value;
+      if (m.node.attributes.href) attrs.href = m.node.attributes.href;
+      if (m.node.attributes.alt) attrs.alt = m.node.attributes.alt;
+      if (m.node.attributes.src) attrs.src = m.node.attributes.src;
+      if (Object.keys(attrs).length > 0) {
+        match.attributes = attrs;
+      }
+    }
+
+    return match;
+  });
 
   return {
     page_id,
@@ -441,11 +501,11 @@ export async function findElementsV2(
  * @param rawInput - Node details request (will be validated)
  * @returns Full node details
  */
-export async function getNodeDetailsV2(
+export async function getNodeDetails(
   rawInput: unknown
-): Promise<import('./tool-schemas.js').GetNodeDetailsV2Output> {
-  const { GetNodeDetailsV2InputSchema } = await import('./tool-schemas.js');
-  const input = GetNodeDetailsV2InputSchema.parse(rawInput);
+): Promise<import('./tool-schemas.js').GetNodeDetailsOutput> {
+  const { GetNodeDetailsInputSchema } = await import('./tool-schemas.js');
+  const input = GetNodeDetailsInputSchema.parse(rawInput);
   const session = getSessionManager();
 
   const handle = resolveExistingPage(session, input.page_id);
@@ -522,25 +582,28 @@ export async function scrollElementIntoView(
     throw new Error(`Node ${input.node_id} not found in snapshot`);
   }
 
-  // Use executeWithDelta wrapper (no agent_version)
-  const deltaResult = await executeWithDelta(
+  // Execute action with automatic retry on stale elements
+  const result = await executeActionWithRetry(
     handle,
-    'scroll',
-    async () => {
-      await scrollIntoView(handle.cdp, node.backend_node_id);
+    node,
+    async (backendNodeId) => {
+      await scrollIntoView(handle.cdp, backendNodeId);
     },
-    'scroll',
-    undefined // No agent_version
+    snapshotStore
   );
 
-  const deltaFields = extractDeltaFields(deltaResult);
+  // Store snapshot for future queries
+  snapshotStore.store(page_id, result.snapshot);
 
   return {
-    success: !deltaResult.isError,
+    success: result.success,
     node_id: input.node_id,
-    version: deltaFields.version,
-    delta: deltaFields.delta,
-    response_type: deltaFields.response_type,
+    snapshot_id: result.snapshot_id,
+    node_count: result.node_count,
+    interactive_count: result.interactive_count,
+    page_summary: result.page_summary,
+    page_summary_tokens: result.page_summary_tokens,
+    error: result.error,
   };
 }
 
@@ -550,7 +613,7 @@ export async function scrollElementIntoView(
  * @param rawInput - Scroll options (will be validated)
  * @returns Scroll result with delta
  */
-export async function scrollPageV2(
+export async function scrollPage(
   rawInput: unknown
 ): Promise<import('./tool-schemas.js').ScrollPageOutput> {
   const { ScrollPageInputSchema } = await import('./tool-schemas.js');
@@ -558,41 +621,40 @@ export async function scrollPageV2(
   const session = getSessionManager();
 
   const handle = resolveExistingPage(session, input.page_id);
+  const page_id = handle.page_id;
 
-  // Use executeWithDelta wrapper (no agent_version)
-  const deltaResult = await executeWithDelta(
-    handle,
-    'scroll',
-    async () => {
-      await scrollPage(handle.cdp, input.direction, input.amount);
-    },
-    'scroll',
-    undefined // No agent_version
-  );
+  // Execute action with new simplified wrapper
+  const result = await executeAction(handle, async () => {
+    await scrollPageByAmount(handle.cdp, input.direction, input.amount);
+  });
 
-  const deltaFields = extractDeltaFields(deltaResult);
+  // Store snapshot for future queries
+  snapshotStore.store(page_id, result.snapshot);
 
   return {
-    success: !deltaResult.isError,
+    success: result.success,
     direction: input.direction,
     amount: input.amount ?? 500,
-    version: deltaFields.version,
-    delta: deltaFields.delta,
-    response_type: deltaFields.response_type,
+    snapshot_id: result.snapshot_id,
+    node_count: result.node_count,
+    interactive_count: result.interactive_count,
+    page_summary: result.page_summary,
+    page_summary_tokens: result.page_summary_tokens,
+    error: result.error,
   };
 }
 
 /**
- * Click an element (V2 - no agent_version).
+ * Click an element (no agent_version).
  *
  * @param rawInput - Click options (will be validated)
  * @returns Click result with delta
  */
-export async function clickV2(
+export async function click(
   rawInput: unknown
-): Promise<import('./tool-schemas.js').ClickV2Output> {
-  const { ClickV2InputSchema } = await import('./tool-schemas.js');
-  const input = ClickV2InputSchema.parse(rawInput);
+): Promise<import('./tool-schemas.js').ClickOutput> {
+  const { ClickInputSchema } = await import('./tool-schemas.js');
+  const input = ClickInputSchema.parse(rawInput);
   const session = getSessionManager();
 
   const handle = resolveExistingPage(session, input.page_id);
@@ -608,40 +670,43 @@ export async function clickV2(
     throw new Error(`Node ${input.node_id} not found in snapshot`);
   }
 
-  // Use executeWithDelta wrapper (no agent_version)
-  const deltaResult = await executeWithDelta(
+  // Execute action with automatic retry on stale elements
+  const result = await executeActionWithRetry(
     handle,
-    'click',
-    async () => {
-      await clickByBackendNodeId(handle.cdp, node.backend_node_id);
+    node,
+    async (backendNodeId) => {
+      await clickByBackendNodeId(handle.cdp, backendNodeId);
     },
-    'click',
-    undefined // No agent_version
+    snapshotStore
   );
 
-  const deltaFields = extractDeltaFields(deltaResult);
+  // Store snapshot for future queries
+  snapshotStore.store(page_id, result.snapshot);
 
   return {
-    success: !deltaResult.isError,
+    success: result.success,
     node_id: input.node_id,
     clicked_element: node.label,
-    version: deltaFields.version,
-    delta: deltaFields.delta,
-    response_type: deltaFields.response_type,
+    snapshot_id: result.snapshot_id,
+    node_count: result.node_count,
+    interactive_count: result.interactive_count,
+    page_summary: result.page_summary,
+    page_summary_tokens: result.page_summary_tokens,
+    error: result.error,
   };
 }
 
 /**
- * Type text into an element (V2 - node_id required, no agent_version).
+ * Type text into an element (node_id required, no agent_version).
  *
  * @param rawInput - Type options (will be validated)
  * @returns Type result with delta
  */
-export async function typeV2(
+export async function type(
   rawInput: unknown
-): Promise<import('./tool-schemas.js').TypeV2Output> {
-  const { TypeV2InputSchema } = await import('./tool-schemas.js');
-  const input = TypeV2InputSchema.parse(rawInput);
+): Promise<import('./tool-schemas.js').TypeOutput> {
+  const { TypeInputSchema } = await import('./tool-schemas.js');
+  const input = TypeInputSchema.parse(rawInput);
   const session = getSessionManager();
 
   const handle = resolveExistingPage(session, input.page_id);
@@ -657,79 +722,81 @@ export async function typeV2(
     throw new Error(`Node ${input.node_id} not found in snapshot`);
   }
 
-  // Use executeWithDelta wrapper (no agent_version)
-  const deltaResult = await executeWithDelta(
+  // Execute action with automatic retry on stale elements
+  const result = await executeActionWithRetry(
     handle,
-    'type',
-    async () => {
-      await typeByBackendNodeId(handle.cdp, node.backend_node_id, input.text, { clear: input.clear });
+    node,
+    async (backendNodeId) => {
+      await typeByBackendNodeId(handle.cdp, backendNodeId, input.text, { clear: input.clear });
     },
-    'type',
-    undefined // No agent_version
+    snapshotStore
   );
 
-  const deltaFields = extractDeltaFields(deltaResult);
+  // Store snapshot for future queries
+  snapshotStore.store(page_id, result.snapshot);
 
   return {
-    success: !deltaResult.isError,
+    success: result.success,
     typed_text: input.text,
     node_id: input.node_id,
     element_label: node.label,
-    version: deltaFields.version,
-    delta: deltaFields.delta,
-    response_type: deltaFields.response_type,
+    snapshot_id: result.snapshot_id,
+    node_count: result.node_count,
+    interactive_count: result.interactive_count,
+    page_summary: result.page_summary,
+    page_summary_tokens: result.page_summary_tokens,
+    error: result.error,
   };
 }
 
 /**
- * Press a keyboard key (V2 - no agent_version).
+ * Press a keyboard key (no agent_version).
  *
  * @param rawInput - Press options (will be validated)
  * @returns Press result with delta
  */
-export async function pressV2(
+export async function press(
   rawInput: unknown
-): Promise<import('./tool-schemas.js').PressV2Output> {
-  const { PressV2InputSchema } = await import('./tool-schemas.js');
-  const input = PressV2InputSchema.parse(rawInput);
+): Promise<import('./tool-schemas.js').PressOutput> {
+  const { PressInputSchema } = await import('./tool-schemas.js');
+  const input = PressInputSchema.parse(rawInput);
   const session = getSessionManager();
 
   const handle = resolveExistingPage(session, input.page_id);
+  const page_id = handle.page_id;
 
-  // Use executeWithDelta wrapper (no agent_version)
-  const deltaResult = await executeWithDelta(
-    handle,
-    'press',
-    async () => {
-      await pressKey(handle.cdp, input.key, input.modifiers);
-    },
-    'press',
-    undefined // No agent_version
-  );
+  // Execute action with new simplified wrapper
+  const result = await executeAction(handle, async () => {
+    await pressKey(handle.cdp, input.key, input.modifiers);
+  });
 
-  const deltaFields = extractDeltaFields(deltaResult);
+  // Store snapshot for future queries
+  snapshotStore.store(page_id, result.snapshot);
 
   return {
-    success: !deltaResult.isError,
+    success: result.success,
     key: input.key,
     modifiers: input.modifiers,
-    version: deltaFields.version,
-    delta: deltaFields.delta,
-    response_type: deltaFields.response_type,
+    snapshot_id: result.snapshot_id,
+    node_count: result.node_count,
+    interactive_count: result.interactive_count,
+    page_summary: result.page_summary,
+    page_summary_tokens: result.page_summary_tokens,
+    error: result.error,
   };
 }
 
 /**
- * Select a dropdown option (V2 - no agent_version).
+ * Select a dropdown option (no agent_version).
  *
  * @param rawInput - Select options (will be validated)
  * @returns Select result with delta
  */
-export async function selectV2(
+export async function select(
   rawInput: unknown
-): Promise<import('./tool-schemas.js').SelectV2Output> {
-  const { SelectV2InputSchema } = await import('./tool-schemas.js');
-  const input = SelectV2InputSchema.parse(rawInput);
+): Promise<import('./tool-schemas.js').SelectOutput> {
+  const { SelectInputSchema } = await import('./tool-schemas.js');
+  const input = SelectInputSchema.parse(rawInput);
   const session = getSessionManager();
 
   const handle = resolveExistingPage(session, input.page_id);
@@ -747,41 +814,44 @@ export async function selectV2(
 
   let selectedText = '';
 
-  // Use executeWithDelta wrapper (no agent_version)
-  const deltaResult = await executeWithDelta(
+  // Execute action with automatic retry on stale elements
+  const result = await executeActionWithRetry(
     handle,
-    'select',
-    async () => {
-      selectedText = await selectOption(handle.cdp, node.backend_node_id, input.value);
+    node,
+    async (backendNodeId) => {
+      selectedText = await selectOption(handle.cdp, backendNodeId, input.value);
     },
-    'select',
-    undefined // No agent_version
+    snapshotStore
   );
 
-  const deltaFields = extractDeltaFields(deltaResult);
+  // Store snapshot for future queries
+  snapshotStore.store(page_id, result.snapshot);
 
   return {
-    success: !deltaResult.isError,
+    success: result.success,
     node_id: input.node_id,
     selected_value: input.value,
     selected_text: selectedText,
-    version: deltaFields.version,
-    delta: deltaFields.delta,
-    response_type: deltaFields.response_type,
+    snapshot_id: result.snapshot_id,
+    node_count: result.node_count,
+    interactive_count: result.interactive_count,
+    page_summary: result.page_summary,
+    page_summary_tokens: result.page_summary_tokens,
+    error: result.error,
   };
 }
 
 /**
- * Hover over an element (V2 - no agent_version).
+ * Hover over an element (no agent_version).
  *
  * @param rawInput - Hover options (will be validated)
  * @returns Hover result with delta
  */
-export async function hoverV2(
+export async function hover(
   rawInput: unknown
-): Promise<import('./tool-schemas.js').HoverV2Output> {
-  const { HoverV2InputSchema } = await import('./tool-schemas.js');
-  const input = HoverV2InputSchema.parse(rawInput);
+): Promise<import('./tool-schemas.js').HoverOutput> {
+  const { HoverInputSchema } = await import('./tool-schemas.js');
+  const input = HoverInputSchema.parse(rawInput);
   const session = getSessionManager();
 
   const handle = resolveExistingPage(session, input.page_id);
@@ -797,25 +867,28 @@ export async function hoverV2(
     throw new Error(`Node ${input.node_id} not found in snapshot`);
   }
 
-  // Use executeWithDelta wrapper (no agent_version)
-  const deltaResult = await executeWithDelta(
+  // Execute action with automatic retry on stale elements
+  const result = await executeActionWithRetry(
     handle,
-    'hover',
-    async () => {
-      await hoverByBackendNodeId(handle.cdp, node.backend_node_id);
+    node,
+    async (backendNodeId) => {
+      await hoverByBackendNodeId(handle.cdp, backendNodeId);
     },
-    'hover',
-    undefined // No agent_version
+    snapshotStore
   );
 
-  const deltaFields = extractDeltaFields(deltaResult);
+  // Store snapshot for future queries
+  snapshotStore.store(page_id, result.snapshot);
 
   return {
-    success: !deltaResult.isError,
+    success: result.success,
     node_id: input.node_id,
     element_label: node.label,
-    version: deltaFields.version,
-    delta: deltaFields.delta,
-    response_type: deltaFields.response_type,
+    snapshot_id: result.snapshot_id,
+    node_count: result.node_count,
+    interactive_count: result.interactive_count,
+    page_summary: result.page_summary,
+    page_summary_tokens: result.page_summary_tokens,
+    error: result.error,
   };
 }

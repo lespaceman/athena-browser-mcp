@@ -1,10 +1,13 @@
 /**
  * Renderer Module
  *
- * Exports for FactPack rendering to XML-compact format.
+ * Exports for FactPack rendering to JSON and XML formats.
  */
 
-// Main renderer functions
+// JSON serializer (primary format)
+export { generatePageSummary, type PageSummary } from './json-serializer.js';
+
+// XML renderer (legacy - kept for backward compatibility)
 export {
   renderFactPackXml,
   renderFactPackXmlRaw,

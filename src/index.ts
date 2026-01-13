@@ -10,7 +10,7 @@ import { BrowserAutomationServer } from './server/mcp-server.js';
 import { SessionManager } from './browser/session-manager.js';
 import {
   initializeTools,
-  // V2 simplified tool handlers
+  // Simplified tool handlers
   launchBrowser,
   connectBrowser,
   closePage,
@@ -19,16 +19,17 @@ import {
   goBack,
   goForward,
   reload,
-  findElementsV2,
-  getNodeDetailsV2,
+  captureSnapshot,
+  findElements,
+  getNodeDetails,
   scrollElementIntoView,
-  scrollPageV2,
-  clickV2,
-  typeV2,
-  pressV2,
-  selectV2,
-  hoverV2,
-  // V2 simplified schemas
+  scrollPage,
+  click,
+  type,
+  press,
+  select,
+  hover,
+  // Simplified schemas
   LaunchBrowserInputSchema,
   LaunchBrowserOutputSchema,
   ConnectBrowserInputSchema,
@@ -45,24 +46,26 @@ import {
   GoForwardOutputSchema,
   ReloadInputSchema,
   ReloadOutputSchema,
-  FindElementsV2InputSchema,
-  FindElementsV2OutputSchema,
-  GetNodeDetailsV2InputSchema,
-  GetNodeDetailsV2OutputSchema,
+  CaptureSnapshotInputSchema,
+  CaptureSnapshotOutputSchema,
+  FindElementsInputSchema,
+  FindElementsOutputSchema,
+  GetNodeDetailsInputSchema,
+  GetNodeDetailsOutputSchema,
   ScrollElementIntoViewInputSchema,
   ScrollElementIntoViewOutputSchema,
   ScrollPageInputSchema,
   ScrollPageOutputSchema,
-  ClickV2InputSchema,
-  ClickV2OutputSchema,
-  TypeV2InputSchema,
-  TypeV2OutputSchema,
-  PressV2InputSchema,
-  PressV2OutputSchema,
-  SelectV2InputSchema,
-  SelectV2OutputSchema,
-  HoverV2InputSchema,
-  HoverV2OutputSchema,
+  ClickInputSchema,
+  ClickOutputSchema,
+  TypeInputSchema,
+  TypeOutputSchema,
+  PressInputSchema,
+  PressOutputSchema,
+  SelectInputSchema,
+  SelectOutputSchema,
+  HoverInputSchema,
+  HoverOutputSchema,
 } from './tools/index.js';
 
 // Singleton session manager (initialized lazily on first tool use)
@@ -93,13 +96,13 @@ function initializeServer(): BrowserAutomationServer {
   initializeTools(session);
 
   // ============================================================================
-  // V2 SESSION TOOLS
+  // SESSION TOOLS
   // ============================================================================
 
   server.registerTool(
     'launch_browser',
     {
-      title: 'Launch Browser (V2)',
+      title: 'Launch Browser',
       description: 'Launch a new browser instance and return the initial page snapshot.',
       inputSchema: LaunchBrowserInputSchema.shape,
       outputSchema: LaunchBrowserOutputSchema.shape,
@@ -110,7 +113,7 @@ function initializeServer(): BrowserAutomationServer {
   server.registerTool(
     'connect_browser',
     {
-      title: 'Connect Browser (V2)',
+      title: 'Connect Browser',
       description:
         'Connect to an existing browser instance via CDP. Defaults to the Athena CEF bridge endpoint.',
       inputSchema: ConnectBrowserInputSchema.shape,
@@ -122,7 +125,7 @@ function initializeServer(): BrowserAutomationServer {
   server.registerTool(
     'close_page',
     {
-      title: 'Close Page (V2)',
+      title: 'Close Page',
       description: 'Close a specific page by page_id.',
       inputSchema: ClosePageInputSchema.shape,
       outputSchema: ClosePageOutputSchema.shape,
@@ -133,7 +136,7 @@ function initializeServer(): BrowserAutomationServer {
   server.registerTool(
     'close_session',
     {
-      title: 'Close Session (V2)',
+      title: 'Close Session',
       description: 'Close the entire browser session.',
       inputSchema: CloseSessionInputSchema.shape,
       outputSchema: CloseSessionOutputSchema.shape,
@@ -142,13 +145,13 @@ function initializeServer(): BrowserAutomationServer {
   );
 
   // ============================================================================
-  // V2 NAVIGATION TOOLS
+  // NAVIGATION TOOLS
   // ============================================================================
 
   server.registerTool(
     'navigate',
     {
-      title: 'Navigate (V2)',
+      title: 'Navigate',
       description: 'Navigate directly to a URL and return the new snapshot.',
       inputSchema: NavigateInputSchema.shape,
       outputSchema: NavigateOutputSchema.shape,
@@ -159,7 +162,7 @@ function initializeServer(): BrowserAutomationServer {
   server.registerTool(
     'go_back',
     {
-      title: 'Go Back (V2)',
+      title: 'Go Back',
       description: 'Navigate back in browser history.',
       inputSchema: GoBackInputSchema.shape,
       outputSchema: GoBackOutputSchema.shape,
@@ -170,7 +173,7 @@ function initializeServer(): BrowserAutomationServer {
   server.registerTool(
     'go_forward',
     {
-      title: 'Go Forward (V2)',
+      title: 'Go Forward',
       description: 'Navigate forward in browser history.',
       inputSchema: GoForwardInputSchema.shape,
       outputSchema: GoForwardOutputSchema.shape,
@@ -181,7 +184,7 @@ function initializeServer(): BrowserAutomationServer {
   server.registerTool(
     'reload',
     {
-      title: 'Reload (V2)',
+      title: 'Reload',
       description: 'Reload the current page and return the refreshed snapshot.',
       inputSchema: ReloadInputSchema.shape,
       outputSchema: ReloadOutputSchema.shape,
@@ -189,40 +192,51 @@ function initializeServer(): BrowserAutomationServer {
     reload
   );
 
+  server.registerTool(
+    'capture_snapshot',
+    {
+      title: 'Capture Snapshot',
+      description: 'Capture a fresh snapshot of the current page.',
+      inputSchema: CaptureSnapshotInputSchema.shape,
+      outputSchema: CaptureSnapshotOutputSchema.shape,
+    },
+    captureSnapshot
+  );
+
   // ============================================================================
-  // V2 OBSERVATION TOOLS
+  // OBSERVATION TOOLS
   // ============================================================================
 
   server.registerTool(
-    'find_elements_v2',
+    'find_elements',
     {
-      title: 'Find Elements (V2)',
+      title: 'Find Elements',
       description: 'Find elements by kind, label, or region in the current snapshot.',
-      inputSchema: FindElementsV2InputSchema.shape,
-      outputSchema: FindElementsV2OutputSchema.shape,
+      inputSchema: FindElementsInputSchema.shape,
+      outputSchema: FindElementsOutputSchema.shape,
     },
-    findElementsV2
+    findElements
   );
 
   server.registerTool(
-    'get_node_details_v2',
+    'get_node_details',
     {
-      title: 'Get Node Details (V2)',
+      title: 'Get Node Details',
       description: 'Return full details for a single node_id.',
-      inputSchema: GetNodeDetailsV2InputSchema.shape,
-      outputSchema: GetNodeDetailsV2OutputSchema.shape,
+      inputSchema: GetNodeDetailsInputSchema.shape,
+      outputSchema: GetNodeDetailsOutputSchema.shape,
     },
-    getNodeDetailsV2
+    getNodeDetails
   );
 
   // ============================================================================
-  // V2 INTERACTION TOOLS
+  // INTERACTION TOOLS
   // ============================================================================
 
   server.registerTool(
     'scroll_element_into_view',
     {
-      title: 'Scroll Element Into View (V2)',
+      title: 'Scroll Element Into View',
       description: 'Scroll a specific element into view and return a delta.',
       inputSchema: ScrollElementIntoViewInputSchema.shape,
       outputSchema: ScrollElementIntoViewOutputSchema.shape,
@@ -233,67 +247,67 @@ function initializeServer(): BrowserAutomationServer {
   server.registerTool(
     'scroll_page',
     {
-      title: 'Scroll Page (V2)',
+      title: 'Scroll Page',
       description: 'Scroll the page up or down by a specified amount and return a delta.',
       inputSchema: ScrollPageInputSchema.shape,
       outputSchema: ScrollPageOutputSchema.shape,
     },
-    scrollPageV2
+    scrollPage
   );
 
   server.registerTool(
-    'click_v2',
+    'click',
     {
-      title: 'Click Element (V2)',
+      title: 'Click Element',
       description: 'Click an element by node_id with automatic delta reporting.',
-      inputSchema: ClickV2InputSchema.shape,
-      outputSchema: ClickV2OutputSchema.shape,
+      inputSchema: ClickInputSchema.shape,
+      outputSchema: ClickOutputSchema.shape,
     },
-    clickV2
+    click
   );
 
   server.registerTool(
-    'type_v2',
+    'type',
     {
-      title: 'Type Text (V2)',
+      title: 'Type Text',
       description: 'Type text into a specific node_id with optional clearing.',
-      inputSchema: TypeV2InputSchema.shape,
-      outputSchema: TypeV2OutputSchema.shape,
+      inputSchema: TypeInputSchema.shape,
+      outputSchema: TypeOutputSchema.shape,
     },
-    typeV2
+    type
   );
 
   server.registerTool(
-    'press_v2',
+    'press',
     {
-      title: 'Press Key (V2)',
+      title: 'Press Key',
       description: 'Press a keyboard key with optional modifiers.',
-      inputSchema: PressV2InputSchema.shape,
-      outputSchema: PressV2OutputSchema.shape,
+      inputSchema: PressInputSchema.shape,
+      outputSchema: PressOutputSchema.shape,
     },
-    pressV2
+    press
   );
 
   server.registerTool(
-    'select_v2',
+    'select',
     {
-      title: 'Select Option (V2)',
+      title: 'Select Option',
       description: 'Select an option from a <select> element by value or text.',
-      inputSchema: SelectV2InputSchema.shape,
-      outputSchema: SelectV2OutputSchema.shape,
+      inputSchema: SelectInputSchema.shape,
+      outputSchema: SelectOutputSchema.shape,
     },
-    selectV2
+    select
   );
 
   server.registerTool(
-    'hover_v2',
+    'hover',
     {
-      title: 'Hover Element (V2)',
+      title: 'Hover Element',
       description: 'Hover over an element by node_id and return a delta.',
-      inputSchema: HoverV2InputSchema.shape,
-      outputSchema: HoverV2OutputSchema.shape,
+      inputSchema: HoverInputSchema.shape,
+      outputSchema: HoverOutputSchema.shape,
     },
-    hoverV2
+    hover
   );
 
   return server;

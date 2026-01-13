@@ -6,7 +6,33 @@
  */
 
 import type { Page } from 'playwright';
-import type { StabilizationResult, StabilizationOptions } from './types.js';
+
+/**
+ * Options for DOM stabilization.
+ */
+export interface StabilizationOptions {
+  /** Time window of no mutations to consider DOM stable (ms). Default: 100ms */
+  quietWindowMs?: number;
+  /** Maximum time to wait before timing out (ms). Default: 2000ms */
+  maxTimeoutMs?: number;
+}
+
+/**
+ * Result of DOM stabilization.
+ */
+export interface StabilizationResult {
+  /** Status of stabilization */
+  status: 'stable' | 'timeout' | 'error';
+  /** Time waited for stabilization (ms) */
+  waitTimeMs: number;
+  /** Number of mutations observed during stabilization */
+  mutationCount?: number;
+  /** Warning message if timeout or error */
+  warning?: string;
+}
+
+/** Type alias for compatibility */
+export type DomStability = StabilizationResult;
 
 // Browser globals used inside page.evaluate() - TypeScript doesn't know these
 // run in browser context, so we declare them here. These are NOT available
