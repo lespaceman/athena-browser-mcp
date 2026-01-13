@@ -4,10 +4,7 @@
  * Browser automation tools exposed via MCP protocol.
  */
 
-export {
-  initializeTools,
-  getSnapshotStore,
-} from './browser-tools.js';
+export { initializeTools, getSnapshotStore } from './browser-tools.js';
 
 // Tool handlers - Simplified API
 export {

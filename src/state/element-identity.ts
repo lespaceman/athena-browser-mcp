@@ -64,11 +64,7 @@ function computeLayerFromRegion(node: ReadableNode): string {
  * @returns Normalized label
  */
 export function normalizeAccessibleName(label: string): string {
-  return label
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .substring(0, 100);
+  return label.trim().toLowerCase().replace(/\s+/g, ' ').substring(0, 100);
 }
 
 /**

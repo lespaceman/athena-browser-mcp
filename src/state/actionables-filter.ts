@@ -111,10 +111,7 @@ export function selectActionables(
  * @param context - Scoring context
  * @returns Score from 0-1
  */
-export function scoreActionable(
-  node: ReadableNode,
-  context?: ScoringContext
-): number {
+export function scoreActionable(node: ReadableNode, context?: ScoringContext): number {
   let score = 0.5; // Base score
 
   // Visibility required (already filtered, but double-check)

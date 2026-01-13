@@ -22,12 +22,18 @@ function escapeXml(unsafe: string): string {
   if (!unsafe) return '';
   return unsafe.replace(/[<>&"']/g, (c) => {
     switch (c) {
-      case '<': return '&lt;';
-      case '>': return '&gt;';
-      case '&': return '&amp;';
-      case '"': return '&quot;';
-      case "'": return '&apos;';
-      default: return c;
+      case '<':
+        return '&lt;';
+      case '>':
+        return '&gt;';
+      case '&':
+        return '&amp;';
+      case '"':
+        return '&quot;';
+      case "'":
+        return '&apos;';
+      default:
+        return c;
     }
   });
 }
@@ -156,7 +162,8 @@ export function buildFindElementsResponse(
     if (m.attributes) {
       if (m.attributes.input_type) attrs.push(`type="${escapeXml(m.attributes.input_type)}"`);
       if (m.attributes.href) attrs.push(`href="${escapeXml(m.attributes.href)}"`);
-      if (m.attributes.placeholder) attrs.push(`placeholder="${escapeXml(m.attributes.placeholder)}"`);
+      if (m.attributes.placeholder)
+        attrs.push(`placeholder="${escapeXml(m.attributes.placeholder)}"`);
       if (m.attributes.value) attrs.push(`val="${escapeXml(m.attributes.value)}"`);
     }
 
@@ -198,8 +205,10 @@ export function buildGetNodeDetailsResponse(
   // Where (location info)
   const whereAttrs: string[] = [`region="${escapeXml(node.where.region)}"`];
   if (node.where.group_id) whereAttrs.push(`group_id="${escapeXml(node.where.group_id)}"`);
-  if (node.where.group_path) whereAttrs.push(`group_path="${escapeXml(node.where.group_path.join('/'))}"`);
-  if (node.where.heading_context) whereAttrs.push(`heading="${escapeXml(node.where.heading_context)}"`);
+  if (node.where.group_path)
+    whereAttrs.push(`group_path="${escapeXml(node.where.group_path.join('/'))}"`);
+  if (node.where.heading_context)
+    whereAttrs.push(`heading="${escapeXml(node.where.heading_context)}"`);
   lines.push(`    <where ${whereAttrs.join(' ')} />`);
 
   // Layout
@@ -216,8 +225,10 @@ export function buildGetNodeDetailsResponse(
   // State (if present)
   if (node.state) {
     const stateAttrs: string[] = [];
-    if (node.state.visible !== undefined) stateAttrs.push(`vis="${node.state.visible ? '1' : '0'}"`);
-    if (node.state.enabled !== undefined) stateAttrs.push(`ena="${node.state.enabled ? '1' : '0'}"`);
+    if (node.state.visible !== undefined)
+      stateAttrs.push(`vis="${node.state.visible ? '1' : '0'}"`);
+    if (node.state.enabled !== undefined)
+      stateAttrs.push(`ena="${node.state.enabled ? '1' : '0'}"`);
     if (node.state.checked) stateAttrs.push(`chk="1"`);
     if (node.state.expanded) stateAttrs.push(`exp="1"`);
     if (node.state.selected) stateAttrs.push(`sel="1"`);

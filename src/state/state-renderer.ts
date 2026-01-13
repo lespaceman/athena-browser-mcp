@@ -22,7 +22,9 @@ export function renderStateXml(response: StateResponseObject): string {
   const lines: string[] = [];
 
   // 1. Root and Meta
-  lines.push(`<state step="${state.step}" title="${escapeXml(state.doc.title)}" url="${escapeXml(state.doc.url)}">`);
+  lines.push(
+    `<state step="${state.step}" title="${escapeXml(state.doc.title)}" url="${escapeXml(state.doc.url)}">`
+  );
 
   const view = `${atoms.viewport.w}x${atoms.viewport.h}`;
   const scroll = `${atoms.scroll.x},${atoms.scroll.y}`;
@@ -30,7 +32,9 @@ export function renderStateXml(response: StateResponseObject): string {
 
   // 2. Diff/Baseline indicator
   if (diff.mode === 'baseline') {
-    lines.push(`  <baseline reason="${diff.reason}"${diff.error ? ` error="${escapeXml(diff.error)}"` : ''} />`);
+    lines.push(
+      `  <baseline reason="${diff.reason}"${diff.error ? ` error="${escapeXml(diff.error)}"` : ''} />`
+    );
   } else {
     const d = diff;
     lines.push(`  <diff type="mutation">`);
@@ -38,7 +42,9 @@ export function renderStateXml(response: StateResponseObject): string {
       lines.push(`    <nav type="${d.diff.doc.nav_type}" />`);
     }
     if (d.diff.actionables.added.length > 0 || d.diff.actionables.removed.length > 0) {
-      lines.push(`    <nodes added="${d.diff.actionables.added.length}" removed="${d.diff.actionables.removed.length}" />`);
+      lines.push(
+        `    <nodes added="${d.diff.actionables.added.length}" removed="${d.diff.actionables.removed.length}" />`
+      );
     }
     lines.push(`  </diff>`);
   }
@@ -117,15 +123,24 @@ function renderActionable(item: ActionableInfo, _diff?: StateResponseObject['dif
  */
 function mapKindToTag(kind: string): string {
   switch (kind.toLowerCase()) {
-    case 'button': return 'btn';
-    case 'link': return 'link';
-    case 'textbox': return 'inp';
-    case 'checkbox': return 'chk';
-    case 'radio': return 'rad';
-    case 'combobox': return 'sel';
-    case 'image': return 'img';
-    case 'heading': return 'h';
-    default: return 'elt';
+    case 'button':
+      return 'btn';
+    case 'link':
+      return 'link';
+    case 'textbox':
+      return 'inp';
+    case 'checkbox':
+      return 'chk';
+    case 'radio':
+      return 'rad';
+    case 'combobox':
+      return 'sel';
+    case 'image':
+      return 'img';
+    case 'heading':
+      return 'h';
+    default:
+      return 'elt';
   }
 }
 
@@ -148,15 +163,20 @@ function groupActionablesByRegion(actionables: ActionableInfo[]): Record<string,
  */
 function escapeXml(unsafe: string): string {
   if (!unsafe) return '';
-  return unsafe
-    .replace(/[<>&"']/g, (c) => {
-      switch (c) {
-        case '<': return '&lt;';
-        case '>': return '&gt;';
-        case '&': return '&amp;';
-        case '"': return '&quot;';
-        case "'": return '&apos;';
-        default: return c;
-      }
-    });
+  return unsafe.replace(/[<>&"']/g, (c) => {
+    switch (c) {
+      case '<':
+        return '&lt;';
+      case '>':
+        return '&gt;';
+      case '&':
+        return '&amp;';
+      case '"':
+        return '&quot;';
+      case "'":
+        return '&apos;';
+      default:
+        return c;
+    }
+  });
 }

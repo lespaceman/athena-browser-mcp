@@ -87,10 +87,7 @@ export class ElementRegistry {
 
       // Update registry
       this.registry.byEid.set(eid, ref);
-      this.registry.backendToEid.set(
-        `${snapshot.snapshot_id}:${node.backend_node_id}`,
-        eid
-      );
+      this.registry.backendToEid.set(`${snapshot.snapshot_id}:${node.backend_node_id}`, eid);
       this.registry.lastSeenStep.set(eid, this.currentStep);
     }
 

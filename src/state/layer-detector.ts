@@ -104,10 +104,7 @@ function detectModal(node: ReadableNode): LayerCandidate | null {
   const role = node.attributes?.role;
 
   // Pattern 1: role="dialog" or role="alertdialog" + aria-modal="true"
-  if (
-    (role === 'dialog' || role === 'alertdialog') &&
-    attrs?.['aria-modal'] === 'true'
-  ) {
+  if ((role === 'dialog' || role === 'alertdialog') && attrs?.['aria-modal'] === 'true') {
     return {
       type: 'modal',
       rootEid: computeEid(node, 'modal'),
@@ -140,10 +137,7 @@ function detectModal(node: ReadableNode): LayerCandidate | null {
   }
 
   // Pattern 4: High z-index dialog (>1000)
-  if (
-    role === 'dialog' &&
-    (node.layout.zIndex ?? 0) > 1000
-  ) {
+  if (role === 'dialog' && (node.layout.zIndex ?? 0) > 1000) {
     return {
       type: 'modal',
       rootEid: computeEid(node, 'modal'),
@@ -198,12 +192,12 @@ function isPortalContainer(
       'MuiModal',
       'chakra-modal',
       'ant-modal',
-      'el-dialog',  // Element UI
-      'v-dialog',   // Vuetify
+      'el-dialog', // Element UI
+      'v-dialog', // Vuetify
     ];
 
     const lowerClassName = className.toLowerCase();
-    if (portalPatterns.some(p => lowerClassName.includes(p.toLowerCase()))) {
+    if (portalPatterns.some((p) => lowerClassName.includes(p.toLowerCase()))) {
       return true;
     }
   }
@@ -296,7 +290,7 @@ function detectDrawer(node: ReadableNode): LayerCandidate | null {
     ];
 
     const lowerClassName = className.toLowerCase();
-    if (drawerPatterns.some(p => lowerClassName.includes(p.toLowerCase()))) {
+    if (drawerPatterns.some((p) => lowerClassName.includes(p.toLowerCase()))) {
       return {
         type: 'drawer',
         rootEid: computeEid(node, 'drawer'),
@@ -397,7 +391,7 @@ function detectPopover(node: ReadableNode): LayerCandidate | null {
     ];
 
     const lowerClassName = className.toLowerCase();
-    if (popoverPatterns.some(p => lowerClassName.includes(p.toLowerCase()))) {
+    if (popoverPatterns.some((p) => lowerClassName.includes(p.toLowerCase()))) {
       return {
         type: 'popover',
         rootEid: computeEid(node, 'popover'),

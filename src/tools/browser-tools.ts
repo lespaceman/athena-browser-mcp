@@ -63,11 +63,7 @@ import {
   buildGetNodeDetailsResponse,
   type FindElementsMatch,
 } from './response-builder.js';
-import {
-  ElementNotFoundError,
-  StaleElementError,
-  SnapshotRequiredError,
-} from './errors.js';
+import { ElementNotFoundError, StaleElementError, SnapshotRequiredError } from './errors.js';
 import type { ReadableNode } from '../snapshot/snapshot.types.js';
 
 // Module-level state
@@ -110,10 +106,7 @@ export function getSnapshotStore(): SnapshotStore {
  * @returns PageHandle for the resolved page
  * @throws Error if no page available
  */
-function resolveExistingPage(
-  session: SessionManager,
-  page_id: string | undefined
-): PageHandle {
+function resolveExistingPage(session: SessionManager, page_id: string | undefined): PageHandle {
   const handle = session.resolvePage(page_id);
   if (!handle) {
     if (page_id) {
@@ -199,9 +192,7 @@ async function captureSnapshotWithRecovery(
 
   if (!result.health.valid) {
     const healthCode = determineHealthCode(result);
-    console.warn(
-      `[RECOVERY] Empty snapshot for ${pageId} (${healthCode}); rebinding CDP session`
-    );
+    console.warn(`[RECOVERY] Empty snapshot for ${pageId} (${healthCode}); rebinding CDP session`);
 
     handle = await session.rebindCdpSession(pageId);
     result = await captureWithStabilization(handle.cdp, handle.page, pageId, { maxRetries: 1 });
@@ -377,11 +368,7 @@ export async function launchBrowser(
   let handle = await session.createPage();
 
   // Auto-capture snapshot
-  const captureResult = await captureSnapshotWithRecovery(
-    session,
-    handle,
-    handle.page_id
-  );
+  const captureResult = await captureSnapshotWithRecovery(session, handle, handle.page_id);
   handle = captureResult.handle;
   const snapshot = captureResult.snapshot;
   snapshotStore.store(handle.page_id, snapshot);
@@ -426,11 +413,7 @@ export async function connectBrowser(
   }
 
   // Auto-capture snapshot
-  const captureResult = await captureSnapshotWithRecovery(
-    session,
-    handle,
-    handle.page_id
-  );
+  const captureResult = await captureSnapshotWithRecovery(session, handle, handle.page_id);
   handle = captureResult.handle;
   const snapshot = captureResult.snapshot;
   snapshotStore.store(handle.page_id, snapshot);
@@ -513,9 +496,7 @@ export async function navigate(
  * @param rawInput - Navigation options (will be validated)
  * @returns Navigation result with snapshot data
  */
-export async function goBack(
-  rawInput: unknown
-): Promise<import('./tool-schemas.js').GoBackOutput> {
+export async function goBack(rawInput: unknown): Promise<import('./tool-schemas.js').GoBackOutput> {
   const input = GoBackInputSchema.parse(rawInput);
   return executeNavigationAction(input.page_id, 'back');
 }
@@ -539,9 +520,7 @@ export async function goForward(
  * @param rawInput - Navigation options (will be validated)
  * @returns Navigation result with snapshot data
  */
-export async function reload(
-  rawInput: unknown
-): Promise<import('./tool-schemas.js').ReloadOutput> {
+export async function reload(rawInput: unknown): Promise<import('./tool-schemas.js').ReloadOutput> {
   const input = ReloadInputSchema.parse(rawInput);
   return executeNavigationAction(input.page_id, 'reload');
 }
@@ -577,9 +556,7 @@ export async function captureSnapshot(
  * @param rawInput - Query filters (will be validated)
  * @returns Matched nodes
  */
-export function findElements(
-  rawInput: unknown
-): import('./tool-schemas.js').FindElementsOutput {
+export function findElements(rawInput: unknown): import('./tool-schemas.js').FindElementsOutput {
   const input = FindElementsInputSchema.parse(rawInput);
   const session = getSessionManager();
 
@@ -615,10 +592,7 @@ export function findElements(
 
   const matches: FindElementsMatch[] = response.matches.map((m) => {
     // Look up EID from registry (single source of truth)
-    const eid = registry.getEidBySnapshotAndBackendNodeId(
-      snap.snapshot_id,
-      m.node.backend_node_id
-    );
+    const eid = registry.getEidBySnapshotAndBackendNodeId(snap.snapshot_id, m.node.backend_node_id);
 
     const match: FindElementsMatch = {
       eid: eid ?? `unknown-${m.node.backend_node_id}`,
@@ -783,9 +757,7 @@ export async function scrollPage(
  * @param rawInput - Click options (will be validated)
  * @returns Click result with navigation-aware outcome
  */
-export async function click(
-  rawInput: unknown
-): Promise<import('./tool-schemas.js').ClickOutput> {
+export async function click(rawInput: unknown): Promise<import('./tool-schemas.js').ClickOutput> {
   const input = ClickInputSchema.parse(rawInput);
   const { handleRef, pageId, captureSnapshot } = await prepareActionContext(input.page_id);
 
@@ -816,9 +788,7 @@ export async function click(
  * @param rawInput - Type options (will be validated)
  * @returns Type result with delta
  */
-export async function type(
-  rawInput: unknown
-): Promise<import('./tool-schemas.js').TypeOutput> {
+export async function type(rawInput: unknown): Promise<import('./tool-schemas.js').TypeOutput> {
   const input = TypeInputSchema.parse(rawInput);
   const { handleRef, pageId, captureSnapshot } = await prepareActionContext(input.page_id);
 
@@ -851,9 +821,7 @@ export async function type(
  * @param rawInput - Press options (will be validated)
  * @returns Press result with delta
  */
-export async function press(
-  rawInput: unknown
-): Promise<import('./tool-schemas.js').PressOutput> {
+export async function press(rawInput: unknown): Promise<import('./tool-schemas.js').PressOutput> {
   const input = PressInputSchema.parse(rawInput);
   const { handleRef, pageId, captureSnapshot } = await prepareActionContext(input.page_id);
 
@@ -879,9 +847,7 @@ export async function press(
  * @param rawInput - Select options (will be validated)
  * @returns Select result with delta
  */
-export async function select(
-  rawInput: unknown
-): Promise<import('./tool-schemas.js').SelectOutput> {
+export async function select(rawInput: unknown): Promise<import('./tool-schemas.js').SelectOutput> {
   const input = SelectInputSchema.parse(rawInput);
   const { handleRef, pageId, captureSnapshot } = await prepareActionContext(input.page_id);
 
@@ -912,9 +878,7 @@ export async function select(
  * @param rawInput - Hover options (will be validated)
  * @returns Hover result with delta
  */
-export async function hover(
-  rawInput: unknown
-): Promise<import('./tool-schemas.js').HoverOutput> {
+export async function hover(rawInput: unknown): Promise<import('./tool-schemas.js').HoverOutput> {
   const input = HoverInputSchema.parse(rawInput);
   const { handleRef, pageId, captureSnapshot } = await prepareActionContext(input.page_id);
 

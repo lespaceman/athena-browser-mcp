@@ -333,6 +333,134 @@ export async function executeActionWithRetry(
 }
 
 // ============================================================================
+// Navigation State Helpers
+// ============================================================================
+
+/**
+ * Navigation state for detecting URL/loaderId changes.
+ */
+interface NavigationState {
+  url: string;
+  loaderId?: string;
+}
+
+/**
+ * Capture current navigation state (URL and loaderId).
+ *
+ * @param handle - Page handle with CDP client
+ * @returns Navigation state with URL and optional loaderId
+ */
+async function captureNavigationState(handle: PageHandle): Promise<NavigationState> {
+  const url = handle.page.url();
+  let loaderId: string | undefined;
+
+  try {
+    const frameTree = await handle.cdp.send('Page.getFrameTree', undefined);
+    loaderId = frameTree.frameTree.frame.loaderId;
+  } catch {
+    // Ignore - we can still detect navigation via URL
+  }
+
+  return { url, loaderId };
+}
+
+/**
+ * Check if navigation occurred between two states.
+ *
+ * @param before - State before action
+ * @param after - State after action
+ * @returns True if navigation detected
+ */
+function checkNavigationOccurred(before: NavigationState, after: NavigationState): boolean {
+  // URL changed = navigation
+  if (before.url !== after.url) {
+    return true;
+  }
+
+  // LoaderId changed (and both defined) = navigation
+  if (
+    before.loaderId !== undefined &&
+    after.loaderId !== undefined &&
+    before.loaderId !== after.loaderId
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Result of handling a stale element retry.
+ */
+interface StaleElementRetryResult {
+  success: boolean;
+  error?: string;
+  outcome: ClickOutcome;
+}
+
+/**
+ * Handle stale element retry logic.
+ *
+ * @param handle - Page handle
+ * @param node - Original target node
+ * @param action - Action to retry
+ * @param capture - Snapshot capture function
+ * @param snapshotStore - Optional snapshot store to update
+ * @returns Retry result with success/error/outcome
+ */
+async function handleStaleElementRetry(
+  handle: PageHandle,
+  node: ReadableNode,
+  action: (backendNodeId: number) => Promise<void>,
+  capture: CaptureSnapshotFn,
+  snapshotStore?: { store: (pageId: string, snapshot: BaseSnapshot) => void }
+): Promise<StaleElementRetryResult> {
+  try {
+    // Capture fresh snapshot
+    const freshSnapshot = (await capture()).snapshot;
+
+    // Update snapshot store if provided
+    if (snapshotStore) {
+      snapshotStore.store(handle.page_id, freshSnapshot);
+    }
+
+    // Find element by label in fresh snapshot
+    const freshNode = freshSnapshot.nodes.find(
+      (n) => n.label === node.label && n.kind === node.kind
+    );
+
+    if (!freshNode) {
+      return {
+        success: false,
+        error: `Element no longer found after refresh: ${node.label}`,
+        outcome: {
+          status: 'element_not_found',
+          eid: '', // Will be filled by caller if available
+          last_known_label: node.label,
+        },
+      };
+    }
+
+    // Retry action with fresh backend_node_id
+    await action(freshNode.backend_node_id);
+
+    return {
+      success: true,
+      outcome: { status: 'stale_element', reason: 'dom_mutation', retried: true },
+    };
+  } catch (retryErr) {
+    return {
+      success: false,
+      error:
+        retryErr instanceof Error
+          ? `Retry failed: ${retryErr.message}`
+          : `Retry failed: ${String(retryErr)}`,
+      outcome: { status: 'stale_element', reason: 'dom_mutation', retried: true },
+    };
+  }
+}
+
+// ============================================================================
 // Navigation-Aware Click Outcome
 // ============================================================================
 
@@ -364,55 +492,24 @@ export async function executeActionWithOutcome(
 
   const capture = captureSnapshot ?? (() => captureSnapshotFallback(handle));
 
-  // Capture pre-click state for navigation detection
-  const preClickUrl = handle.page.url();
-  let preClickLoaderId: string | undefined;
-  try {
-    const frameTree = await handle.cdp.send('Page.getFrameTree', undefined);
-    preClickLoaderId = frameTree.frameTree.frame.loaderId;
-  } catch {
-    // Ignore - we can still detect navigation via URL
-  }
+  // Capture pre-click navigation state
+  const preClickState = await captureNavigationState(handle);
 
   // Try the action
   try {
     await action(node.backend_node_id);
 
     // Action succeeded - check if navigation occurred
-    const postClickUrl = handle.page.url();
-    let postClickLoaderId: string | undefined;
-    try {
-      const frameTree = await handle.cdp.send('Page.getFrameTree', undefined);
-      postClickLoaderId = frameTree.frameTree.frame.loaderId;
-    } catch {
-      // Ignore
-    }
-
-    const navigated =
-      preClickUrl !== postClickUrl ||
-      (preClickLoaderId !== undefined &&
-        postClickLoaderId !== undefined &&
-        preClickLoaderId !== postClickLoaderId);
+    const postClickState = await captureNavigationState(handle);
+    const navigated = checkNavigationOccurred(preClickState, postClickState);
 
     outcome = { status: 'success', navigated };
   } catch (err) {
     // Check if this is a stale element error
     if (isStaleElementError(err)) {
       // Check if navigation caused the staleness
-      const currentUrl = handle.page.url();
-      let currentLoaderId: string | undefined;
-      try {
-        const frameTree = await handle.cdp.send('Page.getFrameTree', undefined);
-        currentLoaderId = frameTree.frameTree.frame.loaderId;
-      } catch {
-        // Ignore
-      }
-
-      const isNavigation =
-        preClickUrl !== currentUrl ||
-        (preClickLoaderId !== undefined &&
-          currentLoaderId !== undefined &&
-          preClickLoaderId !== currentLoaderId);
+      const currentState = await captureNavigationState(handle);
+      const isNavigation = checkNavigationOccurred(preClickState, currentState);
 
       if (isNavigation) {
         // Element gone due to navigation - this is often success!
@@ -421,41 +518,16 @@ export async function executeActionWithOutcome(
       } else {
         // Element stale due to DOM mutation - try retry
         retried = true;
-        try {
-          // Capture fresh snapshot
-          const freshSnapshot = (await capture()).snapshot;
-
-          // Update snapshot store if provided
-          if (snapshotStore) {
-            snapshotStore.store(handle.page_id, freshSnapshot);
-          }
-
-          // Find element by label in fresh snapshot
-          const freshNode = freshSnapshot.nodes.find(
-            (n) => n.label === node.label && n.kind === node.kind
-          );
-
-          if (!freshNode) {
-            success = false;
-            error = `Element no longer found after refresh: ${node.label}`;
-            outcome = {
-              status: 'element_not_found',
-              eid: '', // Will be filled by caller if available
-              last_known_label: node.label,
-            };
-          } else {
-            // Retry action with fresh backend_node_id
-            await action(freshNode.backend_node_id);
-            outcome = { status: 'stale_element', reason: 'dom_mutation', retried: true };
-          }
-        } catch (retryErr) {
-          success = false;
-          error =
-            retryErr instanceof Error
-              ? `Retry failed: ${retryErr.message}`
-              : `Retry failed: ${String(retryErr)}`;
-          outcome = { status: 'stale_element', reason: 'dom_mutation', retried: true };
-        }
+        const retryResult = await handleStaleElementRetry(
+          handle,
+          node,
+          action,
+          capture,
+          snapshotStore
+        );
+        success = retryResult.success;
+        error = retryResult.error;
+        outcome = retryResult.outcome;
       }
     } else {
       // Not a stale element error - propagate immediately

@@ -136,12 +136,7 @@ export async function captureWithStabilization(
   pageId: string,
   options: CaptureWithStabilizationOptions = {}
 ): Promise<CaptureWithStabilizationResult> {
-  const {
-    maxRetries = 3,
-    retryDelayMs = 500,
-    quietWindowMs = 100,
-    maxTimeoutMs = 2000,
-  } = options;
+  const { maxRetries = 3, retryDelayMs = 500, quietWindowMs = 100, maxTimeoutMs = 2000 } = options;
 
   // Import compileSnapshot dynamically to avoid circular dependency
   const { compileSnapshot } = await import('./index.js');
@@ -259,11 +254,7 @@ export function determineHealthCode(result: CaptureWithStabilizationResult): Sna
     // Check message for CDP session errors
     if (health.reason === 'error' && health.message) {
       const msg = health.message.toLowerCase();
-      if (
-        msg.includes('session') ||
-        msg.includes('target closed') ||
-        msg.includes('detached')
-      ) {
+      if (msg.includes('session') || msg.includes('target closed') || msg.includes('detached')) {
         return 'CDP_SESSION_DEAD';
       }
     }

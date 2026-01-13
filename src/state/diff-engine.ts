@@ -173,7 +173,17 @@ function compareNodes(eid: string, prev: ReadableNode, curr: ReadableNode): Diff
   const changes: DiffChange[] = [];
 
   // Compare state flags
-  const stateFields = ['visible', 'enabled', 'checked', 'selected', 'expanded', 'focused', 'required', 'invalid', 'readonly'];
+  const stateFields = [
+    'visible',
+    'enabled',
+    'checked',
+    'selected',
+    'expanded',
+    'focused',
+    'required',
+    'invalid',
+    'readonly',
+  ];
   for (const field of stateFields) {
     const prevVal = prev.state?.[field as keyof typeof prev.state];
     const currVal = curr.state?.[field as keyof typeof curr.state];
@@ -235,10 +245,7 @@ function compareNodes(eid: string, prev: ReadableNode, curr: ReadableNode): Diff
  * @param curr - Current snapshot
  * @returns Document change or undefined
  */
-function detectDocumentChange(
-  prev: BaseSnapshot,
-  curr: BaseSnapshot
-): DiffResponse['diff']['doc'] {
+function detectDocumentChange(prev: BaseSnapshot, curr: BaseSnapshot): DiffResponse['diff']['doc'] {
   if (prev.url === curr.url && prev.title === curr.title) {
     return undefined;
   }
@@ -291,10 +298,7 @@ function determineNavType(prevUrl: string, currUrl: string): 'soft' | 'hard' {
  * @param curr - Current snapshot
  * @returns Layer change or undefined
  */
-function detectLayerChange(
-  prev: BaseSnapshot,
-  curr: BaseSnapshot
-): DiffResponse['diff']['layer'] {
+function detectLayerChange(prev: BaseSnapshot, curr: BaseSnapshot): DiffResponse['diff']['layer'] {
   const prevLayers = detectLayers(prev);
   const currLayers = detectLayers(curr);
 

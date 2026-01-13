@@ -118,7 +118,11 @@ export class StateManager {
    *
    * @param options - Initialization options
    */
-  constructor(options: { sessionId?: string; pageId: string; config?: Partial<StateManagerConfig> }) {
+  constructor(options: {
+    sessionId?: string;
+    pageId: string;
+    config?: Partial<StateManagerConfig>;
+  }) {
     this.context = {
       sessionId: options.sessionId ?? randomUUID(),
       pageId: options.pageId,
@@ -249,10 +253,7 @@ export class StateManager {
 
     // Count total actionables in active layer
     const totalInLayer = snapshot.nodes.filter(
-      (n) =>
-        isInteractiveKind(n.kind) &&
-        n.state?.visible &&
-        getNodeLayer(n) === layerResult.active
+      (n) => isInteractiveKind(n.kind) && n.state?.visible && getNodeLayer(n) === layerResult.active
     ).length;
 
     const counts = {
@@ -322,7 +323,10 @@ export class StateManager {
    * Create error baseline response for recovery.
    * Always uses 'error' reason - the specific error type is in the message.
    */
-  private createErrorBaseline(_reason: 'error' | 'concurrent_call', errorMessage: string): StateResponse {
+  private createErrorBaseline(
+    _reason: 'error' | 'concurrent_call',
+    errorMessage: string
+  ): StateResponse {
     // Minimal state for error baseline
     const state: StateHandle = {
       sid: this.context.sessionId,
@@ -408,12 +412,7 @@ export class StateManager {
     }
 
     // Get regular scored actionables
-    const regularActionables = selectActionables(
-      snapshot,
-      activeLayer,
-      maxCount,
-      context
-    );
+    const regularActionables = selectActionables(snapshot, activeLayer, maxCount, context);
 
     // Build final list: focused first, then close affordances, then others
     const result: ReadableNode[] = [];
@@ -444,7 +443,6 @@ export class StateManager {
 
     return result;
   }
-
 
   /**
    * Generate state handle with sanitized URL.
@@ -598,11 +596,7 @@ export class StateManager {
  * - email/tel: partial mask (show first/last chars)
  * - default: truncate to 12 chars, mask middle
  */
-function maskValue(
-  value: string,
-  inputType?: string,
-  label?: string
-): string {
+function maskValue(value: string, inputType?: string, label?: string): string {
   // Strip newlines first
   const cleanValue = value.replace(/[\r\n]/g, ' ').trim();
 

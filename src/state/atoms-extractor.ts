@@ -93,9 +93,7 @@ export function extractAtoms(snapshot: BaseSnapshot): Atoms {
  * @param snapshot - Compiled snapshot
  * @returns Loading state or undefined
  */
-function extractLoading(
-  snapshot: BaseSnapshot
-): Atoms['loading'] | undefined {
+function extractLoading(snapshot: BaseSnapshot): Atoms['loading'] | undefined {
   // Count spinner elements
   const spinners = snapshot.nodes.filter((n) => {
     if (n.attributes?.role === 'progressbar') return true;
@@ -133,9 +131,7 @@ function extractForms(snapshot: BaseSnapshot): Atoms['forms'] | undefined {
   }
 
   // Find focused input
-  const focusedInput = snapshot.nodes.find(
-    (n) => isInteractiveKind(n.kind) && n.state?.focused
-  );
+  const focusedInput = snapshot.nodes.find((n) => isInteractiveKind(n.kind) && n.state?.focused);
 
   // Count validation errors
   const validationErrors = snapshot.nodes.filter(
@@ -171,20 +167,16 @@ const MAX_BANNERS = 3;
  * @param snapshot - Compiled snapshot
  * @returns Notifications state or undefined
  */
-function extractNotifications(
-  snapshot: BaseSnapshot
-): Atoms['notifications'] | undefined {
+function extractNotifications(snapshot: BaseSnapshot): Atoms['notifications'] | undefined {
   // Count toasts (alerts, status messages) - capped
   const toastNodes = snapshot.nodes.filter(
-    (n) =>
-      n.attributes?.role === 'alert' || n.attributes?.role === 'status'
+    (n) => n.attributes?.role === 'alert' || n.attributes?.role === 'status'
   );
   const toasts = Math.min(toastNodes.length, MAX_TOASTS);
 
   // Count banners (non-header banners) - capped
   const bannerNodes = snapshot.nodes.filter(
-    (n) =>
-      n.attributes?.role === 'banner' && n.where.region !== 'header'
+    (n) => n.attributes?.role === 'banner' && n.where.region !== 'header'
   );
   const banners = Math.min(bannerNodes.length, MAX_BANNERS);
 

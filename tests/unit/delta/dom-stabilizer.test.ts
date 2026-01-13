@@ -125,10 +125,10 @@ describe('stabilizeDom', () => {
 
       await stabilizeDom(mockPage as unknown as Page, { quietWindowMs: 50 });
 
-      expect(mockPage.evaluate).toHaveBeenCalledWith(
-        expect.any(Function),
-        { quietWindowMs: 50, maxTimeoutMs: 2000 }
-      );
+      expect(mockPage.evaluate).toHaveBeenCalledWith(expect.any(Function), {
+        quietWindowMs: 50,
+        maxTimeoutMs: 2000,
+      });
     });
 
     it('should pass maxTimeoutMs to page.evaluate', async () => {
@@ -140,10 +140,10 @@ describe('stabilizeDom', () => {
 
       await stabilizeDom(mockPage as unknown as Page, { maxTimeoutMs: 1000 });
 
-      expect(mockPage.evaluate).toHaveBeenCalledWith(
-        expect.any(Function),
-        { quietWindowMs: 100, maxTimeoutMs: 1000 }
-      );
+      expect(mockPage.evaluate).toHaveBeenCalledWith(expect.any(Function), {
+        quietWindowMs: 100,
+        maxTimeoutMs: 1000,
+      });
     });
 
     it('should use default options when none provided', async () => {
@@ -155,10 +155,10 @@ describe('stabilizeDom', () => {
 
       await stabilizeDom(mockPage as unknown as Page);
 
-      expect(mockPage.evaluate).toHaveBeenCalledWith(
-        expect.any(Function),
-        { quietWindowMs: 100, maxTimeoutMs: 2000 }
-      );
+      expect(mockPage.evaluate).toHaveBeenCalledWith(expect.any(Function), {
+        quietWindowMs: 100,
+        maxTimeoutMs: 2000,
+      });
     });
   });
 

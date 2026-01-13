@@ -51,11 +51,9 @@ export class NoPageAvailableError extends ToolError {
  */
 export class SnapshotRequiredError extends ToolError {
   constructor(pageId: string) {
-    super(
-      `No snapshot for page ${pageId}. Capture a snapshot first.`,
-      'SNAPSHOT_REQUIRED',
-      { pageId }
-    );
+    super(`No snapshot for page ${pageId}. Capture a snapshot first.`, 'SNAPSHOT_REQUIRED', {
+      pageId,
+    });
   }
 }
 

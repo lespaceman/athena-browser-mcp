@@ -269,15 +269,19 @@ export const AtomChangeSchema = z.object({
 export const DiffResponseSchema = z.object({
   mode: z.literal('diff'),
   diff: z.object({
-    doc: z.object({
-      from: z.object({ url: z.string(), title: z.string() }),
-      to: z.object({ url: z.string(), title: z.string() }),
-      nav_type: z.enum(['soft', 'hard']),
-    }).optional(),
-    layer: z.object({
-      stack_from: z.array(z.string()),
-      stack_to: z.array(z.string()),
-    }).optional(),
+    doc: z
+      .object({
+        from: z.object({ url: z.string(), title: z.string() }),
+        to: z.object({ url: z.string(), title: z.string() }),
+        nav_type: z.enum(['soft', 'hard']),
+      })
+      .optional(),
+    layer: z
+      .object({
+        stack_from: z.array(z.string()),
+        stack_to: z.array(z.string()),
+      })
+      .optional(),
     actionables: z.object({
       added: z.array(z.string()),
       removed: z.array(z.string()),
@@ -300,20 +304,26 @@ export const AtomsSchema = z.object({
     x: z.number(),
     y: z.number(),
   }),
-  loading: z.object({
-    network_busy: z.boolean(),
-    spinners: z.number(),
-    progress: z.number().optional(),
-  }).optional(),
-  forms: z.object({
-    dirty: z.boolean(),
-    focused_field: z.string().optional(),
-    validation_errors: z.number(),
-  }).optional(),
-  notifications: z.object({
-    toasts: z.number(),
-    banners: z.number(),
-  }).optional(),
+  loading: z
+    .object({
+      network_busy: z.boolean(),
+      spinners: z.number(),
+      progress: z.number().optional(),
+    })
+    .optional(),
+  forms: z
+    .object({
+      dirty: z.boolean(),
+      focused_field: z.string().optional(),
+      validation_errors: z.number(),
+    })
+    .optional(),
+  notifications: z
+    .object({
+      toasts: z.number(),
+      banners: z.number(),
+    })
+    .optional(),
 });
 
 /**
@@ -537,16 +547,7 @@ export const FindElementsInputSchema = z.object({
   page_id: z.string().optional().describe('The ID of the page to search within.'),
   /** Filter by semantic type (e.g., 'radio' for form options). */
   kind: z
-    .enum([
-      'button',
-      'link',
-      'radio',
-      'checkbox',
-      'textbox',
-      'combobox',
-      'image',
-      'heading',
-    ])
+    .enum(['button', 'link', 'radio', 'checkbox', 'textbox', 'combobox', 'image', 'heading'])
     .optional()
     .describe("Filter by semantic type (e.g., 'radio' for form options)."),
   /** Fuzzy match for visible text or accessible name. */
@@ -557,13 +558,7 @@ export const FindElementsInputSchema = z.object({
     .optional()
     .describe('Restrict search to a specific area.'),
   /** Maximum number of results (default: 10) */
-  limit: z
-    .number()
-    .int()
-    .min(1)
-    .max(100)
-    .default(10)
-    .describe('Number of results to return.'),
+  limit: z.number().int().min(1).max(100).default(10).describe('Number of results to return.'),
 });
 
 /** Returns XML result string */
