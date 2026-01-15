@@ -1,3 +1,25 @@
+## [2.0.5] - 2026-01-15
+
+- docs: replace Design Philosophy with Why Athena section
+- Merge pull request #15 from lespaceman/fix/network-idle-stabilization
+- feat: add mutations tracking for status-bearing elements
+- fix: improve formatting and readability in session manager and test files
+- refactor(test): consolidate local mock factories to use centralized mocks
+- refactor(test): centralize mock page with event emission support
+- fix: implement PageNetworkTracker for reliable network idle detection
+- refactor: extract network idle waiting to shared utility
+- fix: add network idle waiting after actions and navigation
+- Merge pull request #14 from lespaceman/fix/shadow-dom-observation-duplicates
+- refactor: remove browser-side dedup in favor of server-side approach
+- fix: deduplicate observations with same tag and text content
+- test: add new universal signals to state-renderer test fixtures
+- fix: prevent duplicate observations from shadow DOM existing content
+- Merge pull request #13 from lespaceman/feat/dom-observations
+- fix: skip integration tests in CI environment
+- chore: update MCP SDK and improve observation code
+- fix: add observer staleness detection for body replacement
+- feat: add DOM observations with EID linking
+
 ## [2.0.4] - 2026-01-15
 
 - Merge pull request #12 from lespaceman/fix/tool-descriptions
