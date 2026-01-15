@@ -328,7 +328,11 @@ export function computeMatchScore(
 
   // Role match (when observation has explicit role that matches node kind)
   const role = content.role?.toLowerCase();
-  if (role && role in ROLE_TO_KIND && ROLE_TO_KIND[role as keyof typeof ROLE_TO_KIND] === node.kind) {
+  if (
+    role &&
+    role in ROLE_TO_KIND &&
+    ROLE_TO_KIND[role as keyof typeof ROLE_TO_KIND] === node.kind
+  ) {
     score += SCORE_ROLE_MATCH;
   }
 

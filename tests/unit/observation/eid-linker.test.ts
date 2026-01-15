@@ -12,7 +12,11 @@ import {
   getCandidateKinds,
   computeMatchScore,
 } from '../../../src/observation/eid-linker.js';
-import type { DOMObservation, ObservationGroups, SignificanceSignals } from '../../../src/observation/observation.types.js';
+import type {
+  DOMObservation,
+  ObservationGroups,
+  SignificanceSignals,
+} from '../../../src/observation/observation.types.js';
 import type { BaseSnapshot, ReadableNode, NodeKind } from '../../../src/snapshot/snapshot.types.js';
 import type { ElementRegistry } from '../../../src/state/element-registry.js';
 
@@ -87,9 +91,7 @@ function createMockRegistry(eidMap: Record<number, string> = {}): ElementRegistr
   } as unknown as ElementRegistry;
 }
 
-function createObservationGroups(
-  overrides: Partial<ObservationGroups> = {}
-): ObservationGroups {
+function createObservationGroups(overrides: Partial<ObservationGroups> = {}): ObservationGroups {
   return {
     duringAction: [],
     sincePrevious: [],

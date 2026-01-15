@@ -57,9 +57,7 @@ function createObservation(overrides: Partial<DOMObservation> = {}): DOMObservat
 /**
  * Create mock ObservationGroups.
  */
-function createObservationGroups(
-  overrides: Partial<ObservationGroups> = {}
-): ObservationGroups {
+function createObservationGroups(overrides: Partial<ObservationGroups> = {}): ObservationGroups {
   return {
     duringAction: [],
     sincePrevious: [],
@@ -136,9 +134,7 @@ describe('summarizeSignals', () => {
       appearedAfterDelay: true,
     });
     const result = summarizeSignals(signals);
-    expect(result).toBe(
-      'semantic="alert-role" visual="fixed" body-child="true" delayed="true"'
-    );
+    expect(result).toBe('semantic="alert-role" visual="fixed" body-child="true" delayed="true"');
   });
 
   it('should render all signals when everything is true', () => {

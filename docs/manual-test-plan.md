@@ -759,6 +759,149 @@ Comprehensive test plan for all MCP tools with the new simplified API.
 
 ---
 
+## Suite 12: DOM Observations
+
+Tests for ephemeral DOM mutation capture (toasts, alerts, notifications).
+
+### 12.1 Toast Capture - Local Test Page
+
+**Test Site:** `file:///path/to/athena-browser-mcp/tests/manual/toast-test.html`
+
+```
+1. launch_browser { "headless": false }
+2. navigate { "url": "file:///path/to/athena-browser-mcp/tests/manual/toast-test.html" }
+3. click { "eid": "<error_toast_btn>" }
+4. Verify <observations> section in response
+```
+
+**Verify:**
+
+- [ ] Response contains `<observations>` section
+- [ ] `<during_action>` shows `<appeared>` with `role="alert"`
+- [ ] Significance score >= 3
+- [ ] Content text captured correctly
+
+### 12.2 Toast Capture - Real Website
+
+**Test Site:** https://react-hot-toast.com/
+
+```
+1. launch_browser { "headless": false }
+2. navigate { "url": "https://react-hot-toast.com/" }
+3. click { "eid": "<make_toast_btn>" }
+4. Verify observations captured
+```
+
+**Verify:**
+
+- [ ] Toast notification captured with `role="status"`
+- [ ] Semantic signals (`alert-role`, `aria-live`) detected
+- [ ] `delayed="true"` signal present (appeared after page load)
+
+### 12.3 Dialog Toast Capture
+
+**Test Site:** Local toast test page
+
+```
+1. navigate { "url": "file:///path/to/toast-test.html" }
+2. click { "eid": "<dialog_toast_btn>" }
+3. Verify layer changes to modal
+4. click { "eid": "<dismiss_btn>" }
+5. Verify disappearance captured
+```
+
+**Verify:**
+
+- [ ] Dialog toast captured with `role="alertdialog"`
+- [ ] `layer="modal"` in response
+- [ ] Dismissal captured as `<disappeared>`
+- [ ] `has-interactives="true"` when dialog has buttons
+
+### 12.4 Observation Deduplication
+
+```
+1. navigate { "url": "file:///path/to/toast-test.html" }
+2. click { "eid": "<error_toast_btn>" }
+3. Verify toast in observations
+4. capture_snapshot {}
+5. Verify toast NOT in observations again (already reported)
+```
+
+**Verify:**
+
+- [ ] Toast appears in first response
+- [ ] Same toast does NOT appear in subsequent snapshot
+- [ ] `markReported()` deduplication works
+
+### 12.5 Accumulated Observations (sincePrevious)
+
+```
+1. navigate { "url": "file:///path/to/toast-test.html" }
+2. click { "eid": "<error_toast_btn>" }
+3. Wait 3+ seconds (toast disappears)
+4. click { "eid": "<dialog_toast_btn>" }
+5. Verify both during_action and since_previous
+```
+
+**Verify:**
+
+- [ ] `<during_action>` shows dialog toast appearance
+- [ ] `<since_previous>` shows error toast disappearance
+- [ ] `age_ms` attribute present on since_previous items
+
+### 12.6 Below-Threshold Elements NOT Captured
+
+```
+1. navigate { "url": "<page_with_dynamic_content>" }
+2. Trigger small non-significant DOM changes
+3. Verify observations empty or only significant items
+```
+
+**Verify:**
+
+- [ ] Only elements with significance >= 3 captured
+- [ ] Small divs without ARIA roles NOT captured
+- [ ] Text changes alone NOT captured (unless in significant container)
+
+### 12.7 Login Error Toast (Real World)
+
+**Test Site:** https://the-internet.herokuapp.com/login
+
+```
+1. launch_browser { "headless": false }
+2. navigate { "url": "https://the-internet.herokuapp.com/login" }
+3. type { "eid": "<username>", "text": "invalid" }
+4. type { "eid": "<password>", "text": "wrong" }
+5. click { "eid": "<login_btn>" }
+6. Verify error message in observations
+```
+
+**Verify:**
+
+- [ ] Flash message captured in observations
+- [ ] Error message text preserved
+- [ ] Appears in `<during_action>` section
+
+### 12.8 Observer Staleness Recovery
+
+**Purpose:** Verify observer re-injects correctly after page content changes.
+
+```
+1. navigate { "url": "https://example.com" }
+2. navigate { "url": "https://google.com" }
+3. click { "eid": "<search_input>" }
+4. type { "text": "test" }
+5. Verify observations work on new page
+```
+
+**Verify:**
+
+- [ ] Observer injected fresh after navigation
+- [ ] Observations captured correctly on new page
+- [ ] No stale observer errors
+
+---
+
 ## Test Results
 
 | Suite | Test                   | Pass | Fail | Notes |
@@ -815,6 +958,14 @@ Comprehensive test plan for all MCP tools with the new simplified API.
 | 11    | 11.6 Cookie Consent    |      |      |       |
 | 11    | 11.7 Efficient Extract |      |      |       |
 | 11    | 11.8 Specific Cookies  |      |      |       |
+| 12    | 12.1 Toast Local       |      |      |       |
+| 12    | 12.2 Toast Real Site   |      |      |       |
+| 12    | 12.3 Dialog Toast      |      |      |       |
+| 12    | 12.4 Deduplication     |      |      |       |
+| 12    | 12.5 Accumulated Obs   |      |      |       |
+| 12    | 12.6 Below Threshold   |      |      |       |
+| 12    | 12.7 Login Error       |      |      |       |
+| 12    | 12.8 Staleness Recov   |      |      |       |
 
 ---
 
@@ -822,10 +973,11 @@ Comprehensive test plan for all MCP tools with the new simplified API.
 
 After code changes:
 
-- [ ] All 11 suites pass
+- [ ] All 12 suites pass
 - [ ] Error messages are descriptive
 - [ ] No memory leaks (browser cleanup)
 - [ ] Headless mode works
 - [ ] Connect mode works
+- [ ] DOM observations capture toasts/alerts
 - [ ] Delta responses accurate
 - [ ] Page state updates correctly

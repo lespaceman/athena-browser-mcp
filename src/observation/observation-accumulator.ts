@@ -7,9 +7,6 @@
  * - getObservations() to retrieve significant mutations
  */
 
-// Import the window type augmentation
-import './window.d.ts';
-
 import type { Page } from 'playwright';
 import type {
   DOMObservation,
@@ -38,18 +35,43 @@ export class ObservationAccumulator {
   }
 
   /**
-   * Ensure observer is injected (re-inject if needed after navigation).
+   * Ensure observer is injected and valid (re-inject if needed after navigation).
+   *
+   * After navigation or page content changes, the observer might be stale
+   * (observing a detached body). We check if the observer's body reference
+   * matches the current document.body and only re-inject if stale.
+   *
+   * This preserves accumulated observations when the observer is still valid.
    */
   async ensureInjected(page: Page): Promise<void> {
-    const hasObserver = await page
+    const needsReinjection = await page
       .evaluate(() => {
         // Browser context code - globalThis access is intentional
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
-        return typeof (globalThis as any).__observationAccumulator !== 'undefined';
-      })
-      .catch(() => false);
+        /* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call */
+        const acc = (globalThis as any).__observationAccumulator;
 
-    if (!hasObserver) {
+        // No accumulator - need to inject
+        if (!acc) return true;
+
+        // Check if observer is stale (observing a different/detached body)
+        // This happens after setContent() or navigation that replaces the body
+        const currentBody = (globalThis as any).document?.body;
+        if (acc.observedBody !== currentBody) {
+          // Observer is stale - disconnect and remove so we can re-inject
+          acc.observer?.disconnect();
+          delete (globalThis as any).__observationAccumulator;
+          return true;
+        }
+
+        // Observer is still valid - no need to re-inject
+        return false;
+      })
+      .catch(() => {
+        // Error checking - assume we need to inject
+        return true;
+      });
+
+    if (needsReinjection) {
       await this.inject(page);
     }
   }
@@ -82,7 +104,6 @@ export class ObservationAccumulator {
 
         return { duringAction, sincePrevious };
       }, actionStartTime);
-      /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-explicit-any */
 
       // Convert raw entries to DOMObservation format
       return {
@@ -117,7 +138,6 @@ export class ObservationAccumulator {
 
         return { sincePrevious };
       });
-      /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-explicit-any */
 
       return {
         duringAction: [],
@@ -175,7 +195,6 @@ export class ObservationAccumulator {
       await page.evaluate(() => {
         (globalThis as any).__observationAccumulator?.reset();
       });
-      /* eslint-enable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-explicit-any */
     } catch {
       // Ignore - page may be navigating
     }
@@ -193,7 +212,6 @@ export class ObservationAccumulator {
         if (!acc) return false;
         return acc.getUnreported().length > 0;
       });
-      /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-explicit-any */
     } catch {
       return false;
     }

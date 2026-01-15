@@ -200,6 +200,7 @@ export const OBSERVATION_OBSERVER_SCRIPT = `
   window.__observationAccumulator = {
     log: log,
     observer: observer,
+    observedBody: document.body, // Track which body we're observing for staleness detection
     pageLoadTime: pageLoadTime,
     lastReportedIndex: 0, // Track what's been reported
 

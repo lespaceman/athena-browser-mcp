@@ -64,30 +64,36 @@ describe('ObservationAccumulator', () => {
   });
 
   describe('ensureInjected', () => {
-    it('should check if observer exists', async () => {
+    it('should inject when no accumulator exists', async () => {
+      // When evaluate returns true (needs reinjection), inject should be called
       const page = createMockPage(() => Promise.resolve(true));
       await accumulator.ensureInjected(page);
-      expect(page.evaluate).toHaveBeenCalled();
-    });
-
-    it('should inject if observer does not exist', async () => {
-      let callCount = 0;
-      const page = createMockPage(() => {
-        callCount++;
-        // First call checks existence (returns false), second call injects
-        return Promise.resolve(callCount === 1 ? false : undefined);
-      });
-
-      await accumulator.ensureInjected(page);
-      // Should be called twice: once to check, once to inject
+      // Should be called twice: once to check staleness, once to inject
       expect(page.evaluate).toHaveBeenCalledTimes(2);
     });
 
-    it('should not inject if observer already exists', async () => {
+    it('should not inject when observer is still valid', async () => {
+      // When evaluate returns false (observer valid), no re-injection needed
+      const page = createMockPage(() => Promise.resolve(false));
+      await accumulator.ensureInjected(page);
+      // Should only be called once (just the staleness check)
+      expect(page.evaluate).toHaveBeenCalledTimes(1);
+    });
+
+    it('should inject when observer is stale', async () => {
+      // When evaluate returns true (stale observer detected), inject should be called
       const page = createMockPage(() => Promise.resolve(true));
       await accumulator.ensureInjected(page);
-      // Should only be called once (just the check)
-      expect(page.evaluate).toHaveBeenCalledTimes(1);
+      // Should be called twice: once to check/cleanup stale, once to inject
+      expect(page.evaluate).toHaveBeenCalledTimes(2);
+    });
+
+    it('should inject on staleness check error', async () => {
+      // When staleness check fails, assume we need to inject
+      const page = createMockPage(() => Promise.reject(new Error('Page navigating')));
+      await expect(accumulator.ensureInjected(page)).resolves.not.toThrow();
+      // Should be called twice: failed check returns true, then inject
+      expect(page.evaluate).toHaveBeenCalledTimes(2);
     });
   });
 
