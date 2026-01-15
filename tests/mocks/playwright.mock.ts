@@ -48,6 +48,7 @@ export interface MockPage {
   isClosed: Mock;
   waitForLoadState: Mock;
   evaluate: Mock;
+  viewportSize: Mock;
   on: Mock;
   off: Mock;
 }
@@ -90,7 +91,9 @@ export function createMockCDPSession(): MockCDPSession {
 /**
  * Creates a mock Page
  */
-export function createMockPage(options: { url?: string; title?: string } = {}): MockPage {
+export function createMockPage(
+  options: { url?: string; title?: string; viewport?: { width: number; height: number } } = {}
+): MockPage {
   return {
     url: vi.fn().mockReturnValue(options.url ?? 'about:blank'),
     title: vi.fn().mockResolvedValue(options.title ?? ''),
@@ -99,6 +102,7 @@ export function createMockPage(options: { url?: string; title?: string } = {}): 
     isClosed: vi.fn().mockReturnValue(false),
     waitForLoadState: vi.fn().mockResolvedValue(undefined),
     evaluate: vi.fn().mockResolvedValue(undefined),
+    viewportSize: vi.fn().mockReturnValue(options.viewport ?? { width: 1280, height: 720 }),
     on: vi.fn(),
     off: vi.fn(),
   };
@@ -127,7 +131,7 @@ export interface MockPageWithEvents extends MockPage {
  * provides helper methods to emit events for testing.
  */
 export function createMockPageWithEvents(
-  options: { url?: string; title?: string } = {}
+  options: { url?: string; title?: string; viewport?: { width: number; height: number } } = {}
 ): MockPageWithEvents {
   const listeners = new Map<string, Set<(arg: unknown) => void>>();
 
@@ -146,6 +150,7 @@ export function createMockPageWithEvents(
     isClosed: vi.fn().mockReturnValue(false),
     waitForLoadState: vi.fn().mockResolvedValue(undefined),
     evaluate: vi.fn().mockResolvedValue(undefined),
+    viewportSize: vi.fn().mockReturnValue(options.viewport ?? { width: 1280, height: 720 }),
     on: vi.fn((event: string, handler: (arg: unknown) => void) => {
       getOrCreateListenerSet(event).add(handler);
     }),
