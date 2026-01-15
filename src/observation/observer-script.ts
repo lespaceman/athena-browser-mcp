@@ -26,6 +26,8 @@ export const OBSERVATION_OBSERVER_SCRIPT = `
   const MAX_SHADOW_OBSERVERS = 50; // Limit to prevent performance issues
   // IMPORTANT: Must match SIGNIFICANCE_THRESHOLD in observation.types.ts
   const SIGNIFICANCE_THRESHOLD = 3;
+  // Node type constant for shadow root parent check
+  const DOCUMENT_FRAGMENT_NODE = 11;
 
   // Significance weights (must match server-side observation.types.ts)
   const WEIGHTS = {
@@ -55,12 +57,7 @@ export const OBSERVATION_OBSERVER_SCRIPT = `
 
   // Track processed elements to avoid duplicate observations
   // WeakSet allows garbage collection of removed elements
-  const processedElements = new WeakSet();
-
-  // Content-based deduplication for nested shadow DOM with same text
-  // Map: "tag:text" -> timestamp of last capture
-  const recentContent = new Map();
-  const CONTENT_DEDUP_WINDOW_MS = 100; // Dedupe same content within 100ms
+  let processedElements = new WeakSet();
 
   /**
    * Generate a stable identifier for an element (for shadow path tracking).
@@ -124,7 +121,7 @@ export const OBSERVATION_OBSERVER_SCRIPT = `
     // For shadow DOM elements, isBodyDirectChild is false but we still want to capture them
     // Check if parent is a shadow root (which indicates top-level in shadow DOM)
     const isTopLevelInShadow = shadowPath && shadowPath.length > 0 &&
-      el.parentNode && el.parentNode.nodeType === 11; // DocumentFragment (shadow root)
+      el.parentNode && el.parentNode.nodeType === DOCUMENT_FRAGMENT_NODE;
 
     return {
       // Semantic signals
@@ -152,6 +149,11 @@ export const OBSERVATION_OBSERVER_SCRIPT = `
     };
   }
 
+  /**
+   * Calculate significance score from signals using weighted sum.
+   * @param signals - The computed significance signals for an element
+   * @returns The total significance score
+   */
   function computeSignificance(signals) {
     let score = 0;
     for (const [key, weight] of Object.entries(WEIGHTS)) {
@@ -377,9 +379,19 @@ export const OBSERVATION_OBSERVER_SCRIPT = `
    * Recursively check element and descendants for open shadow roots.
    * @param element - The element to check
    * @param currentShadowPath - The current shadow path context
+   * @param visited - Set of already-visited elements to prevent infinite recursion
    */
-  function checkAndObserveShadowRoots(element, currentShadowPath) {
+  function checkAndObserveShadowRoots(element, currentShadowPath, visited) {
     if (!element || element.nodeType !== 1) return;
+
+    // Initialize visited set on first call
+    if (!visited) {
+      visited = new Set();
+    }
+
+    // Prevent infinite recursion from circular references
+    if (visited.has(element)) return;
+    visited.add(element);
 
     // Check if this element has an open shadow root
     if (element.shadowRoot) {
@@ -390,7 +402,7 @@ export const OBSERVATION_OBSERVER_SCRIPT = `
       const shadowChildren = element.shadowRoot.querySelectorAll('*');
       for (const child of shadowChildren) {
         if (child.shadowRoot) {
-          checkAndObserveShadowRoots(child, newPath);
+          checkAndObserveShadowRoots(child, newPath, visited);
         }
       }
     }
@@ -399,7 +411,7 @@ export const OBSERVATION_OBSERVER_SCRIPT = `
     const children = element.querySelectorAll('*');
     for (const child of children) {
       if (child.shadowRoot) {
-        checkAndObserveShadowRoots(child, currentShadowPath);
+        checkAndObserveShadowRoots(child, currentShadowPath, visited);
       }
     }
   }
@@ -487,6 +499,8 @@ export const OBSERVATION_OBSERVER_SCRIPT = `
         observer.disconnect();
       }
       this.shadowObservers.clear();
+      // Clear processed elements tracking (create fresh WeakSet)
+      processedElements = new WeakSet();
     },
 
     // Re-scan for shadow roots (useful after dynamic content load)

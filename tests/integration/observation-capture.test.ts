@@ -456,5 +456,53 @@ describe.skipIf(isCI)('Observation Capture Integration', () => {
       // But observers should be attached to both shadow roots for future mutations
       expect(logInfo.shadowObserverCount).toBeGreaterThanOrEqual(1);
     });
+
+    it('should cleanup shadow observers when shadow host is removed', async () => {
+      await page.setContent('<html><body><div id="root"></div></body></html>');
+      await observationAccumulator.ensureInjected(page);
+
+      // Add a shadow host to the DOM
+      await page.evaluate(() => {
+        const shadowHost = document.createElement('div');
+        shadowHost.id = 'removable-host';
+        shadowHost.setAttribute('role', 'alert');
+        const shadow = shadowHost.attachShadow({ mode: 'open' });
+        const content = document.createElement('div');
+        content.textContent = 'Shadow content';
+        shadow.appendChild(content);
+        document.body.appendChild(shadowHost);
+      });
+
+      await page.waitForTimeout(100);
+
+      // Verify shadow observer was created
+      const beforeRemoval = await page.evaluate(() => {
+        const acc = (window as any).__observationAccumulator;
+        return {
+          shadowObserverCount: acc.shadowObservers.size,
+        };
+      });
+
+      expect(beforeRemoval.shadowObserverCount).toBeGreaterThanOrEqual(1);
+
+      // Remove the shadow host
+      await page.evaluate(() => {
+        const host = document.getElementById('removable-host');
+        host?.remove();
+      });
+
+      await page.waitForTimeout(100);
+
+      // Verify shadow observer was cleaned up
+      const afterRemoval = await page.evaluate(() => {
+        const acc = (window as any).__observationAccumulator;
+        return {
+          shadowObserverCount: acc.shadowObservers.size,
+        };
+      });
+
+      // Shadow observer should be removed when host is removed
+      expect(afterRemoval.shadowObserverCount).toBe(0);
+    });
   });
 });
