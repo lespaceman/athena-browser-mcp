@@ -209,11 +209,9 @@ export function buildNodeIndex(snapshot: BaseSnapshot): Map<NodeKind, ReadableNo
 
   for (const node of snapshot.nodes) {
     const kind = node.kind;
-
-    if (!index.has(kind)) {
-      index.set(kind, []);
-    }
-    index.get(kind)!.push(node);
+    const nodes = index.get(kind) ?? [];
+    nodes.push(node);
+    index.set(kind, nodes);
   }
 
   return index;

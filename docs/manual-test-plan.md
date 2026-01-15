@@ -674,88 +674,49 @@ Comprehensive test plan for all MCP tools with the new simplified API.
 
 - [ ] `snapshot` eventually captures the dynamically loaded element
 
-### 11.6 Cookie Consent Popup (Multi-Frame)
+### 11.6 Cookie Consent - Accept All
 
-**Test Site:** https://www.economist.com (or any site with iframe-based cookie consent)
+**Test Site:** https://www.economist.com
 
-```json
-1. connect_browser {} // Connect to existing Athena session
-2. navigate { "url": "https://www.economist.com" }
-3. find_elements { "label": "cookie" }
-4. click { "eid": "<manage_cookies_btn>" }
-5. capture_snapshot {}
-6. find_elements { "label": "accept" }
-7. click { "eid": "<accept_all_btn>" }
-```
+**Task:** Accept all cookies.
 
 **Verify:**
 
-- [ ] Cookie consent dialog elements are detected (buttons, checkboxes, toggles)
+- [ ] Cookie consent dialog detected
 - [ ] Layer changes to `modal` when dialog opens
-- [ ] Internal iframe elements have valid eids (not `unknown-*`)
-- [ ] Can interact with dialog elements (Accept all, Reject all, individual toggles)
-- [ ] Layer returns to `main` after dialog dismissed
-- [ ] Works for common CMPs: OneTrust, TrustArc, Didomi, CookieBot
+- [ ] Iframe elements have valid eids (not `unknown-*`)
+- [ ] Cookies accepted successfully
+- [ ] Dialog dismisses after acceptance
 
-**Technical Note:** This tests multi-frame accessibility extraction where the AX tree is fetched from both the main frame and iframe frames discovered during DOM extraction.
-
-### 11.7 Cookie Consent - Efficient Extraction Pattern
+### 11.7 Cookie Consent - Full Extraction
 
 **Test Site:** https://www.economist.com
 
-**Purpose:** Validate the optimized tool call pattern for cookie consent extraction.
-
-```
-1. launch_browser { "headless": false }
-2. navigate { "url": "https://www.economist.com" }
-3. find_elements { "label": "Manage cookies", "kind": "button" }
-4. click { "eid": "<from_step_3>" }
-5. Verify layer="modal" in response
-6. If modal closes: re-trigger find_elements + click (expected for "Manage" navigation)
-7. Parallel search: find_elements with label="advertising", "analytics", "marketing" (include_readable=true)
-8. Parallel search: find_elements with label="Accept", "Reject" (kind="button")
-9. Tab navigation: find_elements label="PURPOSES" → click, repeat for "FEATURES", "PARTNERS"
-10. close_session {}
-```
+**Task:** Extract all cookie consent information including purposes, features, and partners.
 
 **Verify:**
 
-- [ ] Total tool calls ≤ 20 for full extraction
-- [ ] No hardcoded eids used (all discovered via label search)
-- [ ] Toggles detected as `kind="switch"` (not checkbox)
-- [ ] `include_readable=true` returns descriptions in label field
-- [ ] Parallel searches executed in single message
-- [ ] Modal re-trigger works after "Manage" navigation closes modal
+- [ ] All cookie purposes/categories extracted
+- [ ] All features extracted
+- [ ] All partners/vendors extracted
+- [ ] Descriptions captured for each item
 
-**Anti-patterns to avoid:**
-
-- [ ] `get_node_details` on `rd-*` elements (will fail)
-- [ ] `region` filter for modal content (returns main page)
-- [ ] `scroll_page` for modal scrolling (scrolls main viewport)
-
-### 11.8 Cookie Consent - Enable Specific Non-Essential Cookies
+### 11.8 Cookie Consent - Enable Specific Cookies
 
 **Test Site:** https://www.economist.com
 
-**Goal:** Enable exactly 3 non-essential cookie purposes and save preferences.
+**Task:** Enable only these 3 specific cookie purposes and save:
 
-```
-1. launch_browser { "headless": false }
-2. navigate { "url": "https://www.economist.com" }
-3. Open cookie preferences
-4. Navigate to detailed purpose management
-5. Enable: "Create profiles for personalised advertising"
-6. Enable: "Measure advertising performance"
-7. Enable: "Analytics"
-8. Save preferences
-9. close_session {}
-```
+1. Create profiles for personalised advertising
+2. Measure advertising performance
+3. Analytics
 
 **Verify:**
 
-- [ ] Only 3 specified purposes enabled
+- [ ] Only the 3 specified purposes enabled
+- [ ] Other purposes remain disabled
 - [ ] Preferences saved successfully
-- [ ] Modal dismisses after save
+- [ ] Dialog dismisses after save
 
 ---
 
@@ -767,12 +728,7 @@ Tests for ephemeral DOM mutation capture (toasts, alerts, notifications).
 
 **Test Site:** `file:///path/to/athena-browser-mcp/tests/manual/toast-test.html`
 
-```
-1. launch_browser { "headless": false }
-2. navigate { "url": "file:///path/to/athena-browser-mcp/tests/manual/toast-test.html" }
-3. click { "eid": "<error_toast_btn>" }
-4. Verify <observations> section in response
-```
+**Task:** Trigger an error toast notification.
 
 **Verify:**
 
@@ -785,12 +741,7 @@ Tests for ephemeral DOM mutation capture (toasts, alerts, notifications).
 
 **Test Site:** https://react-hot-toast.com/
 
-```
-1. launch_browser { "headless": false }
-2. navigate { "url": "https://react-hot-toast.com/" }
-3. click { "eid": "<make_toast_btn>" }
-4. Verify observations captured
-```
+**Task:** Trigger a toast notification.
 
 **Verify:**
 
@@ -802,13 +753,7 @@ Tests for ephemeral DOM mutation capture (toasts, alerts, notifications).
 
 **Test Site:** Local toast test page
 
-```
-1. navigate { "url": "file:///path/to/toast-test.html" }
-2. click { "eid": "<dialog_toast_btn>" }
-3. Verify layer changes to modal
-4. click { "eid": "<dismiss_btn>" }
-5. Verify disappearance captured
-```
+**Task:** Trigger a dialog toast, then dismiss it.
 
 **Verify:**
 
@@ -819,85 +764,63 @@ Tests for ephemeral DOM mutation capture (toasts, alerts, notifications).
 
 ### 12.4 Observation Deduplication
 
-```
-1. navigate { "url": "file:///path/to/toast-test.html" }
-2. click { "eid": "<error_toast_btn>" }
-3. Verify toast in observations
-4. capture_snapshot {}
-5. Verify toast NOT in observations again (already reported)
-```
+**Test Site:** Local toast test page
+
+**Task:** Trigger a toast, then capture another snapshot without triggering new toasts.
 
 **Verify:**
 
 - [ ] Toast appears in first response
 - [ ] Same toast does NOT appear in subsequent snapshot
-- [ ] `markReported()` deduplication works
+- [ ] Deduplication prevents duplicate reporting
 
 ### 12.5 Accumulated Observations (sincePrevious)
 
-```
-1. navigate { "url": "file:///path/to/toast-test.html" }
-2. click { "eid": "<error_toast_btn>" }
-3. Wait 3+ seconds (toast disappears)
-4. click { "eid": "<dialog_toast_btn>" }
-5. Verify both during_action and since_previous
-```
+**Test Site:** Local toast test page
+
+**Task:** Trigger a toast, wait for it to disappear, then trigger another toast.
 
 **Verify:**
 
-- [ ] `<during_action>` shows dialog toast appearance
-- [ ] `<since_previous>` shows error toast disappearance
+- [ ] `<during_action>` shows new toast appearance
+- [ ] `<since_previous>` shows first toast disappearance
 - [ ] `age_ms` attribute present on since_previous items
 
 ### 12.6 Below-Threshold Elements NOT Captured
 
-```
-1. navigate { "url": "<page_with_dynamic_content>" }
-2. Trigger small non-significant DOM changes
-3. Verify observations empty or only significant items
-```
+**Test Site:** Any page with dynamic content
+
+**Task:** Trigger small, non-significant DOM changes (e.g., minor text updates, hidden element changes).
 
 **Verify:**
 
 - [ ] Only elements with significance >= 3 captured
 - [ ] Small divs without ARIA roles NOT captured
-- [ ] Text changes alone NOT captured (unless in significant container)
+- [ ] Insignificant text changes NOT captured
 
-### 12.7 Login Error Toast (Real World)
+### 12.7 Login Error Toast
 
 **Test Site:** https://the-internet.herokuapp.com/login
 
-```
-1. launch_browser { "headless": false }
-2. navigate { "url": "https://the-internet.herokuapp.com/login" }
-3. type { "eid": "<username>", "text": "invalid" }
-4. type { "eid": "<password>", "text": "wrong" }
-5. click { "eid": "<login_btn>" }
-6. Verify error message in observations
-```
+**Task:** Navigate to the login page, enter invalid credentials, and submit the form.
 
 **Verify:**
 
-- [ ] Flash message captured in observations
-- [ ] Error message text preserved
-- [ ] Appears in `<during_action>` section
+- [ ] Error flash message captured in `<observations>` section
+- [ ] Appears in `<during_action>` (triggered by form submission)
+- [ ] Error message text content preserved
+- [ ] Significance score >= 3
 
 ### 12.8 Observer Staleness Recovery
 
-**Purpose:** Verify observer re-injects correctly after page content changes.
+**Test Site:** Any two different sites (e.g., example.com then google.com)
 
-```
-1. navigate { "url": "https://example.com" }
-2. navigate { "url": "https://google.com" }
-3. click { "eid": "<search_input>" }
-4. type { "text": "test" }
-5. Verify observations work on new page
-```
+**Task:** Navigate to one site, then navigate to a different site, then perform an action that triggers a DOM change.
 
 **Verify:**
 
-- [ ] Observer injected fresh after navigation
-- [ ] Observations captured correctly on new page
+- [ ] Observer re-injects after navigation to new site
+- [ ] Observations captured correctly on the new page
 - [ ] No stale observer errors
 
 ---

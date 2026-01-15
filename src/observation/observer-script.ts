@@ -15,6 +15,7 @@ export const OBSERVATION_OBSERVER_SCRIPT = `
 
   const MAX_ENTRIES = 500;
   const MAX_TEXT_LENGTH = 200;
+  // IMPORTANT: Must match SIGNIFICANCE_THRESHOLD in observation.types.ts
   const SIGNIFICANCE_THRESHOLD = 3;
 
   // Significance weights (must match server-side observation.types.ts)
@@ -61,6 +62,7 @@ export const OBSERVATION_OBSERVER_SCRIPT = `
 
       // Visual signals
       isFixedOrSticky: style && (style.position === 'fixed' || style.position === 'sticky'),
+      // Note: parseInt returns NaN for non-numeric values like "auto", which correctly fails the > 1000 check
       hasHighZIndex: style && parseInt(style.zIndex, 10) > 1000,
       coversSignificantViewport: rect && ((rect.width > vw * 0.5) || (rect.height > vh * 0.3)),
 
@@ -183,9 +185,10 @@ export const OBSERVATION_OBSERVER_SCRIPT = `
       }
     }
 
-    // Trim if over limit (FIFO)
-    while (log.length > MAX_ENTRIES) {
-      log.shift();
+    // Trim if over limit (FIFO) - use splice for O(1) batch removal instead of shift() loop
+    if (log.length > MAX_ENTRIES) {
+      const excess = log.length - MAX_ENTRIES;
+      log.splice(0, excess);
     }
   });
 
