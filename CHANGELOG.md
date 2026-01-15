@@ -1,3 +1,15 @@
+## [2.0.4] - 2026-01-15
+
+- Merge pull request #12 from lespaceman/fix/tool-descriptions
+- fix: drop Node 18 support, require Node 20+
+- fix: require Node.js 18.19+ for node:inspector/promises
+- fix: require Node.js 18.18+ for vitest v4 compatibility
+- chore: fix npm audit vulnerabilities
+- docs: add Claude Code CLI config
+- docs: add MCP client configurations for VS Code, Cursor, Codex, Gemini
+- docs: add missing find_elements params to README
+- fix: standardize tool descriptions for LLM clarity
+
 ## [2.0.3] - 2026-01-13
 
 - Merge pull request #11 from lespaceman/feat/delta-factpack
