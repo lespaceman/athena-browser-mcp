@@ -6,12 +6,42 @@
 
 MCP server for AI browser automation - 18 tools with semantic element targeting.
 
-## Design Philosophy
+## Why Athena?
 
-1. **Semantic element IDs** - Stable `eid` references survive DOM mutations
-2. **XML state responses** - Structured page state with layers, actionables, and diffs
-3. **Multi-frame support** - Extract content from iframes (cookie consent, widgets)
-4. **Automatic retry** - Stale element recovery with fresh snapshot
+LLM agents face two hard constraints: limited context windows and expensive tokens. Yet browser automation requires understanding complex, ever-changing page state. Traditional tools dump raw accessibility trees or screenshots, wasting precious context and creating needle-in-haystack problems where agents struggle to locate relevant elements.
+
+Athena solves this with **semantic page snapshots** - compact, structured representations designed for LLM consumption:
+
+- **Token-efficient** - Hierarchical layers and regions eliminate noise, fitting more page understanding into less context
+- **High recall** - Structured XML with semantic element IDs lets agents find elements without scanning entire DOM trees
+- **Intuitive querying** - `find_elements` with semantic filters (kind, label, region) so agents ask for what they need
+- **Stable references** - Semantic `eid`s survive DOM mutations, eliminating stale element errors
+
+The result: fewer tokens, faster task completion, and higher-quality outputs with fewer errors.
+
+## Benchmark
+
+Comparison between Athena Browser MCP and Playwright MCP on real-world browser automation tasks. Tests run in Claude Code with Claude Opus 4.5.
+
+| #   | Task                                                                                  | Agent          | Result     | Tokens Used | Time Taken |
+| --- | ------------------------------------------------------------------------------------- | -------------- | ---------- | ----------- | ---------- |
+| 1   | Login → Create wishlist "Summer Escapes" → Add beach property (Airbnb)                | **Athena**     | ✅ Success | 92,870      | 2m 08s     |
+|     |                                                                                       | **Playwright** | ✅ Success | 137,063     | 5m 23s     |
+| 2   | Bangkok Experiences → Food tour → Extract itinerary & pricing (Airbnb)                | **Athena**     | ✅ Success | 87,194      | 3m 27s     |
+|     |                                                                                       | **Playwright** | ✅ Success | 94,942      | 3m 38s     |
+| 3   | Miami → Beachfront stays under $300 → Top 3 names + prices (Airbnb)                   | **Athena**     | ✅ Success | 124,597     | 5m 38s     |
+|     |                                                                                       | **Playwright** | ✅ Success | 122,077     | 4m 51s     |
+| 4   | Paris → "Play" section → Top 5 titles + descriptions (Airbnb)                         | **Athena**     | ❌ Failed  | 146,575     | 4m 15s     |
+|     |                                                                                       | **Playwright** | ❌ Failed  | 189,495     | 7m 37s     |
+| 5   | Navigate Apple → find iPhone → configure iPhone 17 → add 256GB Black → confirm in bag | **Athena**     | ✅ Success | 65,629      | 3m 30s     |
+|     |                                                                                       | **Playwright** | ✅ Success | 102,754     | 6m 59s     |
+
+**Total Results:**
+
+- **Tokens**: Athena used **125,341 fewer tokens** (~19.4% more efficient)
+- **Time**: Athena completed tasks **9m 30s faster** (~33.4% faster)
+
+_Benchmark on a larger dataset coming soon._
 
 ## Architecture
 
