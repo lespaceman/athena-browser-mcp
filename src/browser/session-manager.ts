@@ -12,6 +12,10 @@ import { getLogger } from '../shared/services/logging.service.js';
 import { BrowserSessionError } from '../shared/errors/browser-session.error.js';
 import type { ConnectionHealth } from '../state/health.types.js';
 import { observationAccumulator } from '../observation/index.js';
+import {
+  waitForNetworkQuiet,
+  NAVIGATION_NETWORK_IDLE_TIMEOUT_MS,
+} from './page-stabilization.js';
 
 /**
  * Connection state machine states
@@ -592,11 +596,8 @@ export class SessionManager {
       await handle.page.goto(url, { waitUntil: 'domcontentloaded' });
 
       // Then wait for network to settle (catches API calls)
-      // This never throws - timeout is OK for pages with persistent connections
-      try {
-        await handle.page.waitForLoadState('networkidle', { timeout: 5000 });
-      } catch {
-        // Network didn't idle - that's OK, proceed anyway
+      const networkIdle = await waitForNetworkQuiet(handle.page, NAVIGATION_NETWORK_IDLE_TIMEOUT_MS);
+      if (!networkIdle) {
         this.logger.debug('Network did not reach idle state', { page_id, url });
       }
 

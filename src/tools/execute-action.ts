@@ -19,6 +19,11 @@ import type { ClickOutcome } from '../state/element-ref.types.js';
 import type { RuntimeHealth } from '../state/health.types.js';
 import { createHealthyRuntime } from '../state/health.types.js';
 import { observationAccumulator } from '../observation/index.js';
+import {
+  waitForNetworkQuiet,
+  ACTION_NETWORK_IDLE_TIMEOUT_MS,
+  NAVIGATION_NETWORK_IDLE_TIMEOUT_MS,
+} from '../browser/page-stabilization.js';
 
 // ============================================================================
 // State Manager Registry
@@ -131,32 +136,6 @@ async function captureSnapshotFallback(
 // ============================================================================
 // Navigation-Aware Stabilization
 // ============================================================================
-
-/** Default timeout for network idle waiting after actions (ms) */
-const ACTION_NETWORK_IDLE_TIMEOUT_MS = 3000;
-
-/** Default timeout for network idle waiting after navigation (ms) */
-const NAVIGATION_NETWORK_IDLE_TIMEOUT_MS = 5000;
-
-/**
- * Wait for network to become idle (no pending requests for 500ms).
- *
- * This catches pending API calls triggered by actions. Never throws on timeout -
- * pages with long-polling, websockets, or analytics pings may never reach idle.
- *
- * @param page - Playwright Page instance
- * @param timeoutMs - Maximum time to wait for network idle
- * @returns Whether network became idle (false = timed out, but that's OK)
- */
-async function waitForNetworkQuiet(page: Page, timeoutMs: number): Promise<boolean> {
-  try {
-    await page.waitForLoadState('networkidle', { timeout: timeoutMs });
-    return true;
-  } catch {
-    // Timeout is expected for pages with persistent connections - don't throw
-    return false;
-  }
-}
 
 /**
  * Stabilize page after an action using tiered waiting strategy.

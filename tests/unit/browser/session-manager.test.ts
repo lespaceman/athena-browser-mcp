@@ -234,6 +234,36 @@ describe('SessionManager', () => {
         'Navigation timeout'
       );
     });
+
+    it('should wait for network idle after navigation', async () => {
+      const handle = await sessionManager.createPage();
+
+      await sessionManager.navigateTo(handle.page_id, 'https://example.com');
+
+      expect(mockPage.waitForLoadState).toHaveBeenCalledWith('networkidle', { timeout: 5000 });
+    });
+
+    it('should not throw when network idle times out', async () => {
+      const handle = await sessionManager.createPage();
+      mockPage.waitForLoadState.mockRejectedValue(new Error('Timeout 5000ms exceeded'));
+
+      // Should not throw - timeout is swallowed
+      await expect(
+        sessionManager.navigateTo(handle.page_id, 'https://example.com')
+      ).resolves.not.toThrow();
+
+      // Verify the call was still made (timeout occurred during the call)
+      expect(mockPage.waitForLoadState).toHaveBeenCalledWith('networkidle', { timeout: 5000 });
+    });
+
+    it('should rethrow critical errors from network idle wait', async () => {
+      const handle = await sessionManager.createPage();
+      mockPage.waitForLoadState.mockRejectedValue(new Error('Target closed'));
+
+      await expect(
+        sessionManager.navigateTo(handle.page_id, 'https://example.com')
+      ).rejects.toThrow('Target closed');
+    });
   });
 
   describe('shutdown', () => {
