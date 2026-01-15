@@ -19,7 +19,6 @@ function createMockPageWithEvaluate(evaluateResult: unknown): MockPage {
 }
 
 describe('stabilizeDom', () => {
-
   describe('stable page (no mutations)', () => {
     it('should return stable status when no mutations within quiet window', async () => {
       const mockPage = createMockPageWithEvaluate({

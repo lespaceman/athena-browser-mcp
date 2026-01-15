@@ -104,7 +104,9 @@ describe('ObservationAccumulator', () => {
 
   describe('getObservations', () => {
     it('should return empty arrays when accumulator not present', async () => {
-      const page = createMockPageWithEvaluate(() => Promise.resolve({ duringAction: [], sincePrevious: [] }));
+      const page = createMockPageWithEvaluate(() =>
+        Promise.resolve({ duringAction: [], sincePrevious: [] })
+      );
       const result = await accumulator.getObservations(page, Date.now());
       expect(result.duringAction).toEqual([]);
       expect(result.sincePrevious).toEqual([]);
@@ -180,7 +182,9 @@ describe('ObservationAccumulator', () => {
     });
 
     it('should return empty arrays on error', async () => {
-      const page = createMockPageWithEvaluate(() => Promise.reject(new Error('Navigation occurred')));
+      const page = createMockPageWithEvaluate(() =>
+        Promise.reject(new Error('Navigation occurred'))
+      );
 
       const result = await accumulator.getObservations(page, Date.now());
       expect(result.duringAction).toEqual([]);

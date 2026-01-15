@@ -183,7 +183,10 @@ describe('SnapshotCompiler', () => {
 
   beforeEach(() => {
     mockCdp = createMockCdpClient();
-    mockPage = createMockPage({ url: 'https://example.com/', title: 'Test Page' }) as unknown as Page;
+    mockPage = createMockPage({
+      url: 'https://example.com/',
+      title: 'Test Page',
+    }) as unknown as Page;
     setupCdpMocks(mockCdp);
   });
 

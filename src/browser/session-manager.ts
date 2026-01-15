@@ -12,10 +12,7 @@ import { getLogger } from '../shared/services/logging.service.js';
 import { BrowserSessionError } from '../shared/errors/browser-session.error.js';
 import type { ConnectionHealth } from '../state/health.types.js';
 import { observationAccumulator } from '../observation/index.js';
-import {
-  waitForNetworkQuiet,
-  NAVIGATION_NETWORK_IDLE_TIMEOUT_MS,
-} from './page-stabilization.js';
+import { waitForNetworkQuiet, NAVIGATION_NETWORK_IDLE_TIMEOUT_MS } from './page-stabilization.js';
 import { getOrCreateTracker, removeTracker } from './page-network-tracker.js';
 
 /**
@@ -618,7 +615,10 @@ export class SessionManager {
       tracker.markNavigation();
 
       // Then wait for network to settle (catches API calls)
-      const networkIdle = await waitForNetworkQuiet(handle.page, NAVIGATION_NETWORK_IDLE_TIMEOUT_MS);
+      const networkIdle = await waitForNetworkQuiet(
+        handle.page,
+        NAVIGATION_NETWORK_IDLE_TIMEOUT_MS
+      );
       if (!networkIdle) {
         this.logger.debug('Network did not reach idle state', { page_id, url });
       }
