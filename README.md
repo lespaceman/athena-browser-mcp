@@ -10,11 +10,12 @@ LLM-based agents operate under strict context window and token constraints.
 However, most browser automation tools expose entire DOMs or full accessibility trees to the model.
 
 This leads to:
+
 - Rapid token exhaustion
 - Higher inference costs
 - Reduced reliability as relevant signal is buried in noise
 
-In practice, agents spend more effort *finding* the right information than reasoning about it.
+In practice, agents spend more effort _finding_ the right information than reasoning about it.
 
 Athena exists to change the unit of information exposed to the model.
 
@@ -25,6 +26,7 @@ Athena exists to change the unit of information exposed to the model.
 Instead of exposing raw DOM structures or full accessibility trees, Athena produces **semantic page snapshots**.
 
 These snapshots are:
+
 - Compact and structured
 - Focused on user-visible intent
 - Designed for LLM recall and reasoning, not DOM completeness
@@ -44,6 +46,7 @@ At a high level:
 4. Actions are resolved against stable semantic identifiers rather than fragile selectors
 
 This separation keeps:
+
 - Browser lifecycle management isolated
 - Snapshots deterministic and low-entropy
 - Agent reasoning predictable and efficient
@@ -66,11 +69,13 @@ Results are task-dependent and should be treated as directional rather than abso
 ## What Athena Is (and Is Not)
 
 ### Athena is:
+
 - A semantic interface between browsers and LLM agents
 - An MCP server focused on reliability and efficiency
 - Designed for agent workflows, not test automation
 
 ### Athena is not:
+
 - A general-purpose browser
 - A visual testing or screenshot framework
 - A replacement for Playwright
@@ -90,6 +95,7 @@ Athena implements the **Model Context Protocol (MCP)** and works with:
 - Any MCP-compatible client
 
 Example workflows include:
+
 - Navigating complex web apps
 - Handling login and consent flows
 - Performing multi-step UI interactions with lower token usage
@@ -114,6 +120,7 @@ Configure the MCP server in your client according to its MCP integration instruc
 ## Architecture Overview
 
 Athena separates concerns into three layers:
+
 - **Browser lifecycle** — page creation, navigation, teardown
 - **Semantic snapshot generation** — regions, elements, identifiers
 - **Action resolution** — mapping agent intent to browser actions
