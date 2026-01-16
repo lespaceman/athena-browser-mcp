@@ -151,12 +151,14 @@ export function buildFindElementsResponse(
 
     // Add state flags
     if (m.state) {
-      if (m.state.visible !== undefined) attrs.push(`visible="${m.state.visible ? '1' : '0'}"`);
-      if (m.state.enabled !== undefined) attrs.push(`enabled="${m.state.enabled ? '1' : '0'}"`);
-      if (m.state.checked) attrs.push(`checked="1"`);
-      if (m.state.expanded) attrs.push(`expanded="1"`);
-      if (m.state.selected) attrs.push(`selected="1"`);
-      if (m.state.focused) attrs.push(`focused="1"`);
+      if (m.state.visible !== undefined)
+        attrs.push(`visible="${m.state.visible ? 'true' : 'false'}"`);
+      if (m.state.enabled !== undefined)
+        attrs.push(`enabled="${m.state.enabled ? 'true' : 'false'}"`);
+      if (m.state.checked) attrs.push(`checked="true"`);
+      if (m.state.expanded) attrs.push(`expanded="true"`);
+      if (m.state.selected) attrs.push(`selected="true"`);
+      if (m.state.focused) attrs.push(`focused="true"`);
     }
 
     // Add common attributes
@@ -227,16 +229,16 @@ export function buildGetNodeDetailsResponse(
   if (node.state) {
     const stateAttrs: string[] = [];
     if (node.state.visible !== undefined)
-      stateAttrs.push(`visible="${node.state.visible ? '1' : '0'}"`);
+      stateAttrs.push(`visible="${node.state.visible ? 'true' : 'false'}"`);
     if (node.state.enabled !== undefined)
-      stateAttrs.push(`enabled="${node.state.enabled ? '1' : '0'}"`);
-    if (node.state.checked) stateAttrs.push(`checked="1"`);
-    if (node.state.expanded) stateAttrs.push(`expanded="1"`);
-    if (node.state.selected) stateAttrs.push(`selected="1"`);
-    if (node.state.focused) stateAttrs.push(`focused="1"`);
-    if (node.state.required) stateAttrs.push(`required="1"`);
-    if (node.state.invalid) stateAttrs.push(`invalid="1"`);
-    if (node.state.readonly) stateAttrs.push(`readonly="1"`);
+      stateAttrs.push(`enabled="${node.state.enabled ? 'true' : 'false'}"`);
+    if (node.state.checked) stateAttrs.push(`checked="true"`);
+    if (node.state.expanded) stateAttrs.push(`expanded="true"`);
+    if (node.state.selected) stateAttrs.push(`selected="true"`);
+    if (node.state.focused) stateAttrs.push(`focused="true"`);
+    if (node.state.required) stateAttrs.push(`required="true"`);
+    if (node.state.invalid) stateAttrs.push(`invalid="true"`);
+    if (node.state.readonly) stateAttrs.push(`readonly="true"`);
     if (stateAttrs.length > 0) {
       lines.push(`    <state ${stateAttrs.join(' ')} />`);
     }
