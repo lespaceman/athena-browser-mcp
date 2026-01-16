@@ -409,20 +409,6 @@ export interface ScoringContext {
 // ============================================================================
 
 /**
- * Element identity for tracking across snapshots.
- */
-export interface ElementIdentity {
-  eid: string;
-  role: string;
-  name: string;
-  href?: string;
-  landmarkPath: string[];
-  nthOfType: number;
-  layer: string;
-  lastSeenStep: number;
-}
-
-/**
  * EID to node mapping.
  */
 export type EidMap = Map<string, ReadableNode>;

@@ -7,7 +7,6 @@
 
 import { createHash } from 'crypto';
 import type { ReadableNode } from '../snapshot/snapshot.types.js';
-import type { ElementIdentity } from './types.js';
 
 // ============================================================================
 // EID Generation
@@ -22,7 +21,7 @@ import type { ElementIdentity } from './types.js';
  * - Href (for links)
  * - Landmark path (region + group_path)
  * - Layer context (modal vs main - prevents collision across layers)
- * - Position hint (screen zone + heading context)
+ * - Position hint (heading context from group_path - scroll-stable)
  * - Shadow path (disambiguates elements in different shadow roots)
  *
  * @param node - Node to compute EID for
@@ -88,67 +87,21 @@ export function computeLandmarkPath(node: ReadableNode): string {
 
 /**
  * Compute position hint for stable EID disambiguation.
- * Combines multiple signals for better uniqueness.
  *
- * Uses:
- * - Screen zone (above/below fold)
- * - Nearest heading context (if available)
- * - Bounding box quadrant
+ * Uses only scroll-stable semantic context:
+ * - Nearest heading from group_path (semantic grouping)
+ *
+ * Note: Viewport-dependent data (screen_zone, bbox quadrant) was removed
+ * because it caused EID instability when scrolling. The collision resolution
+ * mechanism (resolveEidCollision) handles any increased collision rate.
  *
  * @param node - Node to compute hint for
  * @returns Position hint string
  */
 export function computePositionHint(node: ReadableNode): string {
-  const parts: string[] = [];
-
-  // Screen zone
-  const zone = node.layout.screen_zone ?? 'unknown';
-  parts.push(zone);
-
-  // Nearest heading from group_path (if available)
+  // Use last group from group_path as stable semantic context
   const groupPath = node.where.group_path ?? [];
-  if (groupPath.length > 0) {
-    // Use last group as heading context
-    parts.push(groupPath[groupPath.length - 1]);
-  }
-
-  // Bounding box quadrant (coarse position)
-  const bbox = node.layout.bbox;
-  if (bbox) {
-    const quadrant = computeQuadrant(bbox);
-    parts.push(quadrant);
-  }
-
-  return parts.join(':');
-}
-
-/**
- * Compute quadrant from bounding box.
- * Divides viewport into 4 quadrants: TL, TR, BL, BR
- *
- * @param bbox - Bounding box {x, y, w, h}
- * @returns Quadrant string
- */
-function computeQuadrant(bbox: { x: number; y: number; w: number; h: number }): string {
-  // Use 500px as rough midpoint (works for most viewports)
-  const horizontal = bbox.x < 500 ? 'L' : 'R';
-  const vertical = bbox.y < 400 ? 'T' : 'B';
-
-  return `${vertical}${horizontal}`;
-}
-
-/**
- * Compute nth-of-type heuristic for a node.
- * @deprecated Use computePositionHint instead for EID generation.
- *
- * @param node - Node to compute nth for
- * @returns Nth-of-type number (0 if unknown)
- */
-export function computeNthOfType(node: ReadableNode): number {
-  const zone = node.layout.screen_zone ?? '';
-  if (zone.includes('above-fold')) return 1;
-  if (zone.includes('below-fold')) return 2;
-  return 0;
+  return groupPath.length > 0 ? groupPath[groupPath.length - 1] : '';
 }
 
 /**
@@ -187,35 +140,4 @@ export function resolveEidCollision(baseEid: string, existingEids: Set<string>):
   }
 
   return `${baseEid}-${suffix}`;
-}
-
-// ============================================================================
-// Element Identity Registry
-// ============================================================================
-
-/**
- * Build element identity from node.
- *
- * @param node - Node to build identity for
- * @param eid - Computed EID
- * @param layer - Active layer
- * @param step - Current step counter
- * @returns Element identity object
- */
-export function buildElementIdentity(
-  node: ReadableNode,
-  eid: string,
-  layer: string,
-  step: number
-): ElementIdentity {
-  return {
-    eid,
-    role: node.attributes?.role ?? node.kind,
-    name: node.label,
-    href: node.attributes?.href,
-    landmarkPath: (node.where.group_path ?? []).slice(),
-    nthOfType: computeNthOfType(node),
-    layer,
-    lastSeenStep: step,
-  };
 }

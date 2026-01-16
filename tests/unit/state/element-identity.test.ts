@@ -10,10 +10,8 @@ import {
   normalizeAccessibleName,
   computeLandmarkPath,
   computePositionHint,
-  computeNthOfType,
   hashComponents,
   resolveEidCollision,
-  buildElementIdentity,
 } from '../../../src/state/element-identity.js';
 import type { ReadableNode } from '../../../src/snapshot/snapshot.types.js';
 
@@ -111,17 +109,6 @@ describe('Element Identity', () => {
   });
 
   describe('computePositionHint', () => {
-    it('should include screen zone', () => {
-      const node = createNode({
-        layout: {
-          bbox: { x: 100, y: 100, w: 50, h: 30 },
-          screen_zone: 'above-fold',
-        },
-      });
-      const hint = computePositionHint(node);
-      expect(hint).toContain('above-fold');
-    });
-
     it('should include last group from group_path', () => {
       const node = createNode({
         where: {
@@ -137,100 +124,44 @@ describe('Element Identity', () => {
       expect(hint).toContain('Electronics');
     });
 
-    it('should compute TL quadrant for top-left position', () => {
+    it('should return empty string when no group_path', () => {
       const node = createNode({
+        where: {
+          region: 'main',
+          group_path: [],
+        },
         layout: {
           bbox: { x: 100, y: 100, w: 50, h: 30 },
           screen_zone: 'above-fold',
         },
       });
       const hint = computePositionHint(node);
-      expect(hint).toContain('TL');
+      expect(hint).toBe('');
     });
 
-    it('should compute TR quadrant for top-right position', () => {
-      const node = createNode({
-        layout: {
-          bbox: { x: 600, y: 100, w: 50, h: 30 },
-          screen_zone: 'above-fold',
+    it('should not include viewport-dependent data (screen_zone, bbox)', () => {
+      // Same element at different viewport positions should have same hint
+      const nodeAtTop = createNode({
+        where: {
+          region: 'main',
+          group_path: ['Products'],
         },
-      });
-      const hint = computePositionHint(node);
-      expect(hint).toContain('TR');
-    });
-
-    it('should compute BL quadrant for bottom-left position', () => {
-      const node = createNode({
-        layout: {
-          bbox: { x: 100, y: 500, w: 50, h: 30 },
-          screen_zone: 'below-fold',
-        },
-      });
-      const hint = computePositionHint(node);
-      expect(hint).toContain('BL');
-    });
-
-    it('should compute BR quadrant for bottom-right position', () => {
-      const node = createNode({
-        layout: {
-          bbox: { x: 600, y: 500, w: 50, h: 30 },
-          screen_zone: 'below-fold',
-        },
-      });
-      const hint = computePositionHint(node);
-      expect(hint).toContain('BR');
-    });
-
-    it('should handle unknown screen zone', () => {
-      const node = createNode({
-        layout: {
-          bbox: { x: 100, y: 100, w: 50, h: 30 },
-          screen_zone: undefined,
-        },
-      });
-      const hint = computePositionHint(node);
-      expect(hint).toContain('unknown');
-    });
-  });
-
-  describe('computeNthOfType', () => {
-    it('should return 1 for above-fold', () => {
-      const node = createNode({
         layout: {
           bbox: { x: 100, y: 100, w: 50, h: 30 },
           screen_zone: 'above-fold',
         },
       });
-      expect(computeNthOfType(node)).toBe(1);
-    });
-
-    it('should return 2 for below-fold', () => {
-      const node = createNode({
+      const nodeAtBottom = createNode({
+        where: {
+          region: 'main',
+          group_path: ['Products'],
+        },
         layout: {
-          bbox: { x: 100, y: 100, w: 50, h: 30 },
+          bbox: { x: 600, y: 800, w: 50, h: 30 },
           screen_zone: 'below-fold',
         },
       });
-      expect(computeNthOfType(node)).toBe(2);
-    });
-
-    it('should return 0 for other zones', () => {
-      const node = createNode({
-        layout: {
-          bbox: { x: 100, y: 100, w: 50, h: 30 },
-          screen_zone: 'top-center',
-        },
-      });
-      expect(computeNthOfType(node)).toBe(0);
-    });
-
-    it('should return 0 for undefined zone', () => {
-      const node = createNode({
-        layout: {
-          bbox: { x: 100, y: 100, w: 50, h: 30 },
-        },
-      });
-      expect(computeNthOfType(node)).toBe(0);
+      expect(computePositionHint(nodeAtTop)).toBe(computePositionHint(nodeAtBottom));
     });
   });
 
@@ -427,81 +358,6 @@ describe('Element Identity', () => {
     });
   });
 
-  describe('buildElementIdentity', () => {
-    it('should build complete identity object', () => {
-      const node = createNode({
-        kind: 'button',
-        label: 'Submit Form',
-        where: {
-          region: 'main',
-          group_path: ['Login', 'Actions'],
-        },
-        layout: {
-          bbox: { x: 100, y: 100, w: 50, h: 30 },
-          screen_zone: 'above-fold',
-        },
-        attributes: { role: 'button' },
-      });
-
-      const identity = buildElementIdentity(node, 'abc123def456', 'main', 5);
-
-      expect(identity.eid).toBe('abc123def456');
-      expect(identity.role).toBe('button');
-      expect(identity.name).toBe('Submit Form');
-      expect(identity.landmarkPath).toEqual(['Login', 'Actions']);
-      expect(identity.nthOfType).toBe(1); // above-fold
-      expect(identity.layer).toBe('main');
-      expect(identity.lastSeenStep).toBe(5);
-    });
-
-    it('should use kind when role not present', () => {
-      const node = createNode({
-        kind: 'input',
-        label: 'Email',
-      });
-
-      const identity = buildElementIdentity(node, 'abc123def456', 'main', 1);
-      expect(identity.role).toBe('input');
-    });
-
-    it('should include href for links', () => {
-      const node = createNode({
-        kind: 'link',
-        label: 'Home',
-        attributes: { href: '/home' },
-      });
-
-      const identity = buildElementIdentity(node, 'abc123def456', 'main', 1);
-      expect(identity.href).toBe('/home');
-    });
-
-    it('should handle missing href', () => {
-      const node = createNode({
-        kind: 'button',
-        label: 'Submit',
-      });
-
-      const identity = buildElementIdentity(node, 'abc123def456', 'main', 1);
-      expect(identity.href).toBeUndefined();
-    });
-
-    it('should copy group_path array', () => {
-      const originalPath = ['Products', 'Electronics'];
-      const node = createNode({
-        where: {
-          region: 'main',
-          group_path: originalPath,
-        },
-      });
-
-      const identity = buildElementIdentity(node, 'abc123def456', 'main', 1);
-
-      // Should be a copy, not same reference
-      expect(identity.landmarkPath).toEqual(originalPath);
-      expect(identity.landmarkPath).not.toBe(originalPath);
-    });
-  });
-
   describe('EID Stability', () => {
     it('should generate same EID for semantically equivalent nodes', () => {
       // Simulate same element across two snapshots
@@ -542,6 +398,26 @@ describe('Element Identity', () => {
 
       // Should be different due to different group_path
       expect(computeEid(button1)).not.toBe(computeEid(button2));
+    });
+
+    it('should generate same EID regardless of scroll position (viewport coordinates)', () => {
+      // Simulate same element before and after scroll
+      const nodeBeforeScroll = createNode({
+        kind: 'button',
+        label: 'Add to Cart',
+        where: { region: 'main', group_path: ['Products'] },
+        layout: { bbox: { x: 100, y: 200, w: 80, h: 40 }, screen_zone: 'top-center' },
+      });
+
+      const nodeAfterScroll = createNode({
+        kind: 'button',
+        label: 'Add to Cart',
+        where: { region: 'main', group_path: ['Products'] },
+        layout: { bbox: { x: 100, y: 600, w: 80, h: 40 }, screen_zone: 'bottom-center' },
+      });
+
+      // EID should be same - scroll should not affect identity
+      expect(computeEid(nodeBeforeScroll)).toBe(computeEid(nodeAfterScroll));
     });
   });
 });
