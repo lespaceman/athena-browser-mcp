@@ -146,25 +146,37 @@ describe('Significance Scoring', () => {
   });
 
   describe('SIGNIFICANCE_THRESHOLD', () => {
-    it('should be 3', () => {
-      expect(SIGNIFICANCE_THRESHOLD).toBe(3);
+    it('should be 4', () => {
+      expect(SIGNIFICANCE_THRESHOLD).toBe(4);
     });
 
-    it('should mean single semantic signal meets threshold', () => {
+    it('should mean single semantic signal does not meet threshold', () => {
       const signals = createSignals({ hasAlertRole: true });
-      expect(computeSignificance(signals)).toBeGreaterThanOrEqual(SIGNIFICANCE_THRESHOLD);
+      // 3 < 4
+      expect(computeSignificance(signals)).toBeLessThan(SIGNIFICANCE_THRESHOLD);
     });
 
     it('should mean single visual signal does not meet threshold', () => {
       const signals = createSignals({ isFixedOrSticky: true });
+      // 2 < 4
       expect(computeSignificance(signals)).toBeLessThan(SIGNIFICANCE_THRESHOLD);
     });
 
-    it('should mean two visual signals meet threshold', () => {
+    it('should mean two visual signals do not meet threshold', () => {
       const signals = createSignals({
         isFixedOrSticky: true, // 2
         hasHighZIndex: true, // 1
       });
+      // 2 + 1 = 3 < 4
+      expect(computeSignificance(signals)).toBeLessThan(SIGNIFICANCE_THRESHOLD);
+    });
+
+    it('should mean semantic signal plus visual meets threshold', () => {
+      const signals = createSignals({
+        hasAlertRole: true, // 3
+        isVisibleInViewport: true, // 2
+      });
+      // 3 + 2 = 5 >= 4
       expect(computeSignificance(signals)).toBeGreaterThanOrEqual(SIGNIFICANCE_THRESHOLD);
     });
   });

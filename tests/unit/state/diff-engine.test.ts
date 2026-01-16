@@ -727,9 +727,9 @@ describe('Diff Engine', () => {
       expect(result.diff.mutations.statusAppeared[0].role).toBe('log');
     });
 
-    it('should track all readable elements when TRACK_ALL_READABLE_MUTATIONS is true', () => {
-      // With TRACK_ALL_READABLE_MUTATIONS flag enabled, paragraphs are tracked
-      // Note: This test documents current evaluation mode behavior
+    it('should NOT track non-status readable elements when TRACK_ALL_READABLE_MUTATIONS is false', () => {
+      // With TRACK_ALL_READABLE_MUTATIONS flag disabled, only ARIA status roles are tracked
+      // Paragraphs, headings, and other non-status readable elements are ignored
       const paragraph = createNode({
         kind: 'paragraph',
         label: 'Some dynamic text',
@@ -742,10 +742,8 @@ describe('Diff Engine', () => {
 
       const result = computeDiff(prev, curr);
 
-      // With flag enabled, paragraphs ARE tracked (evaluation mode)
-      expect(result.diff.mutations.statusAppeared).toHaveLength(1);
-      expect(result.diff.mutations.statusAppeared[0].role).toBe('paragraph');
-      expect(result.diff.mutations.statusAppeared[0].text).toBe('Some dynamic text');
+      // With flag disabled, paragraphs are NOT tracked
+      expect(result.diff.mutations.statusAppeared).toHaveLength(0);
     });
 
     it('should truncate long text in mutations', () => {

@@ -568,9 +568,12 @@ export async function captureSnapshot(
   handle = captureResult.handle;
   const snapshot = captureResult.snapshot;
 
+  // Filter observations to reduce noise (threshold 5 requires semantic signals)
+  const filteredObservations = observationAccumulator.filterBySignificance(observations, 5);
+
   // Attach accumulated observations to snapshot if any
-  if (observations.sincePrevious.length > 0) {
-    snapshot.observations = observations;
+  if (filteredObservations.sincePrevious.length > 0) {
+    snapshot.observations = filteredObservations;
   }
 
   snapshotStore.store(page_id, snapshot);

@@ -276,12 +276,12 @@ describe('ObservationAccumulator', () => {
       expect(filtered.duringAction[0].significance).toBe(5);
     });
 
-    it('should use default threshold of 3', () => {
+    it('should use default threshold of 4', () => {
       const observations = {
         duringAction: [
           {
             type: 'appeared' as const,
-            significance: 2,
+            significance: 3,
             signals: {} as never,
             content: { tag: 'div', text: '', hasInteractives: false },
             timestamp: 0,
@@ -289,7 +289,7 @@ describe('ObservationAccumulator', () => {
           },
           {
             type: 'appeared' as const,
-            significance: 3,
+            significance: 4,
             signals: {} as never,
             content: { tag: 'div', text: '', hasInteractives: false },
             timestamp: 0,
@@ -302,7 +302,7 @@ describe('ObservationAccumulator', () => {
       const filtered = accumulator.filterBySignificance(observations);
 
       expect(filtered.duringAction).toHaveLength(1);
-      expect(filtered.duringAction[0].significance).toBe(3);
+      expect(filtered.duringAction[0].significance).toBe(4);
     });
   });
 

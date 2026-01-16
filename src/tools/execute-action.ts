@@ -266,9 +266,12 @@ export async function executeAction(
   const captureResult = await capture();
   const snapshot = captureResult.snapshot;
 
+  // Filter observations to reduce noise (threshold 5 requires semantic signals)
+  const filteredObservations = observationAccumulator.filterBySignificance(observations, 5);
+
   // Attach observations to snapshot if any were captured
-  if (observations.duringAction.length > 0 || observations.sincePrevious.length > 0) {
-    snapshot.observations = observations;
+  if (filteredObservations.duringAction.length > 0 || filteredObservations.sincePrevious.length > 0) {
+    snapshot.observations = filteredObservations;
   }
 
   // Generate state response using StateManager
@@ -373,9 +376,12 @@ export async function executeActionWithRetry(
   const captureResult = await capture();
   const snapshot = captureResult.snapshot;
 
+  // Filter observations to reduce noise (threshold 5 requires semantic signals)
+  const filteredObservations = observationAccumulator.filterBySignificance(observations, 5);
+
   // Attach observations to snapshot if any were captured
-  if (observations.duringAction.length > 0 || observations.sincePrevious.length > 0) {
-    snapshot.observations = observations;
+  if (filteredObservations.duringAction.length > 0 || filteredObservations.sincePrevious.length > 0) {
+    snapshot.observations = filteredObservations;
   }
 
   // Generate state response using StateManager
@@ -621,9 +627,12 @@ export async function executeActionWithOutcome(
   const captureResult = await capture();
   const snapshot = captureResult.snapshot;
 
+  // Filter observations to reduce noise (threshold 5 requires semantic signals)
+  const filteredObservations = observationAccumulator.filterBySignificance(observations, 5);
+
   // Attach observations to snapshot if any were captured
-  if (observations.duringAction.length > 0 || observations.sincePrevious.length > 0) {
-    snapshot.observations = observations;
+  if (filteredObservations.duringAction.length > 0 || filteredObservations.sincePrevious.length > 0) {
+    snapshot.observations = filteredObservations;
   }
 
   // Generate state response using StateManager

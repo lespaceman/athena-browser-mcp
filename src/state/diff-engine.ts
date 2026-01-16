@@ -438,7 +438,7 @@ function computeAtomicDiffs(prev: BaseSnapshot, curr: BaseSnapshot): AtomChange[
  *
  * TODO: Remove or make permanent after evaluation is complete.
  */
-const TRACK_ALL_READABLE_MUTATIONS = true;
+const TRACK_ALL_READABLE_MUTATIONS = false;
 
 /**
  * Maximum character length for mutation text content.

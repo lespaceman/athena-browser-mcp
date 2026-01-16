@@ -62,7 +62,7 @@ export const SIGNIFICANCE_WEIGHTS: Record<keyof SignificanceSignals, number> = {
   wasShortLived: 2,
 };
 
-export const SIGNIFICANCE_THRESHOLD = 3;
+export const SIGNIFICANCE_THRESHOLD = 4;
 
 /**
  * Compute significance score from signals.
