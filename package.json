@@ -63,6 +63,7 @@
     "eslint": "^9.39.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
+    "jsdom": "^27.4.0",
     "prettier": "^3.7.0",
     "typescript": "^5.0.0",
     "typescript-eslint": "^8.53.0",

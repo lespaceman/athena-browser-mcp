@@ -25,7 +25,7 @@ export const OBSERVATION_OBSERVER_SCRIPT = `
   const MAX_TEXT_LENGTH = 200;
   const MAX_SHADOW_OBSERVERS = 50; // Limit to prevent performance issues
   // IMPORTANT: Must match SIGNIFICANCE_THRESHOLD in observation.types.ts
-  const SIGNIFICANCE_THRESHOLD = 3;
+  const SIGNIFICANCE_THRESHOLD = 4;
   // Node type constant for shadow root parent check
   const DOCUMENT_FRAGMENT_NODE = 11;
 
@@ -82,6 +82,56 @@ export const OBSERVATION_OBSERVER_SCRIPT = `
     return tag;
   }
 
+  // Tags whose text content should be excluded from extraction
+  const EXCLUDED_TEXT_TAGS = new Set(['STYLE', 'SCRIPT', 'NOSCRIPT', 'TEMPLATE', 'SVG']);
+
+  /**
+   * Get clean text content from an element, excluding CSS/JS content.
+   * Uses TreeWalker to iterate only text nodes, skipping those inside excluded tags.
+   * @param el - The element to extract text from
+   * @param maxLength - Maximum length of text to extract
+   * @returns Clean text content without style/script content
+   */
+  function getCleanTextContent(el, maxLength) {
+    // If element itself is an excluded tag, return empty
+    if (EXCLUDED_TEXT_TAGS.has(el.tagName.toUpperCase())) {
+      return '';
+    }
+
+    const walker = document.createTreeWalker(el, 4, { // NodeFilter.SHOW_TEXT = 4
+      acceptNode: function(node) {
+        let parent = node.parentElement;
+        while (parent && parent !== el) {
+          if (EXCLUDED_TEXT_TAGS.has(parent.tagName.toUpperCase())) {
+            return 2; // FILTER_REJECT
+          }
+          parent = parent.parentElement;
+        }
+        if (node.parentElement && EXCLUDED_TEXT_TAGS.has(node.parentElement.tagName.toUpperCase())) {
+          return 2; // FILTER_REJECT
+        }
+        return 1; // FILTER_ACCEPT
+      }
+    });
+
+    const textParts = [];
+    let totalLength = 0;
+    let node;
+
+    while ((node = walker.nextNode()) && totalLength < maxLength) {
+      const text = node.nodeValue;
+      if (text) {
+        const trimmed = text.trim();
+        if (trimmed) {
+          textParts.push(trimmed);
+          totalLength += trimmed.length;
+        }
+      }
+    }
+
+    return textParts.join(' ').substring(0, maxLength);
+  }
+
   /**
    * Compute significance signals from element.
    * Uses universal web standards (ARIA, CSS positioning, DOM structure, visibility).
@@ -115,7 +165,8 @@ export const OBSERVATION_OBSERVER_SCRIPT = `
       style.opacity !== '0';
 
     // Check for non-trivial text (at least 3 chars, not just whitespace)
-    const text = (el.textContent || '').trim();
+    // Use short sample for signal check - excludes style/script content
+    const text = getCleanTextContent(el, 100);
     const hasNonTrivialText = text.length >= 3;
 
     // For shadow DOM elements, isBodyDirectChild is false but we still want to capture them
@@ -178,8 +229,8 @@ export const OBSERVATION_OBSERVER_SCRIPT = `
     // Only capture if meets threshold
     if (significance < SIGNIFICANCE_THRESHOLD) return null;
 
-    // Capture content
-    const text = (el.textContent || '').trim().substring(0, MAX_TEXT_LENGTH);
+    // Capture content - excludes style/script content
+    const text = getCleanTextContent(el, MAX_TEXT_LENGTH);
     const hasInteractives = signals.containsInteractiveElements;
 
     // Get viewport coverage for later analysis
