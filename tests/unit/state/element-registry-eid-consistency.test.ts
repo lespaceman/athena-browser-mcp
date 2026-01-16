@@ -80,8 +80,8 @@ function extractEidsWithFocusFlag(xml: string): { eid: string; focused: boolean;
     const idMatch = idRegex.exec(attrs);
     if (!idMatch) continue;
 
-    // Check for foc="1"
-    const hasFocus = attrs.includes('foc="1"');
+    // Check for focused="1"
+    const hasFocus = attrs.includes('focused="1"');
 
     results.push({
       eid: idMatch[1],
