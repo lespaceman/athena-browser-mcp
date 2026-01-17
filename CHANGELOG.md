@@ -1,3 +1,23 @@
+## [2.2.0] - 2026-01-17
+
+- Merge pull request #23 from lespaceman/fix/form-understanding-code-review
+- style: fix prettier formatting in form module files
+- feat: add runtime-based input value capture for get_form_understanding
+- docs: update CLAUDE.md with current project info
+- feat: register form understanding tools
+- docs: clean up outdated documentation
+- fix: clear dependency tracker on navigation tools
+- fix: address code review issues for form understanding feature
+- Merge pull request #22 from lespaceman/feat/reduce-action-response-verbosity
+- ci: improve integration test workflow
+- Merge pull request #21 from lespaceman/feat/reduce-action-response-verbosity
+- ci: add separate workflow for integration tests with Playwright
+- style: apply prettier formatting
+- fix: add generic type to mock filterBySignificance to fix unsafe-return lint error
+- refactor: extract ATTACHMENT_SIGNIFICANCE_THRESHOLD constant
+- feat: reduce verbosity in action responses
+- fix: exclude CSS/JS content from DOM mutation text extraction
+
 ## [2.1.1] - 2026-01-16
 
 - Merge pull request #20 from lespaceman/fix/eid-scroll-stability
