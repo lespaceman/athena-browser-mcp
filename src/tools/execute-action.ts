@@ -274,7 +274,10 @@ export async function executeAction(
   );
 
   // Attach observations to snapshot if any were captured
-  if (filteredObservations.duringAction.length > 0 || filteredObservations.sincePrevious.length > 0) {
+  if (
+    filteredObservations.duringAction.length > 0 ||
+    filteredObservations.sincePrevious.length > 0
+  ) {
     snapshot.observations = filteredObservations;
   }
 
@@ -387,7 +390,10 @@ export async function executeActionWithRetry(
   );
 
   // Attach observations to snapshot if any were captured
-  if (filteredObservations.duringAction.length > 0 || filteredObservations.sincePrevious.length > 0) {
+  if (
+    filteredObservations.duringAction.length > 0 ||
+    filteredObservations.sincePrevious.length > 0
+  ) {
     snapshot.observations = filteredObservations;
   }
 
@@ -641,7 +647,10 @@ export async function executeActionWithOutcome(
   );
 
   // Attach observations to snapshot if any were captured
-  if (filteredObservations.duringAction.length > 0 || filteredObservations.sincePrevious.length > 0) {
+  if (
+    filteredObservations.duringAction.length > 0 ||
+    filteredObservations.sincePrevious.length > 0
+  ) {
     snapshot.observations = filteredObservations;
   }
 

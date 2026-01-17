@@ -64,7 +64,9 @@ describe('OBSERVATION_OBSERVER_SCRIPT', () => {
 
       eval(extractedFunction);
 
-      getCleanTextContent = (window as unknown as { __testGetCleanTextContent: typeof getCleanTextContent }).__testGetCleanTextContent;
+      getCleanTextContent = (
+        window as unknown as { __testGetCleanTextContent: typeof getCleanTextContent }
+      ).__testGetCleanTextContent;
     });
 
     it('should extract text content from simple elements', () => {
