@@ -65,6 +65,22 @@ export const SIGNIFICANCE_WEIGHTS: Record<keyof SignificanceSignals, number> = {
 export const SIGNIFICANCE_THRESHOLD = 4;
 
 /**
+ * Higher threshold for attaching observations to tool responses.
+ *
+ * Two-Tier Filtering Strategy:
+ * ----------------------------
+ * Tier 1 (Browser-side, threshold=4): SIGNIFICANCE_THRESHOLD
+ *   - Applied in observer-script.ts during DOM mutation capture
+ *   - Filters out clearly insignificant mutations at capture time
+ *
+ * Tier 2 (Attachment-time, threshold=5): ATTACHMENT_SIGNIFICANCE_THRESHOLD
+ *   - Applied when attaching observations to snapshot responses
+ *   - Requires semantic signal (ARIA role) + visual/structural signals
+ *   - Reduces response verbosity for the LLM
+ */
+export const ATTACHMENT_SIGNIFICANCE_THRESHOLD = 5;
+
+/**
  * Compute significance score from signals.
  */
 export function computeSignificance(signals: SignificanceSignals): number {

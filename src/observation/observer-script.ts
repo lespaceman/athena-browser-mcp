@@ -87,10 +87,12 @@ export const OBSERVATION_OBSERVER_SCRIPT = `
 
   /**
    * Get clean text content from an element, excluding CSS/JS content.
-   * Uses TreeWalker to iterate only text nodes, skipping those inside excluded tags.
-   * @param el - The element to extract text from
-   * @param maxLength - Maximum length of text to extract
-   * @returns Clean text content without style/script content
+   * Uses TreeWalker to iterate only text nodes, skipping those inside
+   * excluded tags (STYLE, SCRIPT, NOSCRIPT, TEMPLATE, SVG).
+   *
+   * @param {Element} el - The DOM element to extract text from
+   * @param {number} maxLength - Maximum text length (truncates result)
+   * @returns {string} Clean text content, space-joined, truncated to maxLength
    */
   function getCleanTextContent(el, maxLength) {
     // If element itself is an excluded tag, return empty
@@ -106,9 +108,6 @@ export const OBSERVATION_OBSERVER_SCRIPT = `
             return 2; // FILTER_REJECT
           }
           parent = parent.parentElement;
-        }
-        if (node.parentElement && EXCLUDED_TEXT_TAGS.has(node.parentElement.tagName.toUpperCase())) {
-          return 2; // FILTER_REJECT
         }
         return 1; // FILTER_ACCEPT
       }

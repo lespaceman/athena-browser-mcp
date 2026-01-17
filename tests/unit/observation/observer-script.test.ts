@@ -17,6 +17,9 @@ describe('OBSERVATION_OBSERVER_SCRIPT', () => {
     beforeEach(() => {
       // Execute the script to make getCleanTextContent available
       // We extract just the getCleanTextContent function for isolated testing
+      //
+      // WARNING: This implementation must be kept in sync with observer-script.ts
+      // See "sync validation" tests below that verify key aspects match the source.
       const extractedFunction = `
         const EXCLUDED_TEXT_TAGS = new Set(['STYLE', 'SCRIPT', 'NOSCRIPT', 'TEMPLATE', 'SVG']);
 
@@ -33,9 +36,6 @@ describe('OBSERVATION_OBSERVER_SCRIPT', () => {
                   return 2; // FILTER_REJECT
                 }
                 parent = parent.parentElement;
-              }
-              if (node.parentElement && EXCLUDED_TEXT_TAGS.has(node.parentElement.tagName.toUpperCase())) {
-                return 2;
               }
               return 1; // FILTER_ACCEPT
             }
@@ -271,6 +271,19 @@ describe('OBSERVATION_OBSERVER_SCRIPT', () => {
     it('should use getCleanTextContent in captureEntry', () => {
       // Verify the script uses getCleanTextContent in captureEntry function
       expect(OBSERVATION_OBSERVER_SCRIPT).toContain('getCleanTextContent(el, MAX_TEXT_LENGTH)');
+    });
+  });
+
+  describe('sync validation', () => {
+    it('should have matching EXCLUDED_TEXT_TAGS in source', () => {
+      const expectedTags = ['STYLE', 'SCRIPT', 'NOSCRIPT', 'TEMPLATE', 'SVG'];
+      for (const tag of expectedTags) {
+        expect(OBSERVATION_OBSERVER_SCRIPT).toContain(`'${tag}'`);
+      }
+    });
+
+    it('should have getCleanTextContent with same signature', () => {
+      expect(OBSERVATION_OBSERVER_SCRIPT).toContain('function getCleanTextContent(el, maxLength)');
     });
   });
 });
