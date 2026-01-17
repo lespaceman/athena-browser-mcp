@@ -18,7 +18,7 @@ import { chromium, Browser, Page } from 'playwright';
 import { observationAccumulator } from '../../src/observation/index.js';
 
 // Skip in CI unless RUN_INTEGRATION is set (for dedicated integration workflow)
-const skipIntegration = !!process.env.CI && !process.env.RUN_INTEGRATION;
+const skipIntegration = process.env.CI === 'true' && process.env.RUN_INTEGRATION !== 'true';
 
 describe.skipIf(skipIntegration)('Observation Capture Integration', () => {
   let browser: Browser;

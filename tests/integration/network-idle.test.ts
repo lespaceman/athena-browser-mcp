@@ -42,7 +42,7 @@ const DELAYED_FETCH_HTML = `
 `;
 
 // Skip in CI unless RUN_INTEGRATION is set (for dedicated integration workflow)
-const skipIntegration = process.env.CI === 'true' && !process.env.RUN_INTEGRATION;
+const skipIntegration = process.env.CI === 'true' && process.env.RUN_INTEGRATION !== 'true';
 
 describe.skipIf(skipIntegration)('Network Idle Stabilization (Integration)', () => {
   let server: Server;

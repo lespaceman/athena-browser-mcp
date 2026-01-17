@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - develop
+      - 'feat/**'
       - 'feature/**'
   pull_request:
     branches:
@@ -21,6 +22,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Node 20.x only - browser tests don't need multi-version matrix
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -29,6 +31,15 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-chromium
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
