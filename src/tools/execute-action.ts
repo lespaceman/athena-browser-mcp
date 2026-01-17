@@ -19,6 +19,7 @@ import type { ClickOutcome } from '../state/element-ref.types.js';
 import type { RuntimeHealth } from '../state/health.types.js';
 import { createHealthyRuntime } from '../state/health.types.js';
 import { observationAccumulator } from '../observation/index.js';
+import { ATTACHMENT_SIGNIFICANCE_THRESHOLD } from '../observation/observation.types.js';
 import {
   waitForNetworkQuiet,
   ACTION_NETWORK_IDLE_TIMEOUT_MS,
@@ -266,9 +267,18 @@ export async function executeAction(
   const captureResult = await capture();
   const snapshot = captureResult.snapshot;
 
+  // Filter observations to reduce noise (threshold 5 requires semantic signals)
+  const filteredObservations = observationAccumulator.filterBySignificance(
+    observations,
+    ATTACHMENT_SIGNIFICANCE_THRESHOLD
+  );
+
   // Attach observations to snapshot if any were captured
-  if (observations.duringAction.length > 0 || observations.sincePrevious.length > 0) {
-    snapshot.observations = observations;
+  if (
+    filteredObservations.duringAction.length > 0 ||
+    filteredObservations.sincePrevious.length > 0
+  ) {
+    snapshot.observations = filteredObservations;
   }
 
   // Generate state response using StateManager
@@ -373,9 +383,18 @@ export async function executeActionWithRetry(
   const captureResult = await capture();
   const snapshot = captureResult.snapshot;
 
+  // Filter observations to reduce noise (threshold 5 requires semantic signals)
+  const filteredObservations = observationAccumulator.filterBySignificance(
+    observations,
+    ATTACHMENT_SIGNIFICANCE_THRESHOLD
+  );
+
   // Attach observations to snapshot if any were captured
-  if (observations.duringAction.length > 0 || observations.sincePrevious.length > 0) {
-    snapshot.observations = observations;
+  if (
+    filteredObservations.duringAction.length > 0 ||
+    filteredObservations.sincePrevious.length > 0
+  ) {
+    snapshot.observations = filteredObservations;
   }
 
   // Generate state response using StateManager
@@ -621,9 +640,18 @@ export async function executeActionWithOutcome(
   const captureResult = await capture();
   const snapshot = captureResult.snapshot;
 
+  // Filter observations to reduce noise (threshold 5 requires semantic signals)
+  const filteredObservations = observationAccumulator.filterBySignificance(
+    observations,
+    ATTACHMENT_SIGNIFICANCE_THRESHOLD
+  );
+
   // Attach observations to snapshot if any were captured
-  if (observations.duringAction.length > 0 || observations.sincePrevious.length > 0) {
-    snapshot.observations = observations;
+  if (
+    filteredObservations.duringAction.length > 0 ||
+    filteredObservations.sincePrevious.length > 0
+  ) {
+    snapshot.observations = filteredObservations;
   }
 
   // Generate state response using StateManager

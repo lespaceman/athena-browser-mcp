@@ -39,6 +39,7 @@ vi.mock('../../../src/observation/index.js', () => ({
     getAccumulatedObservations: vi.fn().mockResolvedValue({ duringAction: [], sincePrevious: [] }),
     inject: vi.fn().mockResolvedValue(undefined),
     reset: vi.fn().mockResolvedValue(undefined),
+    filterBySignificance: vi.fn().mockImplementation(<T>(obs: T): T => obs),
   },
 }));
 

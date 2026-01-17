@@ -16,6 +16,7 @@ import {
   scrollPage as scrollPageByAmount,
 } from '../snapshot/index.js';
 import { observationAccumulator } from '../observation/index.js';
+import { ATTACHMENT_SIGNIFICANCE_THRESHOLD } from '../observation/observation.types.js';
 import type { NodeDetails } from './tool-schemas.js';
 import {
   LaunchBrowserInputSchema,
@@ -568,9 +569,15 @@ export async function captureSnapshot(
   handle = captureResult.handle;
   const snapshot = captureResult.snapshot;
 
+  // Filter observations to reduce noise (threshold 5 requires semantic signals)
+  const filteredObservations = observationAccumulator.filterBySignificance(
+    observations,
+    ATTACHMENT_SIGNIFICANCE_THRESHOLD
+  );
+
   // Attach accumulated observations to snapshot if any
-  if (observations.sincePrevious.length > 0) {
-    snapshot.observations = observations;
+  if (filteredObservations.sincePrevious.length > 0) {
+    snapshot.observations = filteredObservations;
   }
 
   snapshotStore.store(page_id, snapshot);
