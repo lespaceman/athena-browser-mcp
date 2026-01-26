@@ -5,6 +5,9 @@
  * All pages share cookies/storage within the context.
  */
 
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { chromium, type Browser, type BrowserContext } from 'playwright';
 import { PlaywrightCdpClient } from '../cdp/playwright-cdp-client.js';
 import { PageRegistry, type PageHandle } from './page-registry.js';
@@ -83,6 +86,71 @@ export interface ConnectOptions {
 
   /** Connection timeout in ms (default: 10000) */
   timeout?: number;
+
+  /**
+   * Auto-connect to Chrome 144+ with UI-based remote debugging enabled.
+   * Reads DevToolsActivePort file from Chrome's user data directory.
+   * Requires user to enable remote debugging at chrome://inspect/#remote-debugging
+   */
+  autoConnect?: boolean;
+
+  /** Chrome user data directory for autoConnect (default: ~/.config/google-chrome on Linux) */
+  userDataDir?: string;
+}
+
+/**
+ * Get the default Chrome user data directory for the current platform
+ */
+function getDefaultChromeUserDataDir(): string {
+  const platform = os.platform();
+  const home = os.homedir();
+
+  switch (platform) {
+    case 'darwin':
+      return path.join(home, 'Library', 'Application Support', 'Google', 'Chrome');
+    case 'win32':
+      return path.join(home, 'AppData', 'Local', 'Google', 'Chrome', 'User Data');
+    default: // linux
+      return path.join(home, '.config', 'google-chrome');
+  }
+}
+
+/**
+ * Read the DevToolsActivePort file from Chrome's user data directory.
+ * Chrome 144+ writes this file when remote debugging is enabled via chrome://inspect/#remote-debugging
+ *
+ * @param userDataDir - Chrome user data directory
+ * @returns WebSocket URL for CDP connection
+ * @throws Error if file not found or invalid
+ */
+async function readDevToolsActivePort(userDataDir: string): Promise<string> {
+  const portFilePath = path.join(userDataDir, 'DevToolsActivePort');
+
+  try {
+    const content = await fs.promises.readFile(portFilePath, 'utf8');
+    const lines = content.split('\n').map(line => line.trim()).filter(Boolean);
+
+    if (lines.length < 2) {
+      throw new Error(`Invalid DevToolsActivePort content: ${content}`);
+    }
+
+    const [rawPort, wsPath] = lines;
+    const port = parseInt(rawPort, 10);
+
+    if (isNaN(port) || port <= 0 || port > 65535) {
+      throw new Error(`Invalid port in DevToolsActivePort: ${rawPort}`);
+    }
+
+    return `ws://127.0.0.1:${port}${wsPath}`;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error(
+        `DevToolsActivePort file not found at ${portFilePath}. ` +
+        'Make sure Chrome is running and remote debugging is enabled at chrome://inspect/#remote-debugging'
+      );
+    }
+    throw error;
+  }
 }
 
 /**
@@ -277,7 +345,7 @@ export class SessionManager {
    *
    * Use this to connect to Athena Browser or any Chromium with remote debugging enabled.
    *
-   * @param options - Connection options (host/port or endpointUrl)
+   * @param options - Connection options (host/port, endpointUrl, or autoConnect)
    * @throws BrowserSessionError if browser is already running, connection in progress, or URL is invalid
    *
    * @example
@@ -288,6 +356,9 @@ export class SessionManager {
    * // Connect to custom endpoint
    * await session.connect({ port: 9222 });
    * await session.connect({ endpointUrl: 'http://localhost:9223' });
+   *
+   * // Auto-connect to Chrome 144+ with UI-based remote debugging
+   * await session.connect({ autoConnect: true });
    * ```
    */
   async connect(options: ConnectOptions = {}): Promise<void> {
@@ -295,14 +366,33 @@ export class SessionManager {
       throw BrowserSessionError.invalidState(this._connectionState, 'connect');
     }
 
-    const host = options.host ?? process.env.CEF_BRIDGE_HOST ?? DEFAULT_CDP_HOST;
-    const port = options.port ?? Number(process.env.CEF_BRIDGE_PORT ?? DEFAULT_CDP_PORT);
-    const endpointUrl = options.endpointUrl ?? `http://${host}:${port}`;
     const timeout = options.timeout ?? DEFAULT_CONNECTION_TIMEOUT;
+    let endpointUrl: string;
 
-    // Validate endpoint URL
-    if (!isValidHttpUrl(endpointUrl)) {
-      throw BrowserSessionError.invalidUrl(endpointUrl);
+    // Determine connection method
+    if (options.autoConnect) {
+      // Chrome 144+ auto-connect via DevToolsActivePort
+      const userDataDir = options.userDataDir ?? getDefaultChromeUserDataDir();
+      try {
+        endpointUrl = await readDevToolsActivePort(userDataDir);
+        this.logger.info('Auto-connect: found DevToolsActivePort', { userDataDir, endpointUrl });
+      } catch (error) {
+        throw BrowserSessionError.connectionFailed(
+          error instanceof Error ? error : new Error(String(error)),
+          { operation: 'autoConnect', userDataDir }
+        );
+      }
+    } else if (options.endpointUrl) {
+      endpointUrl = options.endpointUrl;
+      // Validate URL format (HTTP, HTTPS, WS, or WSS)
+      const isWebSocket = endpointUrl.startsWith('ws://') || endpointUrl.startsWith('wss://');
+      if (!isWebSocket && !isValidHttpUrl(endpointUrl)) {
+        throw BrowserSessionError.invalidUrl(endpointUrl);
+      }
+    } else {
+      const host = options.host ?? process.env.CEF_BRIDGE_HOST ?? DEFAULT_CDP_HOST;
+      const port = options.port ?? Number(process.env.CEF_BRIDGE_PORT ?? DEFAULT_CDP_PORT);
+      endpointUrl = `http://${host}:${port}`;
     }
 
     this.transitionTo('connecting');
@@ -312,7 +402,7 @@ export class SessionManager {
     let timeoutId: NodeJS.Timeout | undefined;
 
     try {
-      // Connect with timeout
+      // Connect with timeout - connectOverCDP supports both HTTP and WebSocket URLs
       const connectionPromise = chromium.connectOverCDP(endpointUrl);
       const timeoutPromise = new Promise<never>((_, reject) => {
         timeoutId = setTimeout(() => {

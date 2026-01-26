@@ -110,7 +110,21 @@ To connect with your bookmarks, extensions, and logged-in sessions:
 
 1. Navigate to `chrome://inspect/#remote-debugging` in Chrome
 2. Enable remote debugging and allow the connection
-3. Use `connect_browser` with `endpoint_url: http://127.0.0.1:9222`
+3. Set `AUTO_CONNECT=true` in your MCP config and use `connect_browser`
+
+```json
+{
+  "mcpServers": {
+    "athena-browser-mcp": {
+      "command": "node",
+      "args": ["/path/to/athena-browser-mcp/dist/src/index.js"],
+      "env": {
+        "AUTO_CONNECT": "true"
+      }
+    }
+  }
+}
+```
 
 ---
 
