@@ -49,6 +49,8 @@ export interface Logger {
   info(message: string, context?: Record<string, unknown>): void;
   notice(message: string, context?: Record<string, unknown>): void;
   warning(message: string, context?: Record<string, unknown>): void;
+  /** Alias for warning */
+  warn?(message: string, context?: Record<string, unknown>): void;
   error(message: string, error?: Error, context?: Record<string, unknown>): void;
   critical(message: string, error?: Error, context?: Record<string, unknown>): void;
   alert(message: string, error?: Error, context?: Record<string, unknown>): void;
@@ -354,4 +356,41 @@ export function getLogger(): LoggingService {
  */
 export function setLogger(logger: LoggingService): void {
   globalLogger = logger;
+}
+
+/**
+ * Create a named logger instance
+ * Uses a child logger pattern that wraps the global logger
+ *
+ * @param name - Logger name for context in log messages
+ * @returns Logger interface
+ */
+export function createLogger(name: string): Logger {
+  const logger = getLogger();
+
+  return {
+    debug: (message: string, context?: Record<string, unknown>) =>
+      logger.debug(message, { ...context, logger: name }),
+    info: (message: string, context?: Record<string, unknown>) =>
+      logger.info(message, { ...context, logger: name }),
+    notice: (message: string, context?: Record<string, unknown>) =>
+      logger.notice(message, { ...context, logger: name }),
+    warning: (message: string, context?: Record<string, unknown>) =>
+      logger.warning(message, { ...context, logger: name }),
+    warn: (message: string, context?: Record<string, unknown>) =>
+      logger.warning(message, { ...context, logger: name }),
+    error: (message: string, errorOrContext?: Error | Record<string, unknown>, context?: Record<string, unknown>) => {
+      if (errorOrContext instanceof Error) {
+        logger.error(message, errorOrContext, { ...context, logger: name });
+      } else {
+        logger.error(message, undefined, { ...errorOrContext, logger: name });
+      }
+    },
+    critical: (message: string, error?: Error, context?: Record<string, unknown>) =>
+      logger.critical(message, error, { ...context, logger: name }),
+    alert: (message: string, error?: Error, context?: Record<string, unknown>) =>
+      logger.alert(message, error, { ...context, logger: name }),
+    emergency: (message: string, error?: Error, context?: Record<string, unknown>) =>
+      logger.emergency(message, error, { ...context, logger: name }),
+  };
 }
