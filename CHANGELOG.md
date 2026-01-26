@@ -1,3 +1,10 @@
+## [2.2.1] - 2026-01-26
+
+- Merge pull request #26 from lespaceman/feat/worker-manager
+- fix: improve code quality from review feedback
+- feat: add Chrome 144+ autoConnect support via DevToolsActivePort
+- feat: optimize observation XML representation for token efficiency (#24)
+
 ## [2.2.0] - 2026-01-17
 
 - Merge pull request #23 from lespaceman/fix/form-understanding-code-review
