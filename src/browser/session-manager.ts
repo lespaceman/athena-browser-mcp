@@ -68,7 +68,7 @@ const DEFAULT_USER_DATA_DIR = path.join(
  * Options for launching a new browser
  */
 export interface LaunchOptions {
-  /** Run browser in headless mode (default: true) */
+  /** Run browser in headless mode (default: false) */
   headless?: boolean;
 
   /** Viewport dimensions */
@@ -97,8 +97,8 @@ export interface LaunchOptions {
 const DEFAULT_CDP_PORT = 9223;
 /** Default CDP host */
 const DEFAULT_CDP_HOST = '127.0.0.1';
-/** Default connection timeout in ms */
-const DEFAULT_CONNECTION_TIMEOUT = 10000;
+/** Default connection timeout in ms (30s to handle slow networks and remote browsers) */
+const DEFAULT_CONNECTION_TIMEOUT = 30000;
 
 /**
  * Options for connecting to an existing browser via CDP

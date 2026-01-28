@@ -64,26 +64,38 @@ export async function ensureBrowserReady(
     return;
   }
 
-  logger.info('Lazy browser initialization triggered', {
-    mode: shouldConnect(options) ? 'connect' : 'launch',
-  });
+  const mode = shouldConnect(options) ? 'connect' : 'launch';
+  logger.info('Lazy browser initialization triggered', { mode });
 
-  if (shouldConnect(options)) {
-    // Connect to existing browser
-    await session.connect({
-      browserURL: options.browserUrl,
-      browserWSEndpoint: options.wsEndpoint,
+  try {
+    if (shouldConnect(options)) {
+      // Connect to existing browser
+      await session.connect({
+        browserURL: options.browserUrl,
+        browserWSEndpoint: options.wsEndpoint,
+        autoConnect: options.autoConnect,
+        userDataDir: options.userDataDir,
+      });
+    } else {
+      // Launch new browser
+      await session.launch({
+        headless: options.headless ?? false,
+        isolated: options.isolated ?? false,
+        userDataDir: options.userDataDir,
+        channel: options.channel,
+        executablePath: options.executablePath,
+      });
+    }
+    logger.info('Browser initialized successfully', { mode });
+  } catch (error) {
+    logger.error('Browser initialization failed', error instanceof Error ? error : undefined, {
+      mode,
+      browserUrl: options.browserUrl,
+      wsEndpoint: options.wsEndpoint,
       autoConnect: options.autoConnect,
+      headless: options.headless,
       userDataDir: options.userDataDir,
     });
-  } else {
-    // Launch new browser
-    await session.launch({
-      headless: options.headless ?? false,
-      isolated: options.isolated ?? false,
-      userDataDir: options.userDataDir,
-      channel: options.channel,
-      executablePath: options.executablePath,
-    });
+    throw error;
   }
 }

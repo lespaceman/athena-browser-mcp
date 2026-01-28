@@ -110,7 +110,7 @@ The server accepts the following arguments to configure browser initialization:
 
 | Argument                 | Description                                                     | Default          |
 | ------------------------ | --------------------------------------------------------------- | ---------------- |
-| `--headless=true\|false` | Run browser in headless mode                                    | `true`           |
+| `--headless=true\|false` | Run browser in headless mode                                    | `false`          |
 | `--browserUrl`           | HTTP endpoint to connect to existing browser                    | -                |
 | `--wsEndpoint`           | WebSocket endpoint to connect to existing browser               | -                |
 | `--autoConnect`          | Auto-connect to Chrome 144+ via DevToolsActivePort              | `false`          |
@@ -126,11 +126,11 @@ The browser is automatically launched or connected on the first tool call. No ex
 Examples:
 
 ```bash
-# Auto-launch headless browser (default)
+# Auto-launch visible browser (default)
 npx athena-browser-mcp
 
-# Launch visible browser
-npx athena-browser-mcp --headless=false
+# Launch headless browser
+npx athena-browser-mcp --headless
 
 # Auto-connect to Chrome with remote debugging enabled
 npx athena-browser-mcp --autoConnect

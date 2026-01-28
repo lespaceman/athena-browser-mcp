@@ -10,8 +10,13 @@ import { BrowserAutomationServer } from './server/mcp-server.js';
 import {
   initServerConfig,
   getSessionManager,
+  getServerConfig,
   ensureBrowserForTools,
+  isSessionManagerInitialized,
 } from './server/server-config.js';
+import { getLogger } from './shared/services/logging.service.js';
+
+const logger = getLogger();
 import {
   initializeTools,
   initializeFormTools,
@@ -57,20 +62,38 @@ import {
 
 /**
  * Wrap a tool handler with lazy browser initialization.
+ * Works with both sync and async handlers - sync return values are automatically
+ * wrapped in a resolved promise by the async function.
+ * Includes error context logging when browser initialization fails.
  */
-function withLazyInit<T, R>(handler: (input: T) => Promise<R>): (input: T) => Promise<R> {
+function withLazyInit<T, R>(
+  handler: (input: T) => R | Promise<R>,
+  toolName?: string
+): (input: T) => Promise<R> {
   return async (input: T) => {
-    await ensureBrowserForTools();
-    return handler(input);
-  };
-}
-
-/**
- * Wrap a sync tool handler with lazy browser initialization.
- */
-function withLazyInitSync<T, R>(handler: (input: T) => R): (input: T) => Promise<R> {
-  return async (input: T) => {
-    await ensureBrowserForTools();
+    try {
+      await ensureBrowserForTools();
+    } catch (error) {
+      const config = getServerConfig();
+      const mode = config.autoConnect
+        ? 'autoConnect'
+        : config.browserUrl || config.wsEndpoint
+          ? 'connect'
+          : 'launch';
+      logger.error(
+        'Browser initialization failed during tool execution',
+        error instanceof Error ? error : undefined,
+        {
+          tool: toolName,
+          mode,
+          headless: config.headless,
+          autoConnect: config.autoConnect,
+          browserUrl: config.browserUrl,
+          wsEndpoint: config.wsEndpoint,
+        }
+      );
+      throw error;
+    }
     return handler(input);
   };
 }
@@ -106,17 +129,18 @@ function initializeServer(): BrowserAutomationServer {
       description: 'Close a specific page by page_id.',
       inputSchema: ClosePageInputSchema.shape,
     },
-    withLazyInit(closePage)
+    withLazyInit(closePage, 'close_page')
   );
 
   server.registerTool(
     'close_session',
     {
       title: 'Close Session',
-      description: 'Close the entire browser session.',
+      description:
+        'Close the browser session and clear all state. The browser will be re-initialized automatically on the next tool call.',
       inputSchema: CloseSessionInputSchema.shape,
     },
-    withLazyInit(closeSession)
+    withLazyInit(closeSession, 'close_session')
   );
 
   // ============================================================================
@@ -130,7 +154,7 @@ function initializeServer(): BrowserAutomationServer {
       description: 'Navigate directly to a URL and return the new snapshot.',
       inputSchema: NavigateInputSchema.shape,
     },
-    withLazyInit(navigate)
+    withLazyInit(navigate, 'navigate')
   );
 
   server.registerTool(
@@ -140,7 +164,7 @@ function initializeServer(): BrowserAutomationServer {
       description: 'Navigate back in browser history.',
       inputSchema: GoBackInputSchema.shape,
     },
-    withLazyInit(goBack)
+    withLazyInit(goBack, 'go_back')
   );
 
   server.registerTool(
@@ -150,7 +174,7 @@ function initializeServer(): BrowserAutomationServer {
       description: 'Navigate forward in browser history.',
       inputSchema: GoForwardInputSchema.shape,
     },
-    withLazyInit(goForward)
+    withLazyInit(goForward, 'go_forward')
   );
 
   server.registerTool(
@@ -160,7 +184,7 @@ function initializeServer(): BrowserAutomationServer {
       description: 'Reload the current page and return the refreshed snapshot.',
       inputSchema: ReloadInputSchema.shape,
     },
-    withLazyInit(reload)
+    withLazyInit(reload, 'reload')
   );
 
   server.registerTool(
@@ -170,7 +194,7 @@ function initializeServer(): BrowserAutomationServer {
       description: 'Capture a fresh snapshot of the current page.',
       inputSchema: CaptureSnapshotInputSchema.shape,
     },
-    withLazyInit(captureSnapshot)
+    withLazyInit(captureSnapshot, 'capture_snapshot')
   );
 
   // ============================================================================
@@ -184,7 +208,7 @@ function initializeServer(): BrowserAutomationServer {
       description: 'Find elements by kind, label, or region in the current snapshot.',
       inputSchema: FindElementsInputSchema.shape,
     },
-    withLazyInitSync(findElements)
+    withLazyInit(findElements, 'find_elements')
   );
 
   server.registerTool(
@@ -194,7 +218,7 @@ function initializeServer(): BrowserAutomationServer {
       description: 'Return full details for a single eid.',
       inputSchema: GetNodeDetailsInputSchema.shape,
     },
-    withLazyInitSync(getNodeDetails)
+    withLazyInit(getNodeDetails, 'get_node_details')
   );
 
   // ============================================================================
@@ -208,7 +232,7 @@ function initializeServer(): BrowserAutomationServer {
       description: 'Scroll a specific element into view.',
       inputSchema: ScrollElementIntoViewInputSchemaBase.shape,
     },
-    withLazyInit(scrollElementIntoView)
+    withLazyInit(scrollElementIntoView, 'scroll_element_into_view')
   );
 
   server.registerTool(
@@ -218,7 +242,7 @@ function initializeServer(): BrowserAutomationServer {
       description: 'Scroll the page up or down by a specified amount.',
       inputSchema: ScrollPageInputSchema.shape,
     },
-    withLazyInit(scrollPage)
+    withLazyInit(scrollPage, 'scroll_page')
   );
 
   server.registerTool(
@@ -228,7 +252,7 @@ function initializeServer(): BrowserAutomationServer {
       description: 'Click an element by eid.',
       inputSchema: ClickInputSchemaBase.shape,
     },
-    withLazyInit(click)
+    withLazyInit(click, 'click')
   );
 
   server.registerTool(
@@ -238,7 +262,7 @@ function initializeServer(): BrowserAutomationServer {
       description: 'Type text into a specific element (by eid) with optional clearing.',
       inputSchema: TypeInputSchemaBase.shape,
     },
-    withLazyInit(type)
+    withLazyInit(type, 'type')
   );
 
   server.registerTool(
@@ -248,7 +272,7 @@ function initializeServer(): BrowserAutomationServer {
       description: 'Press a keyboard key with optional modifiers.',
       inputSchema: PressInputSchema.shape,
     },
-    withLazyInit(press)
+    withLazyInit(press, 'press')
   );
 
   server.registerTool(
@@ -258,7 +282,7 @@ function initializeServer(): BrowserAutomationServer {
       description: 'Select an option from a <select> element (by eid) by value or text.',
       inputSchema: SelectInputSchemaBase.shape,
     },
-    withLazyInit(select)
+    withLazyInit(select, 'select')
   );
 
   server.registerTool(
@@ -268,7 +292,7 @@ function initializeServer(): BrowserAutomationServer {
       description: 'Hover over an element by eid.',
       inputSchema: HoverInputSchemaBase.shape,
     },
-    withLazyInit(hover)
+    withLazyInit(hover, 'hover')
   );
 
   // ============================================================================
@@ -283,7 +307,7 @@ function initializeServer(): BrowserAutomationServer {
         'Analyze forms on the page and return semantic understanding of form regions, fields, dependencies, and state. Use this to understand complex form interactions.',
       inputSchema: GetFormUnderstandingInputSchema.shape,
     },
-    withLazyInitSync(getFormUnderstanding)
+    withLazyInit(getFormUnderstanding, 'get_form_understanding')
   );
 
   server.registerTool(
@@ -294,7 +318,7 @@ function initializeServer(): BrowserAutomationServer {
         'Get detailed context for a specific form field including purpose inference, constraints, dependencies, and suggested next action.',
       inputSchema: GetFieldContextInputSchema.shape,
     },
-    withLazyInitSync(getFieldContext)
+    withLazyInit(getFieldContext, 'get_field_context')
   );
 
   return server;
@@ -313,9 +337,11 @@ async function main(): Promise<void> {
       console.error(`Shutting down... (${signal})`);
       void (async () => {
         try {
-          // Shutdown browser session first (if initialized)
-          const session = getSessionManager();
-          await session.shutdown();
+          // Shutdown browser session first (only if initialized)
+          if (isSessionManagerInitialized()) {
+            const session = getSessionManager();
+            await session.shutdown();
+          }
           await server.stop();
           process.exit(0);
         } catch (shutdownError) {

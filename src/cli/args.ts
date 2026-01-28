@@ -34,6 +34,28 @@ export interface ServerArgs {
   executablePath?: string;
 }
 
+/** Known CLI argument base names for validation */
+const KNOWN_ARG_NAMES = new Set([
+  'headless',
+  'isolated',
+  'autoConnect',
+  'browserUrl',
+  'wsEndpoint',
+  'userDataDir',
+  'channel',
+  'executablePath',
+]);
+
+/**
+ * Check if an argument is a known CLI flag (handles --arg and --arg=value forms).
+ */
+function isKnownArg(arg: string): boolean {
+  if (!arg.startsWith('--')) return true; // Not a flag, skip validation
+  const withoutDashes = arg.slice(2);
+  const baseName = withoutDashes.split('=')[0];
+  return KNOWN_ARG_NAMES.has(baseName);
+}
+
 /**
  * Parse command-line arguments into ServerArgs.
  *
@@ -68,6 +90,9 @@ export function parseArgs(argv: string[]): ServerArgs {
       args.channel = argv[++i] as ServerArgs['channel'];
     } else if (arg === '--executablePath' && argv[i + 1]) {
       args.executablePath = argv[++i];
+    } else if (!isKnownArg(arg)) {
+      // Warn about unknown arguments to catch typos like --hedless
+      console.warn(`Warning: Unknown argument "${arg}" - ignored`);
     }
   }
 

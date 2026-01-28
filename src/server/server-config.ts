@@ -50,6 +50,15 @@ export function getSessionManager(): SessionManager {
 }
 
 /**
+ * Check if the SessionManager has been initialized.
+ * Use this before calling getSessionManager() in cleanup paths
+ * to avoid creating a new instance unnecessarily.
+ */
+export function isSessionManagerInitialized(): boolean {
+  return sessionManager !== null;
+}
+
+/**
  * Ensure browser is ready for tool execution.
  *
  * This is the main entry point for tools to call before executing.

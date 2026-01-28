@@ -4,7 +4,7 @@
  * TDD tests for parseArgs function.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { parseArgs, type ServerArgs } from '../../../src/cli/args.js';
 
 describe('parseArgs', () => {
@@ -99,7 +99,9 @@ describe('parseArgs', () => {
     expect(args.channel).toBe('chrome-beta');
   });
 
-  it('should ignore unknown arguments', () => {
+  it('should ignore unknown arguments and warn about them', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
     const args = parseArgs(['--unknownArg', 'value', '--anotherUnknown']);
 
     expect(args).toEqual({
@@ -112,6 +114,28 @@ describe('parseArgs', () => {
       channel: undefined,
       executablePath: undefined,
     });
+
+    // Should warn about both unknown arguments
+    expect(warnSpy).toHaveBeenCalledWith('Warning: Unknown argument "--unknownArg" - ignored');
+    expect(warnSpy).toHaveBeenCalledWith('Warning: Unknown argument "--anotherUnknown" - ignored');
+
+    warnSpy.mockRestore();
+  });
+
+  it('should warn about typos in known arguments', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const args = parseArgs(['--hedless', '--autoconnect']);
+
+    // Should use defaults since typos are not recognized
+    expect(args.headless).toBe(false);
+    expect(args.autoConnect).toBe(false);
+
+    // Should warn about the typos
+    expect(warnSpy).toHaveBeenCalledWith('Warning: Unknown argument "--hedless" - ignored');
+    expect(warnSpy).toHaveBeenCalledWith('Warning: Unknown argument "--autoconnect" - ignored');
+
+    warnSpy.mockRestore();
   });
 
   it('should handle arguments in any order', () => {

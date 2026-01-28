@@ -137,4 +137,21 @@ describe('ServerConfig', () => {
 
     expect(() => getServerConfig()).toThrow('Server config not initialized');
   });
+
+  it('should report isSessionManagerInitialized correctly', async () => {
+    const { initServerConfig, getSessionManager, isSessionManagerInitialized, resetServerState } =
+      await import('../../../src/server/server-config.js');
+
+    // Initially not initialized
+    expect(isSessionManagerInitialized()).toBe(false);
+
+    // After getSessionManager(), it should be initialized
+    initServerConfig([]);
+    getSessionManager();
+    expect(isSessionManagerInitialized()).toBe(true);
+
+    // After reset, it should be false again
+    resetServerState();
+    expect(isSessionManagerInitialized()).toBe(false);
+  });
 });
