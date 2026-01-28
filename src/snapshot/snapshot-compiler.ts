@@ -11,7 +11,7 @@
  * - CSS: Computed styles (optional, for layout)
  */
 
-import type { Page } from 'playwright';
+import type { Page } from 'puppeteer-core';
 import type { CdpClient } from '../cdp/cdp-client.interface.js';
 import type {
   BaseSnapshot,
@@ -444,7 +444,7 @@ export class SnapshotCompiler {
   async compile(cdp: CdpClient, page: Page, _pageId: string): Promise<BaseSnapshot> {
     const startTime = Date.now();
 
-    const viewport = page.viewportSize() ?? { width: 1280, height: 720 };
+    const viewport = page.viewport() ?? { width: 1280, height: 720 };
     const ctx = createExtractorContext(cdp, viewport, this.options);
 
     let partial = false;

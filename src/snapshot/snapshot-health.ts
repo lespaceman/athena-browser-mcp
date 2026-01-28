@@ -10,7 +10,7 @@
  * - Clear health metrics for debugging
  */
 
-import type { Page } from 'playwright';
+import type { Page } from 'puppeteer-core';
 import type { CdpClient } from '../cdp/cdp-client.interface.js';
 import type { BaseSnapshot } from './snapshot.types.js';
 import type { SnapshotHealth, SnapshotHealthMetrics } from '../state/element-ref.types.js';

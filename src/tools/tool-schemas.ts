@@ -411,6 +411,16 @@ export type ClickOutcome = z.infer<typeof ClickOutcomeSchema>;
 export const LaunchBrowserInputSchema = z.object({
   /** Run browser in headless mode (default: true) */
   headless: z.boolean().default(true),
+  /** Chrome channel to use */
+  channel: z.enum(['chrome', 'chrome-canary', 'chrome-beta', 'chrome-dev']).optional(),
+  /** Path to Chrome executable (overrides channel) */
+  executablePath: z.string().optional(),
+  /** Use isolated temp profile instead of persistent (default: false) */
+  isolated: z.boolean().default(false),
+  /** Directory for persistent browser profile */
+  userDataDir: z.string().optional(),
+  /** Additional Chrome command-line arguments */
+  args: z.array(z.string()).optional(),
 });
 
 /** Returns XML state response string directly */
@@ -424,10 +434,16 @@ export type LaunchBrowserOutput = z.infer<typeof LaunchBrowserOutputSchema>;
 // ============================================================================
 
 export const ConnectBrowserInputSchema = z.object({
-  /** CDP endpoint URL (e.g., http://localhost:9223). Defaults to Athena CEF bridge host/port. */
+  /** WebSocket endpoint URL (e.g., ws://localhost:9222/devtools/browser/...) */
+  browserWSEndpoint: z.string().optional(),
+  /** HTTP endpoint URL for discovering WebSocket (e.g., http://localhost:9222) */
+  browserURL: z.string().optional(),
+  /** CDP endpoint URL (legacy, use browserURL or browserWSEndpoint instead). */
   endpoint_url: z.string().optional(),
   /** Enable Chrome 144+ auto-connect via DevToolsActivePort. Overrides AUTO_CONNECT env var. */
   auto_connect: z.boolean().optional(),
+  /** Chrome user data directory for autoConnect (default: platform default) */
+  userDataDir: z.string().optional(),
 });
 
 /** Returns XML state response string directly */

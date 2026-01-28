@@ -428,7 +428,7 @@ export async function connectBrowser(
   // Try to adopt existing page, or create one if none exist
   let handle;
   try {
-    if (session.getPageCount() > 0) {
+    if ((await session.getPageCount()) > 0) {
       handle = await session.adoptPage(0);
     } else {
       handle = await session.createPage();

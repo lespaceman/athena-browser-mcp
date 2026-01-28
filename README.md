@@ -40,7 +40,7 @@ The goal is not to mirror the browser, but to present the page in a form that al
 
 At a high level:
 
-1. The browser is controlled via Playwright and CDP
+1. The browser is controlled via Puppeteer and CDP
 2. The page is reduced into semantic regions and actionable elements
 3. A structured snapshot is generated and sent to the LLM
 4. Actions are resolved against stable semantic identifiers rather than fragile selectors
@@ -78,9 +78,9 @@ Results are task-dependent and should be treated as directional rather than abso
 
 - A general-purpose browser
 - A visual testing or screenshot framework
-- A replacement for Playwright
+- A replacement for Puppeteer
 
-Playwright remains the execution layer; Athena focuses on representation and reasoning.
+Puppeteer remains the execution layer; Athena focuses on representation and reasoning.
 
 ---
 

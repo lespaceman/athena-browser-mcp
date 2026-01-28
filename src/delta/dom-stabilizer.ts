@@ -5,7 +5,7 @@
  * Uses MutationObserver to detect when mutations settle.
  */
 
-import type { Page } from 'playwright';
+import type { Page } from 'puppeteer-core';
 
 /**
  * Options for DOM stabilization.
