@@ -38,6 +38,14 @@ export interface MockCDPSession {
 }
 
 /**
+ * Mock Frame - Puppeteer-specific API
+ */
+export interface MockFrame {
+  url: Mock;
+  name: Mock;
+}
+
+/**
  * Mock Page - Puppeteer-specific API
  */
 export interface MockPage {
@@ -50,6 +58,8 @@ export interface MockPage {
   viewport: Mock; // Puppeteer uses viewport() instead of viewportSize()
   createCDPSession: Mock; // Puppeteer creates CDP session from Page
   cookies: Mock;
+  content: Mock; // Get page HTML content
+  mainFrame: Mock; // Get main frame
   on: Mock;
   off: Mock;
 }
@@ -89,6 +99,21 @@ export function createMockCDPSession(): MockCDPSession {
 }
 
 /**
+ * Creates a mock Frame
+ */
+export function createMockFrame(
+  options: {
+    url?: string;
+    name?: string;
+  } = {}
+): MockFrame {
+  return {
+    url: vi.fn().mockReturnValue(options.url ?? 'about:blank'),
+    name: vi.fn().mockReturnValue(options.name ?? ''),
+  };
+}
+
+/**
  * Creates a mock Page
  */
 export function createMockPage(
@@ -97,9 +122,12 @@ export function createMockPage(
     title?: string;
     viewport?: { width: number; height: number };
     cdpSession?: MockCDPSession;
+    content?: string;
+    mainFrame?: MockFrame;
   } = {}
 ): MockPage {
   const cdpSession = options.cdpSession ?? createMockCDPSession();
+  const mainFrame = options.mainFrame ?? createMockFrame({ url: options.url });
 
   return {
     url: vi.fn().mockReturnValue(options.url ?? 'about:blank'),
@@ -111,6 +139,8 @@ export function createMockPage(
     viewport: vi.fn().mockReturnValue(options.viewport ?? { width: 1280, height: 720 }),
     createCDPSession: vi.fn().mockResolvedValue(cdpSession),
     cookies: vi.fn().mockResolvedValue([]),
+    content: vi.fn().mockResolvedValue(options.content ?? '<html><head></head><body></body></html>'),
+    mainFrame: vi.fn().mockReturnValue(mainFrame),
     on: vi.fn(),
     off: vi.fn(),
   };
@@ -144,10 +174,13 @@ export function createMockPageWithEvents(
     title?: string;
     viewport?: { width: number; height: number };
     cdpSession?: MockCDPSession;
+    content?: string;
+    mainFrame?: MockFrame;
   } = {}
 ): MockPageWithEvents {
   const listeners = new Map<string, Set<(arg: unknown) => void>>();
   const cdpSession = options.cdpSession ?? createMockCDPSession();
+  const mainFrame = options.mainFrame ?? createMockFrame({ url: options.url });
 
   const getOrCreateListenerSet = (event: string): Set<(arg: unknown) => void> => {
     if (!listeners.has(event)) {
@@ -166,6 +199,8 @@ export function createMockPageWithEvents(
     viewport: vi.fn().mockReturnValue(options.viewport ?? { width: 1280, height: 720 }),
     createCDPSession: vi.fn().mockResolvedValue(cdpSession),
     cookies: vi.fn().mockResolvedValue([]),
+    content: vi.fn().mockResolvedValue(options.content ?? '<html><head></head><body></body></html>'),
+    mainFrame: vi.fn().mockReturnValue(mainFrame),
     on: vi.fn((event: string, handler: (arg: unknown) => void) => {
       getOrCreateListenerSet(event).add(handler);
     }),
