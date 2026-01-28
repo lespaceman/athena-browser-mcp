@@ -1,3 +1,27 @@
+## [2.2.2] - 2026-01-28
+
+- Merge pull request #36 from lespaceman/feat/auto-connect-param
+- docs: add Claude Code setup instructions to README
+- test: skip autoConnect unit test that requires Chrome running
+- test: skip autoConnect integration test in CI
+- fix: properly mock fs module for autoConnect test
+- fix: CI integration test failures
+- fix: address PR review feedback for lazy browser initialization
+- feat: change default headless mode from true to false
+- style: fix formatting in README.md
+- docs: document CLI arguments and automatic browser initialization
+- test: add integration tests for lazy browser initialization
+- feat: remove manual browser tools, add lazy initialization
+- refactor: update tool exports for lazy init
+- refactor: remove launch/connect browser schemas
+- refactor: remove manual launchBrowser and connectBrowser functions
+- feat: add server config module for lazy init
+- feat: add ensureBrowserReady for lazy initialization
+- feat: add CLI argument parsing for browser configuration
+- fix: address PR review feedback for Puppeteer migration
+- feat: migrate from Playwright to Puppeteer
+- feat: add auto_connect parameter to connect_browser tool
+
 ## [2.2.1] - 2026-01-26
 
 - Merge pull request #26 from lespaceman/feat/worker-manager
