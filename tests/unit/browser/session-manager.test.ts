@@ -26,8 +26,15 @@ vi.mock('puppeteer-core', () => ({
   },
 }));
 
+// Mock page-network-tracker module
+vi.mock('../../../src/browser/page-network-tracker.js', () => ({
+  getOrCreateTracker: vi.fn(),
+  removeTracker: vi.fn(),
+}));
+
 // Import AFTER mocking
 import puppeteer from 'puppeteer-core';
+import { getOrCreateTracker } from '../../../src/browser/page-network-tracker.js';
 
 describe('SessionManager', () => {
   let sessionManager: SessionManager;
@@ -35,6 +42,12 @@ describe('SessionManager', () => {
   let mockContext: MockBrowserContext;
   let mockPage: MockPage;
   let mockCdpSession: MockCDPSession;
+  let mockTracker: {
+    attach: ReturnType<typeof vi.fn>;
+    markNavigation: ReturnType<typeof vi.fn>;
+    isAttached: ReturnType<typeof vi.fn>;
+    waitForQuiet: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -48,6 +61,15 @@ describe('SessionManager', () => {
 
     // Configure puppeteer.launch to return our mock browser
     (puppeteer.launch as Mock).mockResolvedValue(mockBrowser);
+
+    // Configure mock network tracker
+    mockTracker = {
+      attach: vi.fn(),
+      markNavigation: vi.fn(),
+      isAttached: vi.fn().mockReturnValue(false),
+      waitForQuiet: vi.fn().mockResolvedValue(true),
+    };
+    vi.mocked(getOrCreateTracker).mockReturnValue(mockTracker as never);
 
     sessionManager = new SessionManager();
   });
@@ -238,10 +260,9 @@ describe('SessionManager', () => {
 
       await sessionManager.navigateTo(handle.page_id, 'https://example.com');
 
-      // Verify network tracker was used (via page.on for request/requestfinished/requestfailed)
-      expect(mockPage.on).toHaveBeenCalledWith('request', expect.any(Function));
-      expect(mockPage.on).toHaveBeenCalledWith('requestfinished', expect.any(Function));
-      expect(mockPage.on).toHaveBeenCalledWith('requestfailed', expect.any(Function));
+      // Verify network tracker was obtained and used
+      expect(getOrCreateTracker).toHaveBeenCalledWith(handle.page);
+      expect(mockTracker.markNavigation).toHaveBeenCalled();
     });
 
     it('should not throw when network idle wait times out', async () => {
@@ -252,6 +273,52 @@ describe('SessionManager', () => {
       await expect(
         sessionManager.navigateTo(handle.page_id, 'https://example.com')
       ).resolves.not.toThrow();
+    });
+
+    it('should attach network tracker before page.goto', async () => {
+      // This test verifies the fix for the race condition
+      // where network tracker was attached after navigation started
+      const handle = await sessionManager.createPage();
+      const callOrder: string[] = [];
+
+      // Reset mock tracker to track call order
+      mockTracker.attach.mockImplementation(() => callOrder.push('tracker.attach'));
+      mockTracker.markNavigation.mockImplementation(() => callOrder.push('tracker.markNavigation'));
+      mockTracker.isAttached.mockReturnValue(false);
+
+      // Mock page.goto to track when it's called
+      mockPage.goto.mockImplementation(() => {
+        callOrder.push('page.goto');
+        return Promise.resolve(null);
+      });
+
+      await sessionManager.navigateTo(handle.page_id, 'https://example.com');
+
+      // Verify order: attach -> markNavigation -> goto
+      const attachIndex = callOrder.indexOf('tracker.attach');
+      const markNavIndex = callOrder.indexOf('tracker.markNavigation');
+      const gotoIndex = callOrder.indexOf('page.goto');
+
+      expect(attachIndex).toBeGreaterThanOrEqual(0);
+      expect(markNavIndex).toBeGreaterThanOrEqual(0);
+      expect(gotoIndex).toBeGreaterThanOrEqual(0);
+      expect(attachIndex).toBeLessThan(gotoIndex);
+      expect(markNavIndex).toBeLessThan(gotoIndex);
+    });
+
+    it('should skip attach if tracker already attached', async () => {
+      const handle = await sessionManager.createPage();
+
+      // Reset and configure tracker as already attached
+      mockTracker.attach.mockClear();
+      mockTracker.isAttached.mockReturnValue(true);
+
+      await sessionManager.navigateTo(handle.page_id, 'https://example.com');
+
+      // attach should not be called if already attached
+      expect(mockTracker.attach).not.toHaveBeenCalled();
+      // but markNavigation should still be called
+      expect(mockTracker.markNavigation).toHaveBeenCalled();
     });
   });
 

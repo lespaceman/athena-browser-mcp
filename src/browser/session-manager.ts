@@ -757,12 +757,17 @@ export class SessionManager {
     }
 
     try {
-      // Wait for DOM ready first (fast baseline)
-      await handle.page.goto(url, { waitUntil: 'domcontentloaded' });
-
-      // Mark navigation on tracker (bumps generation to ignore stale events)
+      // IMPORTANT: Attach network tracker BEFORE navigation starts
+      // This ensures we catch all network requests from the very beginning
       const tracker = getOrCreateTracker(handle.page);
+      if (!tracker.isAttached()) {
+        tracker.attach(handle.page);
+      }
+      // Mark navigation to reset state and bump generation (ignores stale events)
       tracker.markNavigation();
+
+      // Now perform navigation - wait for DOM ready first (fast baseline)
+      await handle.page.goto(url, { waitUntil: 'domcontentloaded' });
 
       // Then wait for network to settle (catches API calls)
       const networkIdle = await waitForNetworkQuiet(
