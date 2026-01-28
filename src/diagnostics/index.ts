@@ -5,8 +5,4 @@
  */
 
 export { CdpEventLogger, type CdpEventEntry } from './cdp-event-logger.js';
-export {
-  checkPageHealth,
-  formatHealthReport,
-  type PageHealthReport,
-} from './page-health.js';
+export { checkPageHealth, formatHealthReport, type PageHealthReport } from './page-health.js';

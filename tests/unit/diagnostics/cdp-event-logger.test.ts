@@ -17,18 +17,9 @@ describe('CdpEventLogger', () => {
     it('should subscribe to Page domain events', () => {
       logger.attach(mockCdp);
 
-      expect(mockCdp.onSpy).toHaveBeenCalledWith(
-        'Page.frameNavigated',
-        expect.any(Function)
-      );
-      expect(mockCdp.onSpy).toHaveBeenCalledWith(
-        'Page.loadEventFired',
-        expect.any(Function)
-      );
-      expect(mockCdp.onSpy).toHaveBeenCalledWith(
-        'Page.domContentEventFired',
-        expect.any(Function)
-      );
+      expect(mockCdp.onSpy).toHaveBeenCalledWith('Page.frameNavigated', expect.any(Function));
+      expect(mockCdp.onSpy).toHaveBeenCalledWith('Page.loadEventFired', expect.any(Function));
+      expect(mockCdp.onSpy).toHaveBeenCalledWith('Page.domContentEventFired', expect.any(Function));
     });
 
     it('should subscribe to Runtime domain events', () => {
@@ -84,14 +75,8 @@ describe('CdpEventLogger', () => {
       logger.attach(mockCdp);
       logger.detach();
 
-      expect(mockCdp.offSpy).toHaveBeenCalledWith(
-        'Page.frameNavigated',
-        expect.any(Function)
-      );
-      expect(mockCdp.offSpy).toHaveBeenCalledWith(
-        'Page.loadEventFired',
-        expect.any(Function)
-      );
+      expect(mockCdp.offSpy).toHaveBeenCalledWith('Page.frameNavigated', expect.any(Function));
+      expect(mockCdp.offSpy).toHaveBeenCalledWith('Page.loadEventFired', expect.any(Function));
     });
 
     it('should handle detach when not attached', () => {

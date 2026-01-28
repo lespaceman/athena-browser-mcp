@@ -139,7 +139,9 @@ export function createMockPage(
     viewport: vi.fn().mockReturnValue(options.viewport ?? { width: 1280, height: 720 }),
     createCDPSession: vi.fn().mockResolvedValue(cdpSession),
     cookies: vi.fn().mockResolvedValue([]),
-    content: vi.fn().mockResolvedValue(options.content ?? '<html><head></head><body></body></html>'),
+    content: vi
+      .fn()
+      .mockResolvedValue(options.content ?? '<html><head></head><body></body></html>'),
     mainFrame: vi.fn().mockReturnValue(mainFrame),
     on: vi.fn(),
     off: vi.fn(),
@@ -199,7 +201,9 @@ export function createMockPageWithEvents(
     viewport: vi.fn().mockReturnValue(options.viewport ?? { width: 1280, height: 720 }),
     createCDPSession: vi.fn().mockResolvedValue(cdpSession),
     cookies: vi.fn().mockResolvedValue([]),
-    content: vi.fn().mockResolvedValue(options.content ?? '<html><head></head><body></body></html>'),
+    content: vi
+      .fn()
+      .mockResolvedValue(options.content ?? '<html><head></head><body></body></html>'),
     mainFrame: vi.fn().mockReturnValue(mainFrame),
     on: vi.fn((event: string, handler: (arg: unknown) => void) => {
       getOrCreateListenerSet(event).add(handler);
