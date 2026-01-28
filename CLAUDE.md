@@ -104,6 +104,21 @@ Orchestrates modular extractors to build BaseSnapshot:
 
 EIDs computed from semantic hash of: role, accessible name, landmark path, position hint, layer context. Survives DOM mutations.
 
+### Diagnostics (`src/diagnostics/`)
+
+Tools for debugging snapshot failures:
+
+- `CdpEventLogger`: Captures CDP events during operations for post-mortem analysis
+- `checkPageHealth()`: Collects page state (title, content, frame status) to diagnose issues
+
+Use diagnostics when snapshot returns empty:
+1. Enable with `includeDiagnostics: true` in capture options
+2. Check `result.diagnostics.pageHealth` for indicators
+3. Common indicators:
+   - `empty_title`: Page didn't fully load (navigation issue)
+   - `empty_content`: Content inaccessible via CDP (execution context issue)
+   - `content_error`: Exception when reading content (page crashed/navigated)
+
 ## Directory Structure
 
 ```
@@ -138,6 +153,10 @@ src/
 │   └── xml-renderer.ts          # XML output rendering
 ├── delta/
 │   └── dom-stabilizer.ts        # Stabilize DOM after actions
+├── diagnostics/
+│   ├── index.ts                 # Module exports
+│   ├── cdp-event-logger.ts      # CDP event capture for debugging
+│   └── page-health.ts           # Page state diagnostics
 ├── lib/                         # Reusable algorithms
 └── shared/                      # Types, services, errors
 
