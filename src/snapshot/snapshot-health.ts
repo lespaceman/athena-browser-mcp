@@ -16,6 +16,7 @@ import type { BaseSnapshot } from './snapshot.types.js';
 import type { SnapshotHealth, SnapshotHealthMetrics } from '../state/element-ref.types.js';
 import type { SnapshotHealthCode } from '../state/health.types.js';
 import { stabilizeDom } from '../delta/dom-stabilizer.js';
+import { checkPageHealth, type PageHealthReport } from '../diagnostics/page-health.js';
 
 // ============================================================================
 // Snapshot Health Validation
@@ -102,6 +103,8 @@ export interface CaptureWithStabilizationOptions {
   quietWindowMs?: number;
   /** DOM stabilization max timeout in ms (default: 2000) */
   maxTimeoutMs?: number;
+  /** Include diagnostics on failure (default: false) */
+  includeDiagnostics?: boolean;
 }
 
 /**
@@ -112,6 +115,10 @@ export interface CaptureWithStabilizationResult {
   health: SnapshotHealth;
   attempts: number;
   stabilizationStatus: 'stable' | 'timeout' | 'error';
+  /** Diagnostics collected on failure (only present when includeDiagnostics=true and snapshot unhealthy) */
+  diagnostics?: {
+    pageHealth: PageHealthReport;
+  };
 }
 
 /**
@@ -136,7 +143,13 @@ export async function captureWithStabilization(
   pageId: string,
   options: CaptureWithStabilizationOptions = {}
 ): Promise<CaptureWithStabilizationResult> {
-  const { maxRetries = 3, retryDelayMs = 500, quietWindowMs = 100, maxTimeoutMs = 2000 } = options;
+  const {
+    maxRetries = 3,
+    retryDelayMs = 500,
+    quietWindowMs = 100,
+    maxTimeoutMs = 2000,
+    includeDiagnostics = false,
+  } = options;
 
   // Import compileSnapshot dynamically to avoid circular dependency
   const { compileSnapshot } = await import('./index.js');
@@ -174,6 +187,20 @@ export async function captureWithStabilization(
     if (attempt < maxRetries - 1) {
       await sleep(retryDelayMs);
     }
+  }
+
+  // After the retry loop, if snapshot is unhealthy and diagnostics requested:
+  if (includeDiagnostics && lastHealth && !lastHealth.valid) {
+    const pageHealth = await checkPageHealth(page);
+    return {
+      snapshot: lastSnapshot!,
+      health: lastHealth,
+      attempts,
+      stabilizationStatus,
+      diagnostics: {
+        pageHealth,
+      },
+    };
   }
 
   // Return last attempt even if unhealthy

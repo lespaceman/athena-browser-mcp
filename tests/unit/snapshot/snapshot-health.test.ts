@@ -26,8 +26,23 @@ vi.mock('../../../src/delta/dom-stabilizer.js', () => ({
   stabilizeDom: vi.fn().mockResolvedValue({ status: 'stable', waitTimeMs: 50 }),
 }));
 
+// Mock the page-health diagnostics
+vi.mock('../../../src/diagnostics/page-health.js', () => ({
+  checkPageHealth: vi.fn().mockResolvedValue({
+    isHealthy: false,
+    url: 'https://example.com',
+    title: 'Test Page',
+    contentLength: 100,
+    isClosed: false,
+    warnings: [],
+    errors: ['empty_content'],
+    timestamp: Date.now(),
+  }),
+}));
+
 import { compileSnapshot } from '../../../src/snapshot/index.js';
 import { stabilizeDom } from '../../../src/delta/dom-stabilizer.js';
+import { checkPageHealth } from '../../../src/diagnostics/page-health.js';
 
 function createMockSnapshot(options: {
   nodeCount?: number;
@@ -303,5 +318,77 @@ describe('captureWithStabilization', () => {
     const result = await captureWithStabilization(mockCdp, mockPage, 'page-test');
 
     expect(result.stabilizationStatus).toBe('timeout');
+  });
+});
+
+describe('captureWithStabilization - diagnostics', () => {
+  let mockCdp: CdpClient;
+  let mockPage: Page;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCdp = createMockCdp();
+    mockPage = createSnapshotHealthMockPage();
+  });
+
+  it('should include page health in result when snapshot is empty and diagnostics enabled', async () => {
+    const emptySnapshot = createMockSnapshot({ nodeCount: 0, interactiveCount: 0 });
+    vi.mocked(compileSnapshot).mockResolvedValue(emptySnapshot);
+
+    const result = await captureWithStabilization(mockCdp, mockPage, 'page-test', {
+      maxRetries: 1,
+      includeDiagnostics: true,
+    });
+
+    expect(result.diagnostics).toBeDefined();
+    expect(result.diagnostics?.pageHealth).toBeDefined();
+    expect(result.diagnostics?.pageHealth.url).toBeDefined();
+  });
+
+  it('should not include diagnostics when snapshot is healthy', async () => {
+    const healthySnapshot = createMockSnapshot({ nodeCount: 10, interactiveCount: 5 });
+    vi.mocked(compileSnapshot).mockResolvedValue(healthySnapshot);
+
+    const result = await captureWithStabilization(mockCdp, mockPage, 'page-test', {
+      includeDiagnostics: true,
+    });
+
+    expect(result.diagnostics).toBeUndefined();
+  });
+
+  it('should not include diagnostics when includeDiagnostics is false', async () => {
+    const emptySnapshot = createMockSnapshot({ nodeCount: 0, interactiveCount: 0 });
+    vi.mocked(compileSnapshot).mockResolvedValue(emptySnapshot);
+
+    const result = await captureWithStabilization(mockCdp, mockPage, 'page-test', {
+      maxRetries: 1,
+      includeDiagnostics: false,
+    });
+
+    expect(result.diagnostics).toBeUndefined();
+  });
+
+  it('should call checkPageHealth when diagnostics enabled and snapshot unhealthy', async () => {
+    const emptySnapshot = createMockSnapshot({ nodeCount: 0, interactiveCount: 0 });
+    vi.mocked(compileSnapshot).mockResolvedValue(emptySnapshot);
+
+    await captureWithStabilization(mockCdp, mockPage, 'page-test', {
+      maxRetries: 1,
+      includeDiagnostics: true,
+    });
+
+    expect(checkPageHealth).toHaveBeenCalledWith(mockPage);
+  });
+
+  it('should not call checkPageHealth when diagnostics disabled', async () => {
+    const emptySnapshot = createMockSnapshot({ nodeCount: 0, interactiveCount: 0 });
+    vi.mocked(compileSnapshot).mockResolvedValue(emptySnapshot);
+
+    await captureWithStabilization(mockCdp, mockPage, 'page-test', {
+      maxRetries: 1,
+      includeDiagnostics: false,
+    });
+
+    expect(checkPageHealth).not.toHaveBeenCalled();
   });
 });
