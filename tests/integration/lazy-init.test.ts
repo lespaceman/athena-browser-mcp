@@ -1,6 +1,7 @@
 // tests/integration/lazy-init.test.ts
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { createLinkedMocks, type MockBrowser } from '../mocks/puppeteer.mock.js';
+import fs from 'node:fs';
 
 // Mock Puppeteer module
 vi.mock('puppeteer-core', () => ({
@@ -59,6 +60,11 @@ describe('Lazy Browser Initialization Integration', () => {
   });
 
   it('should auto-connect when --autoConnect provided', async () => {
+    // Mock the DevToolsActivePort file that Chrome creates when remote debugging is enabled
+    const readFileSyncSpy = vi
+      .spyOn(fs, 'readFileSync')
+      .mockReturnValue('9222\n/devtools/browser/fake-id');
+
     const { initServerConfig, getSessionManager, ensureBrowserForTools } =
       await import('../../src/server/server-config.js');
 
@@ -70,6 +76,8 @@ describe('Lazy Browser Initialization Integration', () => {
     expect(session.isRunning()).toBe(true);
     expect(puppeteer.launch).not.toHaveBeenCalled();
     expect(puppeteer.connect).toHaveBeenCalled();
+
+    readFileSyncSpy.mockRestore();
   });
 
   it('should not re-launch on subsequent tool calls', async () => {
