@@ -104,6 +104,21 @@ See the `examples/` directory for concrete agent workflows.
 
 ---
 
+## Claude Code
+
+```bash
+# Basic (auto-launches browser)
+claude mcp add athena-browser-mcp -- npx athena-browser-mcp@latest
+
+# With auto-connect to your Chrome profile
+claude mcp add athena-browser-mcp -- npx athena-browser-mcp@latest --autoConnect
+
+# Headless mode
+claude mcp add athena-browser-mcp -- npx athena-browser-mcp@latest --headless
+```
+
+---
+
 ## CLI Arguments
 
 The server accepts the following arguments to configure browser initialization:
@@ -153,8 +168,8 @@ To connect with your bookmarks, extensions, and logged-in sessions:
 {
   "mcpServers": {
     "athena-browser-mcp": {
-      "command": "node",
-      "args": ["/path/to/athena-browser-mcp/dist/src/index.js", "--autoConnect"]
+      "command": "npx",
+      "args": ["athena-browser-mcp@latest", "--autoConnect"]
     }
   }
 }
