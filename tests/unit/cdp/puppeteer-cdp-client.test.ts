@@ -159,7 +159,9 @@ describe('PuppeteerCdpClient', () => {
         .mockResolvedValueOnce({}) // DOM.enable
         .mockRejectedValueOnce(new Error('Protocol error: Some other random protocol error'));
 
-      await expect(client.send('DOM.getDocument')).rejects.toThrow('Some other random protocol error');
+      await expect(client.send('DOM.getDocument')).rejects.toThrow(
+        'Some other random protocol error'
+      );
       expect(client.isActive()).toBe(true);
     });
 
