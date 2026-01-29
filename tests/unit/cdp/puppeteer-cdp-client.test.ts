@@ -116,7 +116,16 @@ describe('PuppeteerCdpClient', () => {
       expect(client.isActive()).toBe(false);
     });
 
-    it('should mark session as inactive on fatal Protocol error', async () => {
+    it('should mark session as inactive on Target crashed error', async () => {
+      mockSend
+        .mockResolvedValueOnce({}) // DOM.enable
+        .mockRejectedValueOnce(new Error('Target crashed'));
+
+      await expect(client.send('DOM.getDocument')).rejects.toThrow('Target crashed');
+      expect(client.isActive()).toBe(false);
+    });
+
+    it('should mark session as inactive on fatal Protocol error (Cannot find context)', async () => {
       // Only specific Protocol errors that indicate session death should mark inactive
       mockSend
         .mockResolvedValueOnce({}) // DOM.enable
@@ -124,6 +133,34 @@ describe('PuppeteerCdpClient', () => {
 
       await expect(client.send('DOM.getDocument')).rejects.toThrow('Cannot find context');
       expect(client.isActive()).toBe(false);
+    });
+
+    it('should mark session as inactive on fatal Protocol error (Inspected target navigated)', async () => {
+      mockSend
+        .mockResolvedValueOnce({}) // DOM.enable
+        .mockRejectedValueOnce(new Error('Protocol error: Inspected target navigated or closed'));
+
+      await expect(client.send('DOM.getDocument')).rejects.toThrow('Inspected target navigated');
+      expect(client.isActive()).toBe(false);
+    });
+
+    it('should mark session as inactive on fatal Protocol error (No target with given id)', async () => {
+      mockSend
+        .mockResolvedValueOnce({}) // DOM.enable
+        .mockRejectedValueOnce(new Error('Protocol error: No target with given id found'));
+
+      await expect(client.send('DOM.getDocument')).rejects.toThrow('No target with given id');
+      expect(client.isActive()).toBe(false);
+    });
+
+    it('should NOT mark session as inactive on generic Protocol error', async () => {
+      // Generic Protocol errors without fatal substrings should NOT mark session inactive
+      mockSend
+        .mockResolvedValueOnce({}) // DOM.enable
+        .mockRejectedValueOnce(new Error('Protocol error: Some other random protocol error'));
+
+      await expect(client.send('DOM.getDocument')).rejects.toThrow('Some other random protocol error');
+      expect(client.isActive()).toBe(true);
     });
 
     it('should NOT mark session as inactive on non-fatal Protocol error', async () => {
