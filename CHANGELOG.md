@@ -1,3 +1,26 @@
+## [2.2.3] - 2026-01-29
+
+- Merge pull request #45 from lespaceman/fix/browser-sync-viewport-overlay-layers
+- fix: sync browser tabs, viewport detection, and overlay layer rendering
+- Merge pull request #43 from lespaceman/refactor/improve-tool-descriptions
+- fix: fix flaky integration tests in CI
+- chore: retrigger CI
+- fix: correct label matching description and fix formatting
+- refactor: improve tool names and descriptions for LLM accuracy
+- Merge pull request #44 from lespaceman/fix/pr37-test-coverage-improvements
+- style: fix prettier formatting
+- test: add missing test coverage for PR #37 CDP error classification
+- Merge pull request #35 from lespaceman/fix/xml-quote-readability
+- Merge pull request #42 from lespaceman/refactor/rename-list-tabs-to-list-pages
+- Merge pull request #40 from lespaceman/fix/cdp-session-expected-failures
+- refactor: rename list_tabs to list_pages for API consistency
+- fix(cdp): check expected failures before marking session inactive
+- Merge pull request #37 from lespaceman/fix/cdp-error-classification
+- Merge pull request #38 from lespaceman/feat/list-tabs-tool
+- feat: add list_tabs tool for tab discovery
+- fix: distinguish fatal vs non-fatal CDP Protocol errors
+- fix: use single quotes for XML attributes containing double quotes
+
 ## [2.2.2] - 2026-01-28
 
 - Merge pull request #36 from lespaceman/feat/auto-connect-param
