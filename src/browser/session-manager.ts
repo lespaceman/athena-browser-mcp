@@ -95,8 +95,9 @@ export interface LaunchOptions {
 
 /**
  * Extract a meaningful error message from any thrown value.
+ * Exported for testing.
  */
-function extractErrorMessage(error: unknown): string {
+export function extractErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message || error.name || 'Unknown Error';
   }
