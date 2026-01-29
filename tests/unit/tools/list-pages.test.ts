@@ -1,7 +1,7 @@
 /**
- * list_tabs Tool Tests
+ * list_pages Tool Tests
  *
- * Verifies that listTabs returns correct XML for open tabs.
+ * Verifies that listPages returns correct XML for open pages.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { SessionManager } from '../../../src/browser/session-manager.js';
@@ -78,23 +78,23 @@ vi.mock('../../../src/query/query-engine.js', () => ({
   QueryEngine: vi.fn(),
 }));
 
-import { initializeTools, listTabs } from '../../../src/tools/browser-tools.js';
+import { initializeTools, listPages } from '../../../src/tools/browser-tools.js';
 
-describe('listTabs', () => {
+describe('listPages', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should return empty tabs list when no pages are registered', () => {
+  it('should return empty pages list when no pages are registered', () => {
     mockListPages.mockReturnValue([]);
     initializeTools(mockSessionManager);
 
-    const result = listTabs();
+    const result = listPages();
 
-    expect(result).toContain('type="list_tabs"');
+    expect(result).toContain('type="list_pages"');
     expect(result).toContain('status="success"');
     expect(result).toContain('count="0"');
-    expect(result).not.toContain('<tab ');
+    expect(result).not.toContain('<page ');
   });
 
   it('should return correct metadata for multiple pages', () => {
@@ -118,7 +118,7 @@ describe('listTabs', () => {
     ]);
     initializeTools(mockSessionManager);
 
-    const result = listTabs();
+    const result = listPages();
 
     expect(result).toContain('count="2"');
     expect(result).toContain('page_id="page-abc"');
@@ -140,7 +140,7 @@ describe('listTabs', () => {
     ]);
     initializeTools(mockSessionManager);
 
-    const result = listTabs();
+    const result = listPages();
 
     expect(result).toContain('count="1"');
     expect(result).toContain('page_id="page-new"');
@@ -148,7 +148,7 @@ describe('listTabs', () => {
     expect(result).toContain('title=""');
   });
 
-  it('should escape XML special characters in tab metadata', () => {
+  it('should escape XML special characters in page metadata', () => {
     mockListPages.mockReturnValue([
       {
         page_id: 'page-special',
@@ -161,7 +161,7 @@ describe('listTabs', () => {
     ]);
     initializeTools(mockSessionManager);
 
-    const result = listTabs();
+    const result = listPages();
 
     expect(result).toContain('&amp;');
     expect(result).toContain('&lt;Page&gt;');

@@ -8,7 +8,7 @@ export { initializeTools, getSnapshotStore } from './browser-tools.js';
 
 // Tool handlers - Simplified API
 export {
-  listTabs,
+  listPages,
   closePage,
   closeSession,
   navigate,
@@ -32,11 +32,11 @@ export { ensureBrowserForTools, getSessionManager } from '../server/server-confi
 
 // Schemas - Simplified API
 export {
-  // list_tabs
-  ListTabsInputSchema,
-  ListTabsOutputSchema,
-  type ListTabsInput,
-  type ListTabsOutput,
+  // list_pages
+  ListPagesInputSchema,
+  ListPagesOutputSchema,
+  type ListPagesInput,
+  type ListPagesOutput,
   // close_page
   ClosePageInputSchema,
   ClosePageOutputSchema,
