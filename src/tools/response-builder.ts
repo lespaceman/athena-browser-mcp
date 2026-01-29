@@ -80,30 +80,30 @@ export function buildErrorResponse(pageId: string, error: Error | string): State
 // ============================================================================
 
 /**
- * Tab metadata for list_tabs response.
+ * Page metadata for list_pages response.
  */
-export interface TabInfo {
+export interface PageInfo {
   page_id: string;
   url: string;
   title: string;
 }
 
 /**
- * Build XML response for list_tabs tool.
+ * Build XML response for list_pages tool.
  *
- * @param tabs - Array of tab metadata
+ * @param pages - Array of page metadata
  * @returns XML result string
  */
-export function buildListTabsResponse(tabs: TabInfo[]): string {
-  const tabLines = tabs.map(
-    (tab) =>
-      `    <tab page_id="${escapeXml(tab.page_id)}" url="${escapeXml(tab.url)}" title="${escapeXml(tab.title)}" />`
+export function buildListPagesResponse(pages: PageInfo[]): string {
+  const pageLines = pages.map(
+    (page) =>
+      `    <page page_id="${escapeXml(page.page_id)}" url="${escapeXml(page.url)}" title="${escapeXml(page.title)}" />`
   );
 
-  return `<result type="list_tabs" status="success">
-  <tabs count="${tabs.length}">
-${tabLines.join('\n')}
-  </tabs>
+  return `<result type="list_pages" status="success">
+  <pages count="${pages.length}">
+${pageLines.join('\n')}
+  </pages>
 </result>`;
 }
 

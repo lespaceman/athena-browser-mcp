@@ -62,7 +62,7 @@ import type { RuntimeHealth } from '../state/health.types.js';
 import {
   buildClosePageResponse,
   buildCloseSessionResponse,
-  buildListTabsResponse,
+  buildListPagesResponse,
   buildFindElementsResponse,
   buildGetNodeDetailsResponse,
   type FindElementsMatch,
@@ -378,19 +378,19 @@ async function executeNavigationAction(
 // ============================================================================
 
 /**
- * List all open browser tabs with their metadata.
+ * List all open browser pages with their metadata.
  *
- * @returns XML result with tab list
+ * @returns XML result with page list
  */
-export function listTabs(): import('./tool-schemas.js').ListTabsOutput {
+export function listPages(): import('./tool-schemas.js').ListPagesOutput {
   const session = getSessionManager();
   const pages = session.listPages();
-  const tabs = pages.map((h) => ({
+  const pageInfos = pages.map((h) => ({
     page_id: h.page_id,
     url: h.url ?? '',
     title: h.title ?? '',
   }));
-  return buildListTabsResponse(tabs);
+  return buildListPagesResponse(pageInfos);
 }
 
 /**
