@@ -442,6 +442,23 @@ export function getTextContent(
 }
 
 /**
+ * Escape special XML characters in a string.
+ * Used for XML element content and attribute values.
+ *
+ * @param str - String to escape
+ * @returns XML-safe string
+ */
+export function escapeXml(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+/**
  * Build an XML attribute string, choosing quote style to minimize escaping.
  * Uses single quotes when value contains double quotes (common in selectors).
  *

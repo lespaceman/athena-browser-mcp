@@ -10,34 +10,7 @@ import type { BaseSnapshot, NodeState } from '../snapshot/snapshot.types.js';
 import { getStateManager } from './execute-action.js';
 import type { StateResponse } from '../state/types.js';
 import type { NodeDetails } from './tool-schemas.js';
-import { xmlAttr } from '../lib/text-utils.js';
-
-// ============================================================================
-// XML Utilities
-// ============================================================================
-
-/**
- * Escape special XML characters.
- */
-function escapeXml(unsafe: string): string {
-  if (!unsafe) return '';
-  return unsafe.replace(/[<>&"']/g, (c) => {
-    switch (c) {
-      case '<':
-        return '&lt;';
-      case '>':
-        return '&gt;';
-      case '&':
-        return '&amp;';
-      case '"':
-        return '&quot;';
-      case "'":
-        return '&apos;';
-      default:
-        return c;
-    }
-  });
-}
+import { escapeXml, xmlAttr } from '../lib/text-utils.js';
 
 // ============================================================================
 // State Response Builders (for mutation/navigation tools)
@@ -210,93 +183,83 @@ export function buildFindElementsResponse(
 /**
  * Build XML response for get_element_details tool.
  *
- * @param pageId - The page ID
- * @param snapshotId - The snapshot ID
+ * Optimized format with flattened attributes, label as content, and no wrapper elements.
+ * Location and layout are root attributes; state only includes non-defaults.
+ *
+ * @param _pageId - The page ID (unused - agent knows context)
+ * @param _snapshotId - The snapshot ID (unused - agent knows context)
  * @param node - The node details
  * @returns XML result string
  */
 export function buildGetElementDetailsResponse(
-  pageId: string,
-  snapshotId: string,
+  _pageId: string,
+  _snapshotId: string,
   node: NodeDetails
 ): string {
   const lines: string[] = [];
 
-  lines.push(
-    `<result type="get_element_details" page_id="${escapeXml(pageId)}" snapshot_id="${escapeXml(snapshotId)}">`
-  );
-
-  // Node element with core attributes
-  const nodeAttrs = [
+  // Build root <node> attributes with flattened where/layout
+  const attrs: string[] = [
     `eid="${escapeXml(node.eid)}"`,
     `kind="${escapeXml(node.kind)}"`,
-    `label="${escapeXml(node.label)}"`,
+    `region="${escapeXml(node.where.region)}"`,
   ];
-  lines.push(`  <node ${nodeAttrs.join(' ')}>`);
 
-  // Where (location info)
-  const whereAttrs: string[] = [`region="${escapeXml(node.where.region)}"`];
-  if (node.where.group_id) whereAttrs.push(`group_id="${escapeXml(node.where.group_id)}"`);
-  if (node.where.group_path)
-    whereAttrs.push(`group_path="${escapeXml(node.where.group_path.join('/'))}"`);
-  if (node.where.heading_context)
-    whereAttrs.push(`heading="${escapeXml(node.where.heading_context)}"`);
-  lines.push(`    <where ${whereAttrs.join(' ')} />`);
+  // Location (flattened from <where>)
+  if (node.where.group_id) attrs.push(`group="${escapeXml(node.where.group_id)}"`);
+  if (node.where.heading_context) attrs.push(`heading="${escapeXml(node.where.heading_context)}"`);
 
-  // Layout
-  const layoutAttrs = [
-    `x="${node.layout.bbox.x}"`,
-    `y="${node.layout.bbox.y}"`,
-    `w="${node.layout.bbox.w}"`,
-    `h="${node.layout.bbox.h}"`,
-  ];
-  if (node.layout.display) layoutAttrs.push(`display="${escapeXml(node.layout.display)}"`);
-  if (node.layout.screen_zone) layoutAttrs.push(`zone="${escapeXml(node.layout.screen_zone)}"`);
-  lines.push(`    <layout ${layoutAttrs.join(' ')} />`);
+  // Layout (flattened)
+  attrs.push(`x="${node.layout.bbox.x}"`);
+  attrs.push(`y="${node.layout.bbox.y}"`);
+  attrs.push(`w="${node.layout.bbox.w}"`);
+  attrs.push(`h="${node.layout.bbox.h}"`);
 
-  // State (if present)
+  // State flags - only include non-defaults
   if (node.state) {
-    const stateAttrs: string[] = [];
-    if (node.state.visible !== undefined)
-      stateAttrs.push(`visible="${node.state.visible ? 'true' : 'false'}"`);
-    if (node.state.enabled !== undefined)
-      stateAttrs.push(`enabled="${node.state.enabled ? 'true' : 'false'}"`);
-    if (node.state.checked) stateAttrs.push(`checked="true"`);
-    if (node.state.expanded) stateAttrs.push(`expanded="true"`);
-    if (node.state.selected) stateAttrs.push(`selected="true"`);
-    if (node.state.focused) stateAttrs.push(`focused="true"`);
-    if (node.state.required) stateAttrs.push(`required="true"`);
-    if (node.state.invalid) stateAttrs.push(`invalid="true"`);
-    if (node.state.readonly) stateAttrs.push(`readonly="true"`);
-    if (stateAttrs.length > 0) {
-      lines.push(`    <state ${stateAttrs.join(' ')} />`);
-    }
+    if (node.state.visible === false) attrs.push('visible="false"');
+    if (node.state.enabled === false) attrs.push('enabled="false"');
+    if (node.state.checked) attrs.push('checked="true"');
+    if (node.state.expanded) attrs.push('expanded="true"');
+    if (node.state.selected) attrs.push('selected="true"');
+    if (node.state.focused) attrs.push('focused="true"');
+    if (node.state.required) attrs.push('required="true"');
+    if (node.state.invalid) attrs.push('invalid="true"');
+    if (node.state.readonly) attrs.push('readonly="true"');
   }
 
-  // Find (locator strategies)
-  if (node.find) {
-    const findAttrs = [xmlAttr('primary', node.find.primary)];
-    if (node.find.alternates && node.find.alternates.length > 0) {
-      findAttrs.push(xmlAttr('alternates', node.find.alternates.join(';')));
-    }
-    lines.push(`    <find ${findAttrs.join(' ')} />`);
-  }
+  // Check if we have child elements
+  const hasSelector = node.find?.primary;
+  const hasAttrs = node.attributes && Object.keys(node.attributes).length > 0;
 
-  // Attributes (if present)
-  if (node.attributes) {
-    const attrPairs: string[] = [];
-    for (const [key, value] of Object.entries(node.attributes)) {
-      if (value !== undefined) {
-        attrPairs.push(`${escapeXml(key)}="${escapeXml(String(value))}"`);
+  if (hasSelector || hasAttrs) {
+    lines.push(`<node ${attrs.join(' ')}>${escapeXml(node.label)}`);
+
+    // Selector (formerly <find>)
+    if (node.find) {
+      const selectorAttrs = [xmlAttr('primary', node.find.primary)];
+      if (node.find.alternates && node.find.alternates.length > 0) {
+        selectorAttrs.push(xmlAttr('alternates', node.find.alternates.join(';')));
       }
+      lines.push(`  <selector ${selectorAttrs.join(' ')} />`);
     }
-    if (attrPairs.length > 0) {
-      lines.push(`    <attrs ${attrPairs.join(' ')} />`);
-    }
-  }
 
-  lines.push(`  </node>`);
-  lines.push(`</result>`);
+    // Attributes
+    if (hasAttrs) {
+      const attrPairs: string[] = [];
+      for (const [key, value] of Object.entries(node.attributes!)) {
+        if (value !== undefined) {
+          attrPairs.push(`${escapeXml(key)}="${escapeXml(String(value))}"`);
+        }
+      }
+      lines.push(`  <attrs ${attrPairs.join(' ')} />`);
+    }
+
+    lines.push('</node>');
+  } else {
+    // Self-closing if no children
+    lines.push(`<node ${attrs.join(' ')}>${escapeXml(node.label)}</node>`);
+  }
 
   return lines.join('\n');
 }
