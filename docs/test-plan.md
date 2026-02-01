@@ -1,4 +1,4 @@
-# Test Plan - Athena Browser MCP
+# Test Plan - Agent Web Interface
 
 Comprehensive test plan for all MCP tools.
 

@@ -933,24 +933,24 @@ describe('renderStateXml region trimming', () => {
 });
 
 // ============================================================================
-// ATHENA_TRIM_REGIONS env var tests
+// AWI_TRIM_REGIONS env var tests
 // ============================================================================
 
-describe('ATHENA_TRIM_REGIONS env var', () => {
+describe('AWI_TRIM_REGIONS env var', () => {
   beforeEach(() => {
     vi.resetModules();
   });
 
   afterEach(() => {
-    delete process.env.ATHENA_TRIM_REGIONS;
+    delete process.env.AWI_TRIM_REGIONS;
   });
 
   /** Re-import the module so the module-level TRIM_ENABLED const is re-evaluated. */
   async function renderWithEnv(envValue?: string): Promise<string> {
     if (envValue !== undefined) {
-      process.env.ATHENA_TRIM_REGIONS = envValue;
+      process.env.AWI_TRIM_REGIONS = envValue;
     } else {
-      delete process.env.ATHENA_TRIM_REGIONS;
+      delete process.env.AWI_TRIM_REGIONS;
     }
 
     const mod = await import('../../../src/state/state-renderer.js');
@@ -960,7 +960,7 @@ describe('ATHENA_TRIM_REGIONS env var', () => {
     return mod.renderStateXml(createBaselineResponse(actionables), { trimRegions: true });
   }
 
-  it('should disable trimming when ATHENA_TRIM_REGIONS=false', async () => {
+  it('should disable trimming when AWI_TRIM_REGIONS=false', async () => {
     const xml = await renderWithEnv('false');
 
     expect(xml).not.toContain('<!-- trimmed');
@@ -969,7 +969,7 @@ describe('ATHENA_TRIM_REGIONS env var', () => {
     }
   });
 
-  it('should enable trimming when ATHENA_TRIM_REGIONS is unset (default)', async () => {
+  it('should enable trimming when AWI_TRIM_REGIONS is unset (default)', async () => {
     const xml = await renderWithEnv(undefined);
 
     expect(xml).toContain(

@@ -1,4 +1,4 @@
-# Athena Browser MCP
+# Agent Web Interface
 
 An MCP server for browser automation that exposes semantic, token-efficient page representations optimized for LLM agents.
 
@@ -17,13 +17,13 @@ This leads to:
 
 In practice, agents spend more effort _finding_ the right information than reasoning about it.
 
-Athena exists to change the unit of information exposed to the model.
+Agent Web Interface exists to change the unit of information exposed to the model.
 
 ---
 
 ## Core Idea: Semantic Page Snapshots
 
-Instead of exposing raw DOM structures or full accessibility trees, Athena produces **semantic page snapshots**.
+Instead of exposing raw DOM structures or full accessibility trees, Agent Web Interface produces **semantic page snapshots**.
 
 These snapshots are:
 
@@ -66,27 +66,27 @@ Results are task-dependent and should be treated as directional rather than abso
 
 ---
 
-## What Athena Is (and Is Not)
+## What Agent Web Interface Is (and Is Not)
 
-### Athena is:
+### Agent Web Interface is:
 
 - A semantic interface between browsers and LLM agents
 - An MCP server focused on reliability and efficiency
 - Designed for agent workflows, not test automation
 
-### Athena is not:
+### Agent Web Interface is not:
 
 - A general-purpose browser
 - A visual testing or screenshot framework
 - A replacement for Puppeteer
 
-Puppeteer remains the execution layer; Athena focuses on representation and reasoning.
+Puppeteer remains the execution layer; Agent Web Interface focuses on representation and reasoning.
 
 ---
 
 ## Usage
 
-Athena implements the **Model Context Protocol (MCP)** and works with:
+Agent Web Interface implements the **Model Context Protocol (MCP)** and works with:
 
 - Claude Code
 - Claude Desktop
@@ -108,13 +108,13 @@ See the `examples/` directory for concrete agent workflows.
 
 ```bash
 # Basic (auto-launches browser)
-claude mcp add athena-browser-mcp -- npx athena-browser-mcp@latest
+claude mcp add agent-web-interface -- npx agent-web-interface@latest
 
 # With auto-connect to your Chrome profile
-claude mcp add athena-browser-mcp -- npx athena-browser-mcp@latest --autoConnect
+claude mcp add agent-web-interface -- npx agent-web-interface@latest --autoConnect
 
 # Headless mode
-claude mcp add athena-browser-mcp -- npx athena-browser-mcp@latest --headless
+claude mcp add agent-web-interface -- npx agent-web-interface@latest --headless
 ```
 
 ---
@@ -142,16 +142,16 @@ Examples:
 
 ```bash
 # Auto-launch visible browser (default)
-npx athena-browser-mcp
+npx agent-web-interface
 
 # Launch headless browser
-npx athena-browser-mcp --headless
+npx agent-web-interface --headless
 
 # Auto-connect to Chrome with remote debugging enabled
-npx athena-browser-mcp --autoConnect
+npx agent-web-interface --autoConnect
 
 # Connect to specific endpoint
-npx athena-browser-mcp --browserUrl http://localhost:9222
+npx agent-web-interface --browserUrl http://localhost:9222
 ```
 
 ---
@@ -167,9 +167,9 @@ To connect with your bookmarks, extensions, and logged-in sessions:
 ```json
 {
   "mcpServers": {
-    "athena-browser-mcp": {
+    "agent-web-interface": {
       "command": "npx",
-      "args": ["athena-browser-mcp@latest", "--autoConnect"]
+      "args": ["agent-web-interface@latest", "--autoConnect"]
     }
   }
 }
@@ -177,11 +177,21 @@ To connect with your bookmarks, extensions, and logged-in sessions:
 
 ---
 
+## Environment Variables
+
+| Variable           | Description                                        | Default     |
+| ------------------ | -------------------------------------------------- | ----------- |
+| `AWI_TRIM_REGIONS` | Set to `false` to disable region trimming globally | `true`      |
+| `CEF_BRIDGE_HOST`  | CDP host for browser connection                    | `127.0.0.1` |
+| `CEF_BRIDGE_PORT`  | CDP port for browser connection                    | `9223`      |
+
+---
+
 ## Installation
 
 ```bash
-git clone https://github.com/lespaceman/athena-browser-mcp
-cd athena-browser-mcp
+git clone https://github.com/lespaceman/agent-web-interface
+cd agent-web-interface
 npm install
 npm run build
 ```
@@ -192,7 +202,7 @@ Configure the MCP server in your client according to its MCP integration instruc
 
 ## Architecture Overview
 
-Athena separates concerns into three layers:
+Agent Web Interface separates concerns into three layers:
 
 - **Browser lifecycle** — page creation, navigation, teardown
 - **Semantic snapshot generation** — regions, elements, identifiers
@@ -204,7 +214,7 @@ This separation allows each layer to evolve independently while keeping agent-vi
 
 ## Status
 
-Athena is under active development.
+Agent Web Interface is under active development.
 APIs and snapshot formats may evolve as real-world agent usage informs the design.
 
 Feedback from practitioners building agent systems is especially welcome.

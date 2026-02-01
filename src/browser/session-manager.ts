@@ -65,7 +65,7 @@ export interface StorageState {
 const DEFAULT_USER_DATA_DIR = path.join(
   os.homedir(),
   '.cache',
-  'athena-browser-mcp',
+  'agent-web-interface',
   'chrome-profile'
 );
 
@@ -126,7 +126,7 @@ export function extractErrorMessage(error: unknown): string {
   return String(error);
 }
 
-/** Default CDP port for Athena Browser */
+/** Default CDP port for browser automation */
 const DEFAULT_CDP_PORT = 9223;
 /** Default CDP host */
 const DEFAULT_CDP_HOST = '127.0.0.1';
@@ -259,7 +259,7 @@ function isValidWsUrl(urlString: string): boolean {
  *
  * Supports two modes:
  * - launch(): Start a new browser instance
- * - connect(): Connect to an existing browser via CDP (e.g., Athena Browser)
+ * - connect(): Connect to an existing browser via CDP
  */
 export class SessionManager {
   private browser: Browser | null = null;
@@ -408,14 +408,14 @@ export class SessionManager {
   /**
    * Connect to an existing browser via CDP.
    *
-   * Use this to connect to Athena Browser or any Chromium with remote debugging enabled.
+   * Use this to connect to any Chromium browser with remote debugging enabled.
    *
    * @param options - Connection options (browserWSEndpoint, browserURL, or autoConnect)
    * @throws BrowserSessionError if browser is already running, connection in progress, or URL is invalid
    *
    * @example
    * ```typescript
-   * // Connect to Athena Browser on default port
+   * // Connect to browser on default port
    * await session.connect();
    *
    * // Connect to custom endpoint (HTTP - Puppeteer discovers WebSocket)
@@ -523,7 +523,7 @@ export class SessionManager {
       if (contexts.length > 0) {
         this.context = contexts[0];
       } else {
-        // If no context exists, use default (shouldn't happen with Athena)
+        // If no context exists, use default (shouldn't normally happen)
         this.context = browser.defaultBrowserContext();
       }
 
@@ -584,7 +584,7 @@ export class SessionManager {
   /**
    * Adopt an existing page from the connected browser.
    *
-   * When connecting to an external browser (like Athena), use this to
+   * When connecting to an external browser, use this to
    * register existing pages instead of creating new ones.
    *
    * This method is idempotent - calling it twice on the same page

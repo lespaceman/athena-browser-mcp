@@ -1,11 +1,11 @@
 {
-  "name": "athena-browser-mcp",
-  "version": "2.2.4",
-  "description": "MCP server for controlling Athena browser",
+  "name": "agent-web-interface",
+  "version": "3.0.0",
+  "description": "MCP server for AI-powered browser automation with semantic page snapshots",
   "type": "module",
   "main": "dist/src/index.js",
   "bin": {
-    "athena-browser-mcp": "./dist/src/index.js"
+    "agent-web-interface": "./dist/src/index.js"
   },
   "scripts": {
     "build": "tsc --project tsconfig.build.json",
@@ -37,12 +37,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/lespaceman/athena-browser-mcp.git"
+    "url": "https://github.com/lespaceman/agent-web-interface.git"
   },
   "bugs": {
-    "url": "https://github.com/lespaceman/athena-browser-mcp/issues"
+    "url": "https://github.com/lespaceman/agent-web-interface/issues"
   },
-  "homepage": "https://github.com/lespaceman/athena-browser-mcp#readme",
+  "homepage": "https://github.com/lespaceman/agent-web-interface#readme",
   "files": [
     "dist/**/*",
     "README.md",

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Athena Browser MCP is an MCP (Model Context Protocol) server for AI-powered browser automation via Puppeteer and CDP (Chrome DevTools Protocol). It provides **semantic page snapshots** - compact, structured representations designed for LLM consumption with stable element IDs that survive DOM mutations.
+Agent Web Interface is an MCP (Model Context Protocol) server for AI-powered browser automation via Puppeteer and CDP (Chrome DevTools Protocol). It provides **semantic page snapshots** - compact, structured representations designed for LLM consumption with stable element IDs that survive DOM mutations.
 
 **19 Tools** across 6 categories:
 

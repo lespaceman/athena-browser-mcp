@@ -1,5 +1,5 @@
 {
-  "name": "athena-browser-mcp",
+  "name": "agent-web-interface",
   "version": "0.1.0",
-  "description": "Claude Code plugin for athena-browser-mcp browser automation"
+  "description": "Claude Code plugin for browser automation"
 }

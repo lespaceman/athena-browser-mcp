@@ -728,7 +728,7 @@ function sanitizeHref(href: string): string {
  *
  * NOTE: Previously this included a hash of the first 10 interactive node IDs,
  * which caused false navigation detection when typing triggered autocomplete
- * or other dynamic UI updates. See: https://github.com/anthropics/athena-browser-mcp/issues/XXX
+ * or other dynamic UI updates. See: https://github.com/lespaceman/agent-web-interface/issues/XXX
  */
 function computeDocId(snapshot: BaseSnapshot): string {
   const url = new URL(snapshot.url);

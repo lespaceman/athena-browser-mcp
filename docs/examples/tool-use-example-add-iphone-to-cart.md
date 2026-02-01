@@ -1,6 +1,6 @@
 # Tool Use Example: Add iPhone 17 to Cart on Apple.com
 
-This document walks through a real browser automation session using **athena-browser-mcp** tools. An AI agent navigates apple.com, configures an iPhone 17 (Lavender, 256GB, unlocked), and adds it to the shopping bag — demonstrating navigation, element discovery, progressive form interaction, and state verification across 16 tool calls.
+This document walks through a real browser automation session using **agent-web-interface** tools. An AI agent navigates apple.com, configures an iPhone 17 (Lavender, 256GB, unlocked), and adds it to the shopping bag — demonstrating navigation, element discovery, progressive form interaction, and state verification across 16 tool calls.
 
 ---
 
