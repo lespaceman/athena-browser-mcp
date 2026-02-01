@@ -40,4 +40,4 @@ logs/
 Thumbs.db
 
 # Local symlink
-athena-browser-mcp
+agent-web-interface

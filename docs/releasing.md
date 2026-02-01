@@ -1,6 +1,6 @@
 # Releasing Guide
 
-This document describes how to release new versions of `athena-browser-mcp` to npm.
+This document describes how to release new versions of `agent-web-interface` to npm.
 
 ## Prerequisites
 
@@ -152,11 +152,11 @@ The workflow will:
 
 After the release workflow completes:
 
-1. Check npm package page: https://www.npmjs.com/package/athena-browser-mcp
+1. Check npm package page: https://www.npmjs.com/package/agent-web-interface
 2. Verify the new version is listed
 3. Test installation:
    ```bash
-   npm install athena-browser-mcp@latest
+   npm install agent-web-interface@latest
    ```
 
 ### Check GitHub Release
@@ -234,7 +234,7 @@ If you need to rollback a release:
 ### 1. Deprecate the bad version on npm
 
 ```bash
-npm deprecate athena-browser-mcp@<version> "This version has critical bugs, please upgrade to <fixed-version>"
+npm deprecate agent-web-interface@<version> "This version has critical bugs, please upgrade to <fixed-version>"
 ```
 
 ### 2. Release a new fixed version
@@ -289,7 +289,7 @@ Before releasing a major version, consider:
 2. **Test in real projects**:
 
    ```bash
-   npm install athena-browser-mcp@next
+   npm install agent-web-interface@next
    ```
 
 3. **Gather feedback** from users testing the pre-release

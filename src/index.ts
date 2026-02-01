@@ -111,8 +111,8 @@ function initializeServer(): BrowserAutomationServer {
   // Note: Don't pass tools/logging capabilities - McpServer registers them automatically
   // when tools are registered via .tool() or .registerTool()
   const server = new BrowserAutomationServer({
-    name: 'athena-browser-mcp',
-    version: '2.0.0',
+    name: 'agent-web-interface',
+    version: '3.0.0',
   });
 
   // Initialize session manager and tools

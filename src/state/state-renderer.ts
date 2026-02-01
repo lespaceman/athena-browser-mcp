@@ -17,7 +17,7 @@ import { escapeXml } from '../lib/text-utils.js';
 // ============================================================================
 
 /** When 'false', disables region trimming globally regardless of per-tool options. Default: enabled. */
-const TRIM_ENABLED = process.env.ATHENA_TRIM_REGIONS !== 'false';
+const TRIM_ENABLED = process.env.AWI_TRIM_REGIONS !== 'false';
 
 /**
  * Per-region limits for trimming actionable elements in snapshot responses.

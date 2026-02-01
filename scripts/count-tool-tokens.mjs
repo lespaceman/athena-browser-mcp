@@ -28,10 +28,10 @@ async function main() {
     for (const block of content) {
       if (
         block.type === "tool_use" &&
-        (block.name || "").includes("athena-browser-mcp")
+        (block.name || "").includes("agent-web-interface")
       ) {
         toolCalls.push({
-          name: block.name.replace("mcp__athena-browser-mcp-dev__", ""),
+          name: block.name.replace("mcp__agent-web-interface-dev__", ""),
           input: block.input,
           id: block.id,
         });
