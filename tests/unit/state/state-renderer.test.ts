@@ -733,16 +733,22 @@ describe('trimRegionElements', () => {
   });
 
   it('should keep correct head and tail for many elements', () => {
-    const elements = Array.from({ length: 20 }, (_, i) =>
-      createActionable(`btn-${i + 1}`, 'main')
-    );
+    const elements = Array.from({ length: 20 }, (_, i) => createActionable(`btn-${i + 1}`, 'main'));
     const { kept, trimmedCount } = trimRegionElements(elements, { head: 5, tail: 5 });
 
     expect(trimmedCount).toBe(10);
     expect(kept).toHaveLength(10);
     expect(kept.map((e) => e.eid)).toEqual([
-      'btn-1', 'btn-2', 'btn-3', 'btn-4', 'btn-5',
-      'btn-16', 'btn-17', 'btn-18', 'btn-19', 'btn-20',
+      'btn-1',
+      'btn-2',
+      'btn-3',
+      'btn-4',
+      'btn-5',
+      'btn-16',
+      'btn-17',
+      'btn-18',
+      'btn-19',
+      'btn-20',
     ]);
   });
 
@@ -770,9 +776,7 @@ describe('trimRegionElements', () => {
   });
 
   it('should handle tail=0 without duplicating elements', () => {
-    const elements = Array.from({ length: 10 }, (_, i) =>
-      createActionable(`btn-${i + 1}`, 'main')
-    );
+    const elements = Array.from({ length: 10 }, (_, i) => createActionable(`btn-${i + 1}`, 'main'));
     const { kept, trimmedCount } = trimRegionElements(elements, { head: 5, tail: 0 });
 
     expect(trimmedCount).toBe(5);
@@ -781,9 +785,7 @@ describe('trimRegionElements', () => {
   });
 
   it('should handle head=0 without duplicating elements', () => {
-    const elements = Array.from({ length: 10 }, (_, i) =>
-      createActionable(`btn-${i + 1}`, 'main')
-    );
+    const elements = Array.from({ length: 10 }, (_, i) => createActionable(`btn-${i + 1}`, 'main'));
     const { kept, trimmedCount } = trimRegionElements(elements, { head: 0, tail: 3 });
 
     expect(trimmedCount).toBe(7);
