@@ -18,6 +18,7 @@ import {
   type FieldDependency,
   type FieldValueRequest,
 } from '../form/index.js';
+import { escapeXml } from '../lib/text-utils.js';
 import type { SessionManager } from '../browser/session-manager.js';
 import type { PageHandle } from '../browser/page-registry.js';
 
@@ -52,38 +53,13 @@ function getSessionManager(): SessionManager {
  * @returns PageHandle for the resolved page
  * @throws Error if no page available
  */
-function resolveExistingPage(
-  session: SessionManager,
-  page_id: string | undefined
-): { page_id: string } {
+function resolvePage(session: SessionManager, page_id: string | undefined): PageHandle {
   const handle = session.resolvePage(page_id);
   if (!handle) {
-    if (page_id) {
-      throw new Error(`Page not found: ${page_id}`);
-    } else {
-      throw new Error('No page available. Use launch_browser first.');
-    }
-  }
-  session.touchPage(handle.page_id);
-  return handle;
-}
-
-/**
- * Resolve page_id to full PageHandle with CDP client.
- *
- * @param session - SessionManager instance
- * @param page_id - Optional page identifier
- * @returns Full PageHandle with CDP client
- * @throws Error if no page available
- */
-function resolvePageWithCdp(session: SessionManager, page_id: string | undefined): PageHandle {
-  const handle = session.resolvePage(page_id);
-  if (!handle) {
-    if (page_id) {
-      throw new Error(`Page not found: ${page_id}`);
-    } else {
-      throw new Error('No page available. Use launch_browser first.');
-    }
+    const message = page_id
+      ? `Page not found: ${page_id}`
+      : 'No page available. Use navigate first.';
+    throw new Error(message);
   }
   session.touchPage(handle.page_id);
   return handle;
@@ -125,6 +101,9 @@ export type GetFieldContextInput = z.infer<typeof GetFieldContextInputSchema>;
 
 /**
  * Build XML response for form understanding.
+ *
+ * Optimized format with no wrapper elements, flattened attributes, and label as content.
+ * Fields use their kind as tag name (textbox, checkbox, etc.), actions use button tag.
  */
 function buildFormUnderstandingXml(
   pageId: string,
@@ -134,98 +113,72 @@ function buildFormUnderstandingXml(
 ): string {
   const lines: string[] = [];
 
-  lines.push(`<form_understanding page_id="${escapeXml(pageId)}">`);
-
-  if (limitations) {
-    lines.push(`  <limitations runtime_values="partial" reason="${escapeXml(limitations)}" />`);
-  }
-
-  lines.push(`  <forms count="${forms.length}">`);
+  const limitAttr = limitations ? ` limitations="${escapeXml(limitations)}"` : '';
+  lines.push(`<forms page="${escapeXml(pageId)}"${limitAttr}>`);
 
   // Sort forms by form_id for deterministic output
   const sortedForms = [...forms].sort((a, b) => a.form_id.localeCompare(b.form_id));
 
   for (const form of sortedForms) {
-    lines.push(
-      `    <form id="${escapeXml(form.form_id)}" ` +
-        `intent="${form.intent ?? 'unknown'}" ` +
-        `pattern="${form.pattern ?? 'unknown'}" ` +
-        `confidence="${form.detection.confidence.toFixed(2)}">`
-    );
+    // Form attributes with flattened state
+    const formAttrs = [
+      `id="${escapeXml(form.form_id)}"`,
+      `intent="${form.intent ?? 'unknown'}"`,
+      `completion="${form.state.completion_pct}%"`,
+    ];
+    if (!form.state.can_submit) formAttrs.push('can_submit="false"');
+    if (form.state.error_count > 0) formAttrs.push(`errors="${form.state.error_count}"`);
 
-    // State summary
-    lines.push(
-      `      <state completion="${form.state.completion_pct}%" ` +
-        `can_submit="${form.state.can_submit}" ` +
-        `errors="${form.state.error_count}" />`
-    );
+    lines.push(`  <form ${formAttrs.join(' ')}>`);
 
     // Sort fields by backend_node_id (DOM order proxy) for deterministic output
     const sortedFields = [...form.fields].sort(
       (a, b) => (a.backend_node_id ?? 0) - (b.backend_node_id ?? 0)
     );
 
-    // Fields
-    lines.push(`      <fields count="${sortedFields.length}">`);
+    // Fields - use kind as tag name, label as content
     for (const field of sortedFields) {
-      lines.push(buildFieldXml(field, includeValues, 8));
+      lines.push(buildFieldElementXml(field, includeValues, 4));
     }
-    lines.push('      </fields>');
 
     // Sort actions by eid for deterministic output
     const sortedActions = [...form.actions].sort((a, b) => a.eid.localeCompare(b.eid));
 
-    // Actions (submit buttons etc)
-    if (sortedActions.length > 0) {
-      lines.push(`      <actions count="${sortedActions.length}">`);
-      for (const action of sortedActions) {
-        lines.push(buildActionXml(action, 8));
-      }
-      lines.push('      </actions>');
+    // Actions as <button> elements
+    for (const action of sortedActions) {
+      lines.push(buildButtonXml(action, 4));
     }
 
     // Next suggested action
     const nextAction = suggestNextAction(form);
     if (nextAction) {
       lines.push(
-        `      <next_action eid="${escapeXml(nextAction.eid)}" ` +
-          `label="${escapeXml(nextAction.label)}" ` +
-          `reason="${escapeXml(nextAction.reason)}" />`
+        `    <next eid="${escapeXml(nextAction.eid)}" reason="${escapeXml(nextAction.reason)}" />`
       );
     }
 
-    lines.push('    </form>');
+    lines.push('  </form>');
   }
 
-  lines.push('  </forms>');
-  lines.push('</form_understanding>');
+  lines.push('</forms>');
 
   return lines.join('\n');
 }
 
 /**
- * Build XML for a single field.
+ * Build XML element for a form field using kind as tag name and label as content.
+ * Omits default values (enabled=true, filled=false).
  */
-function buildFieldXml(field: FormField, includeValues: boolean, indent: number): string {
+function buildFieldElementXml(field: FormField, includeValues: boolean, indent: number): string {
   const pad = ' '.repeat(indent);
   const attrs: string[] = [
     `eid="${escapeXml(field.eid)}"`,
-    `label="${escapeXml(field.label)}"`,
-    `kind="${field.kind}"`,
     `purpose="${field.purpose.semantic_type}"`,
-    `filled="${field.state.filled}"`,
-    `has_value="${field.state.has_value}"`,
-    `enabled="${field.state.enabled}"`,
   ];
 
-  if (field.state.value_source) {
-    attrs.push(`value_source="${field.state.value_source}"`);
-  }
-
-  if (field.constraints.required) {
-    attrs.push('required="true"');
-  }
-
+  // Only include non-default states
+  if (field.state.filled) attrs.push('filled="true"');
+  if (!field.state.enabled) attrs.push('enabled="false"');
   if (!field.state.valid) {
     attrs.push('invalid="true"');
     if (field.state.validation_message) {
@@ -233,47 +186,42 @@ function buildFieldXml(field: FormField, includeValues: boolean, indent: number)
     }
   }
 
+  if (field.constraints.required) attrs.push('required="true"');
+
   if (includeValues && field.state.current_value) {
-    attrs.push(`current_value="${escapeXml(field.state.current_value)}"`);
+    attrs.push(`value="${escapeXml(field.state.current_value)}"`);
   }
 
   if (field.depends_on && field.depends_on.length > 0) {
-    // Sort dependencies by source_eid for deterministic output
     const sortedDeps = [...field.depends_on].sort((a, b) =>
       a.source_eid.localeCompare(b.source_eid)
     );
     const deps = sortedDeps.map((d) => d.source_eid).join(',');
-    attrs.push(`depends_on="${escapeXml(deps)}"`);
+    attrs.push(`depends="${escapeXml(deps)}"`);
   }
 
-  return `${pad}<field ${attrs.join(' ')} />`;
+  // Use kind as tag name
+  const tag = field.kind;
+  return `${pad}<${tag} ${attrs.join(' ')}>${escapeXml(field.label)}</${tag}>`;
 }
 
 /**
- * Build XML for a form action.
+ * Build XML element for a form action as <button>.
+ * Omits default values (enabled=true).
  */
-function buildActionXml(action: FormAction, indent: number): string {
+function buildButtonXml(action: FormAction, indent: number): string {
   const pad = ' '.repeat(indent);
-  const attrs: string[] = [
-    `eid="${escapeXml(action.eid)}"`,
-    `label="${escapeXml(action.label)}"`,
-    `type="${action.type}"`,
-    `enabled="${action.enabled}"`,
-  ];
+  const attrs: string[] = [`eid="${escapeXml(action.eid)}"`, `type="${action.type}"`];
 
-  if (action.is_primary) {
-    attrs.push('primary="true"');
-  }
+  // Only include non-defaults
+  if (!action.enabled) attrs.push('enabled="false"');
+  if (action.is_primary) attrs.push('primary="true"');
 
   if (!action.enabled && action.disabled_reason) {
-    attrs.push(`blocked_reason="${escapeXml(action.disabled_reason)}"`);
+    attrs.push(`blocked="${escapeXml(action.disabled_reason)}"`);
   }
 
-  if (action.blocked_by && action.blocked_by.length > 0) {
-    attrs.push(`blocked_by="${action.blocked_by.length} fields"`);
-  }
-
-  return `${pad}<action ${attrs.join(' ')} />`;
+  return `${pad}<button ${attrs.join(' ')}>${escapeXml(action.label)}</button>`;
 }
 
 /**
@@ -323,6 +271,9 @@ function suggestNextAction(
 
 /**
  * Build XML for field context.
+ *
+ * Optimized format with flattened attributes and no unnecessary wrappers.
+ * Label is text content, state/constraints are root attributes, defaults omitted.
  */
 function buildFieldContextXml(
   field: FormField,
@@ -331,119 +282,113 @@ function buildFieldContextXml(
 ): string {
   const lines: string[] = [];
 
-  lines.push(`<field_context eid="${escapeXml(field.eid)}">`);
-
-  // Field details
-  lines.push(
-    `  <field label="${escapeXml(field.label)}" ` +
-      `kind="${field.kind}" ` +
-      `purpose="${field.purpose.semantic_type}" ` +
-      `purpose_confidence="${field.purpose.confidence.toFixed(2)}">`
-  );
-
-  // Purpose inference signals (sorted for deterministic output)
-  const sortedSignals = [...field.purpose.inferred_from].sort();
-  lines.push('    <purpose_signals>');
-  for (const signal of sortedSignals) {
-    lines.push(`      <signal>${escapeXml(signal)}</signal>`);
-  }
-  lines.push('    </purpose_signals>');
-
-  // State
-  const stateAttrs = [
-    `filled="${field.state.filled}"`,
-    `has_value="${field.state.has_value}"`,
-    `valid="${field.state.valid}"`,
-    `enabled="${field.state.enabled}"`,
-    `focused="${field.state.focused}"`,
+  // Build root <field> attributes
+  const attrs: string[] = [
+    `eid="${escapeXml(field.eid)}"`,
+    `kind="${field.kind}"`,
+    `purpose="${field.purpose.semantic_type}"`,
+    `confidence="${field.purpose.confidence.toFixed(2)}"`,
   ];
-  if (field.state.value_source) {
-    stateAttrs.push(`value_source="${field.state.value_source}"`);
-  }
-  lines.push(`    <state ${stateAttrs.join(' ')} />`);
 
-  // Constraints
-  const constraintAttrs: string[] = [`required="${field.constraints.required}"`];
+  // Signals as comma-separated attribute (sorted for deterministic output)
+  const sortedSignals = [...field.purpose.inferred_from].sort();
+  if (sortedSignals.length > 0) {
+    attrs.push(`signals="${escapeXml(sortedSignals.join(', '))}"`);
+  }
+
+  // State flags (only include non-defaults)
+  if (field.state.filled) attrs.push('filled="true"');
+  if (!field.state.enabled) attrs.push('enabled="false"');
+  if (!field.state.valid) attrs.push('valid="false"');
+  if (field.state.focused) attrs.push('focused="true"');
+  if (field.state.value_source) {
+    attrs.push(`value_source="${field.state.value_source}"`);
+  }
+
+  // Constraints (only include non-defaults)
+  if (field.constraints.required) attrs.push('required="true"');
   if (field.constraints.min_length !== undefined) {
-    constraintAttrs.push(`min_length="${field.constraints.min_length}"`);
+    attrs.push(`min_length="${field.constraints.min_length}"`);
   }
   if (field.constraints.max_length !== undefined) {
-    constraintAttrs.push(`max_length="${field.constraints.max_length}"`);
+    attrs.push(`max_length="${field.constraints.max_length}"`);
   }
   if (field.constraints.pattern) {
-    constraintAttrs.push(`pattern="${escapeXml(field.constraints.pattern)}"`);
+    attrs.push(`pattern="${escapeXml(field.constraints.pattern)}"`);
   }
-  lines.push(`    <constraints ${constraintAttrs.join(' ')} />`);
+
+  // Validation error
+  if (!field.state.valid && field.state.validation_message) {
+    attrs.push(`error="${escapeXml(field.state.validation_message)}"`);
+  }
+
+  // Dependencies summary (eids of fields this depends on)
+  if (dependencies.length > 0) {
+    const depEids = [...new Set(dependencies.map((d) => d.source_eid))].sort();
+    attrs.push(`depends="${escapeXml(depEids.join(','))}"`);
+  }
+
+  // Start field element with label as content
+  lines.push(`<field ${attrs.join(' ')}>${escapeXml(field.label)}`);
 
   // Options (for select/radio), sorted by value for deterministic output
-  if (field.constraints.options && field.constraints.options.length > 0) {
-    const sortedOptions = [...field.constraints.options].sort((a, b) =>
+  const hasOptions = field.constraints.options && field.constraints.options.length > 0;
+  if (hasOptions) {
+    const sortedOptions = [...field.constraints.options!].sort((a, b) =>
       a.value.localeCompare(b.value)
     );
-    lines.push('    <options>');
     for (const opt of sortedOptions) {
-      lines.push(
-        `      <option value="${escapeXml(opt.value)}" ` +
-          `label="${escapeXml(opt.label)}" ` +
-          `selected="${opt.selected ?? false}" ` +
-          `${opt.eid ? `eid="${escapeXml(opt.eid)}"` : ''} />`
-      );
+      const optAttrs = [`value="${escapeXml(opt.value)}"`];
+      if (opt.selected) optAttrs.push('selected="true"');
+      if (opt.eid) optAttrs.push(`eid="${escapeXml(opt.eid)}"`);
+      lines.push(`  <option ${optAttrs.join(' ')}>${escapeXml(opt.label)}</option>`);
     }
-    lines.push('    </options>');
   }
-
-  lines.push('  </field>');
 
   // Dependencies (sorted by source_eid, then type for deterministic output)
   if (dependencies.length > 0) {
     const sortedDeps = [...dependencies].sort(
       (a, b) => a.source_eid.localeCompare(b.source_eid) || a.type.localeCompare(b.type)
     );
-    lines.push('  <dependencies>');
     for (const dep of sortedDeps) {
       lines.push(
-        `    <depends_on source="${escapeXml(dep.source_eid)}" ` +
-          `type="${dep.type}" ` +
-          `confidence="${dep.confidence.toFixed(2)}" ` +
-          `detection="${dep.detection_method}" />`
+        `  <dependency source="${escapeXml(dep.source_eid)}" ` +
+          `type="${dep.type}" confidence="${dep.confidence.toFixed(2)}" />`
       );
     }
-    lines.push('  </dependencies>');
   }
 
   // Form context
   lines.push(
     `  <form id="${escapeXml(form.form_id)}" ` +
-      `intent="${form.intent ?? 'unknown'}" ` +
-      `completion="${form.state.completion_pct}%" />`
+      `intent="${form.intent ?? 'unknown'}" completion="${form.state.completion_pct}%" />`
   );
 
   // Next suggested action
   const nextAction = suggestNextAction(form);
   if (nextAction) {
     lines.push(
-      `  <next_action eid="${escapeXml(nextAction.eid)}" ` +
-        `label="${escapeXml(nextAction.label)}" ` +
-        `reason="${escapeXml(nextAction.reason)}" />`
+      `  <next eid="${escapeXml(nextAction.eid)}" reason="${escapeXml(nextAction.reason)}" />`
     );
   }
 
-  lines.push('</field_context>');
+  lines.push('</field>');
 
   return lines.join('\n');
 }
 
-/**
- * Escape XML special characters.
- */
-function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
+// ============================================================================
+// Test Exports (for unit testing XML output format)
+// ============================================================================
+
+/** @internal Exported for testing only */
+export const _testExports = {
+  buildFormUnderstandingXml,
+  buildFieldContextXml,
+  buildFieldElementXml,
+  buildButtonXml,
+  suggestNextAction,
+};
 
 // ============================================================================
 // Tool Handlers
@@ -462,7 +407,7 @@ export async function getFormUnderstanding(rawInput: unknown): Promise<string> {
   const snapshotStore = getSnapshotStore();
 
   // Resolve page with CDP client for runtime value reading
-  const handle = resolvePageWithCdp(session, input.page_id);
+  const handle = resolvePage(session, input.page_id);
   const pageId = handle.page_id;
 
   // Get snapshot for the page
@@ -562,7 +507,7 @@ export function getFieldContext(rawInput: unknown): string {
   const snapshotStore = getSnapshotStore();
 
   // Resolve page
-  const handle = resolveExistingPage(session, input.page_id);
+  const handle = resolvePage(session, input.page_id);
   const pageId = handle.page_id;
 
   // Get snapshot for the page

@@ -38,3 +38,6 @@ logs/
 
 # OS files
 Thumbs.db
+
+# Local symlink
+athena-browser-mcp

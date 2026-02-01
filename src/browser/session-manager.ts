@@ -8,7 +8,12 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import puppeteer, { type Browser, type BrowserContext, type Page } from 'puppeteer-core';
+import puppeteer, {
+  type Browser,
+  type BrowserContext,
+  type Page,
+  TargetType,
+} from 'puppeteer-core';
 import { PuppeteerCdpClient } from '../cdp/puppeteer-cdp-client.js';
 import { PageRegistry, type PageHandle } from './page-registry.js';
 import { getLogger } from '../shared/services/logging.service.js';
@@ -488,9 +493,22 @@ export class SessionManager {
 
     try {
       // Connect with timeout
+      // targetFilter excludes chrome extension targets (service workers, background
+      // pages, extension tabs) that cause Puppeteer's ChromeTargetManager to hang
+      // during initialization. Chrome 144's UI-based remote debugging exposes
+      // extension targets in non-default browser contexts; Puppeteer's
+      // Target.setAutoAttach fails for those sessions (-32001), leaving them stuck
+      // in #targetIdsForInit so connect() never resolves.
+      // See: https://github.com/puppeteer/puppeteer/issues/11627
       const connectionPromise = puppeteer.connect({
         ...connectOptions,
         defaultViewport: null,
+        targetFilter: (target) => {
+          if (target.url().startsWith('chrome-extension://')) return false;
+          if (target.type() === TargetType.SERVICE_WORKER) return false;
+          if (target.type() === TargetType.BACKGROUND_PAGE) return false;
+          return true;
+        },
       });
       const timeoutPromise = new Promise<never>((_, reject) => {
         timeoutId = setTimeout(() => {

@@ -4,14 +4,16 @@
  * Tests for observation rendering functions in state-renderer.ts.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   renderObservations,
   renderSingleObservation,
   renderStateXml,
+  trimRegionElements,
 } from '../../../src/state/state-renderer.js';
 import type {
   StateResponseObject,
+  ActionableInfo,
   DiffResponse,
   BaselineResponse,
   Atoms,
@@ -651,5 +653,327 @@ describe('renderStateXml mutations', () => {
 
     // Old format had empty="true", new format doesn't need it
     expect(xml).not.toContain('empty=');
+  });
+});
+
+// ============================================================================
+// Region Trimming Tests
+// ============================================================================
+
+/**
+ * Create a mock ActionableInfo for trimming tests.
+ */
+function createActionable(id: string, region: string): ActionableInfo {
+  return {
+    eid: id,
+    kind: 'button',
+    name: `Button ${id}`,
+    role: 'button',
+    vis: true,
+    ena: true,
+    ref: { snapshot_id: 'snap-1', backend_node_id: parseInt(id.replace(/\D/g, '') || '0') },
+    loc: { preferred: { ax: `button "${id}"` } },
+    ctx: { layer: 'main', region },
+  };
+}
+
+/**
+ * Create a baseline StateResponseObject with given actionables.
+ */
+function createBaselineResponse(actionables: ActionableInfo[]): StateResponseObject {
+  return {
+    state: {
+      sid: 'test-session',
+      step: 1,
+      doc: {
+        url: 'https://example.com/',
+        origin: 'https://example.com',
+        title: 'Test Page',
+        doc_id: 'test-doc',
+        nav_type: 'hard',
+        history_idx: 0,
+      },
+      layer: { active: 'main', stack: ['main'], pointer_lock: false },
+      timing: { ts: '2024-01-01T00:00:00Z', dom_ready: true, network_busy: false },
+      hash: { ui: 'abc123', layer: 'def456' },
+    },
+    diff: { mode: 'baseline', reason: 'first' } as BaselineResponse,
+    actionables,
+    counts: { shown: actionables.length, total_in_layer: actionables.length },
+    limits: { max_actionables: 1000, actionables_capped: false },
+    atoms: { viewport: { w: 1280, h: 720, dpr: 1 }, scroll: { x: 0, y: 0 } },
+    tokens: 0,
+  };
+}
+
+describe('trimRegionElements', () => {
+  it('should not trim when element count is less than head+tail', () => {
+    const elements = [1, 2, 3].map((i) => createActionable(`btn-${i}`, 'main'));
+    const { kept, trimmedCount } = trimRegionElements(elements, { head: 5, tail: 5 });
+
+    expect(trimmedCount).toBe(0);
+    expect(kept).toEqual(elements);
+  });
+
+  it('should not trim when element count equals head+tail (boundary)', () => {
+    const elements = [1, 2, 3, 4, 5].map((i) => createActionable(`btn-${i}`, 'header'));
+    const { kept, trimmedCount } = trimRegionElements(elements, { head: 3, tail: 2 });
+
+    expect(trimmedCount).toBe(0);
+    expect(kept).toEqual(elements);
+  });
+
+  it('should trim 1 element when count is head+tail+1', () => {
+    const elements = [1, 2, 3, 4, 5, 6].map((i) => createActionable(`btn-${i}`, 'header'));
+    const { kept, trimmedCount } = trimRegionElements(elements, { head: 3, tail: 2 });
+
+    expect(trimmedCount).toBe(1);
+    expect(kept).toHaveLength(5);
+    expect(kept.map((e) => e.eid)).toEqual(['btn-1', 'btn-2', 'btn-3', 'btn-5', 'btn-6']);
+  });
+
+  it('should keep correct head and tail for many elements', () => {
+    const elements = Array.from({ length: 20 }, (_, i) => createActionable(`btn-${i + 1}`, 'main'));
+    const { kept, trimmedCount } = trimRegionElements(elements, { head: 5, tail: 5 });
+
+    expect(trimmedCount).toBe(10);
+    expect(kept).toHaveLength(10);
+    expect(kept.map((e) => e.eid)).toEqual([
+      'btn-1',
+      'btn-2',
+      'btn-3',
+      'btn-4',
+      'btn-5',
+      'btn-16',
+      'btn-17',
+      'btn-18',
+      'btn-19',
+      'btn-20',
+    ]);
+  });
+
+  it('should handle tail overlapping head (7 elements with head=5, tail=5)', () => {
+    const elements = [1, 2, 3, 4, 5, 6, 7].map((i) => createActionable(`btn-${i}`, 'main'));
+    const { kept, trimmedCount } = trimRegionElements(elements, { head: 5, tail: 5 });
+
+    expect(trimmedCount).toBe(0);
+    expect(kept).toEqual(elements);
+  });
+
+  it('should handle single element', () => {
+    const elements = [createActionable('btn-1', 'footer')];
+    const { kept, trimmedCount } = trimRegionElements(elements, { head: 2, tail: 2 });
+
+    expect(trimmedCount).toBe(0);
+    expect(kept).toEqual(elements);
+  });
+
+  it('should handle empty element list', () => {
+    const { kept, trimmedCount } = trimRegionElements([], { head: 5, tail: 5 });
+
+    expect(trimmedCount).toBe(0);
+    expect(kept).toEqual([]);
+  });
+
+  it('should handle tail=0 without duplicating elements', () => {
+    const elements = Array.from({ length: 10 }, (_, i) => createActionable(`btn-${i + 1}`, 'main'));
+    const { kept, trimmedCount } = trimRegionElements(elements, { head: 5, tail: 0 });
+
+    expect(trimmedCount).toBe(5);
+    expect(kept).toHaveLength(5);
+    expect(kept.map((e) => e.eid)).toEqual(['btn-1', 'btn-2', 'btn-3', 'btn-4', 'btn-5']);
+  });
+
+  it('should handle head=0 without duplicating elements', () => {
+    const elements = Array.from({ length: 10 }, (_, i) => createActionable(`btn-${i + 1}`, 'main'));
+    const { kept, trimmedCount } = trimRegionElements(elements, { head: 0, tail: 3 });
+
+    expect(trimmedCount).toBe(7);
+    expect(kept).toHaveLength(3);
+    expect(kept.map((e) => e.eid)).toEqual(['btn-8', 'btn-9', 'btn-10']);
+  });
+});
+
+describe('renderStateXml region trimming', () => {
+  it('should not include trim comment when trimRegions is false', () => {
+    const actionables = Array.from({ length: 20 }, (_, i) =>
+      createActionable(`btn-${i + 1}`, 'main')
+    );
+    const response = createBaselineResponse(actionables);
+
+    const xml = renderStateXml(response, { trimRegions: false });
+
+    expect(xml).not.toContain('<!-- trimmed');
+    expect(xml).toContain('btn-10'); // middle element present
+  });
+
+  it('should not include trim comment when options are omitted', () => {
+    const actionables = Array.from({ length: 20 }, (_, i) =>
+      createActionable(`btn-${i + 1}`, 'main')
+    );
+    const response = createBaselineResponse(actionables);
+
+    const xml = renderStateXml(response);
+
+    expect(xml).not.toContain('<!-- trimmed');
+  });
+
+  it('should insert trim comment when region exceeds limits', () => {
+    // main region has limits { head: 5, tail: 5 }, so 20 elements triggers trimming
+    const actionables = Array.from({ length: 20 }, (_, i) =>
+      createActionable(`btn-${i + 1}`, 'main')
+    );
+    const response = createBaselineResponse(actionables);
+
+    const xml = renderStateXml(response, { trimRegions: true });
+
+    expect(xml).toContain(
+      '<!-- trimmed 10 items. Use find_elements with region=main to see all -->'
+    );
+  });
+
+  it('should keep correct head and tail elements in trimmed output', () => {
+    const actionables = Array.from({ length: 20 }, (_, i) =>
+      createActionable(`btn-${i + 1}`, 'main')
+    );
+    const response = createBaselineResponse(actionables);
+
+    const xml = renderStateXml(response, { trimRegions: true });
+
+    // Head: btn-1 through btn-5 should be present
+    for (let i = 1; i <= 5; i++) {
+      expect(xml).toContain(`id="btn-${i}"`);
+    }
+    // Tail: btn-16 through btn-20 should be present
+    for (let i = 16; i <= 20; i++) {
+      expect(xml).toContain(`id="btn-${i}"`);
+    }
+    // Middle: btn-6 through btn-15 should NOT be present
+    for (let i = 6; i <= 15; i++) {
+      expect(xml).not.toContain(`id="btn-${i}"`);
+    }
+  });
+
+  it('should not trim region with fewer elements than limits', () => {
+    // header has limits { head: 3, tail: 2 } = 5, so 4 elements should not be trimmed
+    const actionables = [1, 2, 3, 4].map((i) => createActionable(`hdr-${i}`, 'header'));
+    const response = createBaselineResponse(actionables);
+
+    const xml = renderStateXml(response, { trimRegions: true });
+
+    expect(xml).not.toContain('<!-- trimmed');
+    for (let i = 1; i <= 4; i++) {
+      expect(xml).toContain(`id="hdr-${i}"`);
+    }
+  });
+
+  it('should use default limits for unknown region', () => {
+    // Default limits are { head: 5, tail: 3 } = 8, so 12 elements should trim 4
+    const actionables = Array.from({ length: 12 }, (_, i) =>
+      createActionable(`cst-${i + 1}`, 'custom-region')
+    );
+    const response = createBaselineResponse(actionables);
+
+    const xml = renderStateXml(response, { trimRegions: true });
+
+    expect(xml).toContain(
+      '<!-- trimmed 4 items. Use find_elements with region=custom-region to see all -->'
+    );
+    // Head: cst-1 through cst-5
+    for (let i = 1; i <= 5; i++) {
+      expect(xml).toContain(`id="cst-${i}"`);
+    }
+    // Tail: cst-10, cst-11, cst-12
+    for (let i = 10; i <= 12; i++) {
+      expect(xml).toContain(`id="cst-${i}"`);
+    }
+  });
+
+  it('should trim multiple regions independently', () => {
+    const headerItems = Array.from({ length: 10 }, (_, i) =>
+      createActionable(`hdr-${i + 1}`, 'header')
+    );
+    const mainItems = Array.from({ length: 15 }, (_, i) =>
+      createActionable(`main-${i + 1}`, 'main')
+    );
+    const response = createBaselineResponse([...headerItems, ...mainItems]);
+
+    const xml = renderStateXml(response, { trimRegions: true });
+
+    // header { head: 3, tail: 2 }: 10 elements, trims 5
+    expect(xml).toContain(
+      '<!-- trimmed 5 items. Use find_elements with region=header to see all -->'
+    );
+    // main { head: 5, tail: 5 }: 15 elements, trims 5
+    expect(xml).toContain(
+      '<!-- trimmed 5 items. Use find_elements with region=main to see all -->'
+    );
+  });
+
+  it('should place trim comment after all elements, before </region>', () => {
+    const actionables = Array.from({ length: 12 }, (_, i) =>
+      createActionable(`btn-${i + 1}`, 'main')
+    );
+    const response = createBaselineResponse(actionables);
+
+    const xml = renderStateXml(response, { trimRegions: true });
+    const lines = xml.split('\n');
+
+    // Find the trim comment and verify placement
+    const commentIdx = lines.findIndex((l) => l.includes('<!-- trimmed'));
+    expect(commentIdx).toBeGreaterThan(-1);
+
+    // Line before comment should be the last kept element
+    // main limits: head=5, tail=5. 12 elements → keeps btn-1..5 + btn-8..12
+    // Last kept element is btn-12
+    expect(lines[commentIdx - 1]).toContain('id="btn-12"');
+    // Line after comment should be closing </region>
+    expect(lines[commentIdx + 1].trim()).toBe('</region>');
+  });
+});
+
+// ============================================================================
+// ATHENA_TRIM_REGIONS env var tests
+// ============================================================================
+
+describe('ATHENA_TRIM_REGIONS env var', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    delete process.env.ATHENA_TRIM_REGIONS;
+  });
+
+  /** Re-import the module so the module-level TRIM_ENABLED const is re-evaluated. */
+  async function renderWithEnv(envValue?: string): Promise<string> {
+    if (envValue !== undefined) {
+      process.env.ATHENA_TRIM_REGIONS = envValue;
+    } else {
+      delete process.env.ATHENA_TRIM_REGIONS;
+    }
+
+    const mod = await import('../../../src/state/state-renderer.js');
+    const actionables = Array.from({ length: 20 }, (_, i) =>
+      createActionable(`btn-${i + 1}`, 'main')
+    );
+    return mod.renderStateXml(createBaselineResponse(actionables), { trimRegions: true });
+  }
+
+  it('should disable trimming when ATHENA_TRIM_REGIONS=false', async () => {
+    const xml = await renderWithEnv('false');
+
+    expect(xml).not.toContain('<!-- trimmed');
+    for (let i = 1; i <= 20; i++) {
+      expect(xml).toContain(`id="btn-${i}"`);
+    }
+  });
+
+  it('should enable trimming when ATHENA_TRIM_REGIONS is unset (default)', async () => {
+    const xml = await renderWithEnv(undefined);
+
+    expect(xml).toContain(
+      '<!-- trimmed 10 items. Use find_elements with region=main to see all -->'
+    );
   });
 });
