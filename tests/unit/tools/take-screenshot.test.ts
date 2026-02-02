@@ -210,10 +210,7 @@ describe('takeScreenshot', () => {
     await takeScreenshot({ eid: 'btn-submit' });
 
     expect(mockGetElementBoundingBox).toHaveBeenCalledWith(mockCdp, 42);
-    expect(mockCaptureScreenshot).toHaveBeenCalledWith(
-      mockCdp,
-      expect.objectContaining({ clip })
-    );
+    expect(mockCaptureScreenshot).toHaveBeenCalledWith(mockCdp, expect.objectContaining({ clip }));
   });
 
   it('should reject when both eid and fullPage are provided', async () => {

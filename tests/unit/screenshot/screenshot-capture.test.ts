@@ -11,7 +11,10 @@ vi.mock('../../../src/lib/temp-file.js', () => ({
   computeBase64ByteSize: vi.fn((b64: string) => Math.floor((b64.length * 3) / 4)),
 }));
 
-import { captureScreenshot, getElementBoundingBox } from '../../../src/screenshot/screenshot-capture.js';
+import {
+  captureScreenshot,
+  getElementBoundingBox,
+} from '../../../src/screenshot/screenshot-capture.js';
 import { writeTempFile, computeBase64ByteSize } from '../../../src/lib/temp-file.js';
 
 function createMockCdp(): CdpClient {
@@ -221,9 +224,7 @@ describe('getElementBoundingBox', () => {
   it('should throw when element has no box model', async () => {
     vi.mocked(cdp.send).mockResolvedValue({ model: null });
 
-    await expect(getElementBoundingBox(cdp, 789)).rejects.toThrow(
-      'has no box model'
-    );
+    await expect(getElementBoundingBox(cdp, 789)).rejects.toThrow('has no box model');
   });
 
   it('should call DOM.getBoxModel with backendNodeId', async () => {

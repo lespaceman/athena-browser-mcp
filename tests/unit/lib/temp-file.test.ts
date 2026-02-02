@@ -13,7 +13,11 @@ vi.mock('crypto', () => ({
   randomBytes: vi.fn().mockReturnValue({ toString: () => 'a1b2c3d4e5f6' }),
 }));
 
-import { writeTempFile, computeBase64ByteSize, cleanupTempFiles } from '../../../src/lib/temp-file.js';
+import {
+  writeTempFile,
+  computeBase64ByteSize,
+  cleanupTempFiles,
+} from '../../../src/lib/temp-file.js';
 import { writeFile, unlink } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
