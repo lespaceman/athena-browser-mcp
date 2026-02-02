@@ -25,6 +25,7 @@ export {
   press,
   select,
   hover,
+  takeScreenshot,
 } from './browser-tools.js';
 
 // Server config - lazy browser initialization
@@ -122,7 +123,22 @@ export {
   HoverOutputSchema,
   type HoverInput,
   type HoverOutput,
+  // take_screenshot
+  TakeScreenshotInputSchema,
+  TakeScreenshotInputSchemaBase,
+  TakeScreenshotOutputSchema,
+  type TakeScreenshotInput,
+  type TakeScreenshotOutput,
 } from './tool-schemas.js';
+
+// Tool result types
+export {
+  isImageResult,
+  isFileResult,
+  type ImageResult,
+  type FileResult,
+  type ToolResult,
+} from './tool-result.types.js';
 
 // Form tools
 export {

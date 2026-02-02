@@ -78,6 +78,15 @@ vi.mock('../../../src/query/query-engine.js', () => ({
   QueryEngine: vi.fn(),
 }));
 
+vi.mock('../../../src/screenshot/index.js', () => ({
+  captureScreenshot: vi.fn(),
+  getElementBoundingBox: vi.fn(),
+}));
+
+vi.mock('../../../src/lib/temp-file.js', () => ({
+  cleanupTempFiles: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { initializeTools, listPages } from '../../../src/tools/browser-tools.js';
 
 describe('listPages', () => {
