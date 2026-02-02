@@ -145,10 +145,13 @@ describe('captureScreenshot', () => {
     await captureScreenshot(cdp, { captureBeyondViewport: true });
 
     expect(cdp.send).toHaveBeenCalledWith('Page.getLayoutMetrics', undefined);
-    expect(cdp.send).toHaveBeenCalledWith('Page.captureScreenshot', expect.objectContaining({
-      captureBeyondViewport: true,
-      clip: { x: 0, y: 0, width: 1280, height: 5000, scale: 1 },
-    }));
+    expect(cdp.send).toHaveBeenCalledWith(
+      'Page.captureScreenshot',
+      expect.objectContaining({
+        captureBeyondViewport: true,
+        clip: { x: 0, y: 0, width: 1280, height: 5000, scale: 1 },
+      })
+    );
   });
 
   it('should not call Page.getLayoutMetrics for viewport screenshots', async () => {

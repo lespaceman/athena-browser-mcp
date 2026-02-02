@@ -112,7 +112,9 @@ describe('cleanupTempFiles', () => {
     await writeTempFile('dGVzdA==', 'png');
 
     // Should not throw and should not warn
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { /* noop */ });
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {
+      /* noop */
+    });
     await expect(cleanupTempFiles()).resolves.toBeUndefined();
     expect(warnSpy).not.toHaveBeenCalled();
     warnSpy.mockRestore();
@@ -126,7 +128,9 @@ describe('cleanupTempFiles', () => {
 
     await writeTempFile('dGVzdA==', 'png');
 
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { /* noop */ });
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {
+      /* noop */
+    });
     await expect(cleanupTempFiles()).resolves.toBeUndefined();
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('EACCES'));
     warnSpy.mockRestore();
