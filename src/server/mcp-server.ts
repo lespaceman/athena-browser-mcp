@@ -14,6 +14,7 @@ import {
   type McpNotificationSender,
 } from '../shared/services/logging.service.js';
 import { SetLevelRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { isImageResult, isFileResult } from '../tools/tool-result.types.js';
 
 export interface ServerConfig {
   name: string;
@@ -100,6 +101,32 @@ export class BrowserAutomationServer implements McpNotificationSender {
           const result = await handler(input);
           const executionTime = Date.now() - startTime;
           logger.debug(`Tool ${name} completed in ${executionTime}ms`);
+
+          // Image result - return as MCP ImageContent (inline base64)
+          if (isImageResult(result)) {
+            return {
+              content: [
+                {
+                  type: 'image' as const,
+                  data: result.data,
+                  mimeType: result.mimeType,
+                },
+              ],
+            };
+          }
+
+          // File result - return file path as text (for large screenshots)
+          if (isFileResult(result)) {
+            const sizeMB = (result.sizeBytes / 1024 / 1024).toFixed(2);
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: `Screenshot saved to: ${result.path} (${sizeMB} MB, ${result.mimeType})`,
+                },
+              ],
+            };
+          }
 
           // When outputSchema is defined, return structuredContent for MCP validation
           if (definition.outputSchema) {

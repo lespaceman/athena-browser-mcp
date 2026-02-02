@@ -6,11 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Agent Web Interface is an MCP (Model Context Protocol) server for AI-powered browser automation via Puppeteer and CDP (Chrome DevTools Protocol). It provides **semantic page snapshots** - compact, structured representations designed for LLM consumption with stable element IDs that survive DOM mutations.
 
-**19 Tools** across 6 categories:
+**20 Tools** across 6 categories:
 
 - **Session**: list_tabs, close_page, close_session
 - **Navigation**: navigate, go_back, go_forward, reload
-- **Observation**: capture_snapshot, find_elements, get_element_details
+- **Observation**: capture_snapshot, find_elements, get_element_details, take_screenshot
 - **Interaction**: click, type, press, select, hover, scroll_element_into_view, scroll_page
 - **Form Understanding**: get_form_understanding, get_field_context
 
@@ -121,7 +121,11 @@ src/
 ├── tools/
 │   ├── browser-tools.ts         # Tool handler implementations
 │   ├── execute-action.ts        # Action execution with retry
-│   └── tool-schemas.ts          # Zod input schemas
+│   ├── tool-schemas.ts          # Zod input schemas
+│   └── tool-result.types.ts     # ImageResult/FileResult types
+├── screenshot/
+│   ├── screenshot-capture.ts    # CDP screenshot capture + bounding box
+│   └── index.ts                 # Barrel export
 ├── snapshot/
 │   ├── snapshot-compiler.ts     # Orchestrates extractors
 │   └── extractors/              # Modular extraction algorithms
@@ -138,7 +142,8 @@ src/
 │   └── xml-renderer.ts          # XML output rendering
 ├── delta/
 │   └── dom-stabilizer.ts        # Stabilize DOM after actions
-├── lib/                         # Reusable algorithms
+├── lib/
+│   └── temp-file.ts             # Temp file utility for large results
 └── shared/                      # Types, services, errors
 
 tests/

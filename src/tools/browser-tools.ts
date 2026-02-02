@@ -35,7 +35,10 @@ import {
   PressInputSchema,
   SelectInputSchema,
   HoverInputSchema,
+  TakeScreenshotInputSchema,
 } from './tool-schemas.js';
+import { captureScreenshot, getElementBoundingBox } from '../screenshot/index.js';
+import { cleanupTempFiles } from '../lib/temp-file.js';
 import { QueryEngine } from '../query/query-engine.js';
 import type { FindElementsRequest } from '../query/types/query.types.js';
 import type { BaseSnapshot, NodeKind, SemanticRegion } from '../snapshot/snapshot.types.js';
@@ -433,6 +436,7 @@ export async function closeSession(
   snapshotStore.clear();
   clearAllStateManagers(); // Clean up all state managers
   getDependencyTracker().clearAll(); // Clean up all dependencies
+  await cleanupTempFiles(); // Clean up screenshot temp files
 
   return buildCloseSessionResponse();
 }
@@ -916,4 +920,47 @@ export async function hover(rawInput: unknown): Promise<import('./tool-schemas.j
 
   // Return XML state response directly
   return result.state_response;
+}
+
+/**
+ * Take a screenshot of the page or a specific element.
+ *
+ * Observation tool - does not mutate page state.
+ * Returns inline image (<2MB) or temp file path (>=2MB).
+ *
+ * @param rawInput - Screenshot options (will be validated)
+ * @returns ImageResult or FileResult
+ */
+export async function takeScreenshot(
+  rawInput: unknown
+): Promise<import('./tool-schemas.js').TakeScreenshotOutput> {
+  const input = TakeScreenshotInputSchema.parse(rawInput);
+
+  if (input.eid && input.fullPage) {
+    throw new Error(
+      "Cannot use both 'eid' and 'fullPage'. Use eid for element screenshots OR fullPage for full-page capture."
+    );
+  }
+
+  const session = getSessionManager();
+  let handle = resolveExistingPage(session, input.page_id);
+  const pageId = handle.page_id;
+
+  // Ensure CDP session is healthy (auto-repair if needed)
+  const ensureResult = await ensureCdpSession(session, handle);
+  handle = ensureResult.handle;
+
+  let clip: import('devtools-protocol').Protocol.Page.Viewport | undefined;
+  if (input.eid) {
+    const snapshot = requireSnapshot(pageId);
+    const node = resolveElementByEid(pageId, input.eid, snapshot);
+    clip = await getElementBoundingBox(handle.cdp, node.backend_node_id);
+  }
+
+  return captureScreenshot(handle.cdp, {
+    format: input.format ?? 'png',
+    quality: input.quality,
+    clip,
+    captureBeyondViewport: input.fullPage ?? false,
+  });
 }

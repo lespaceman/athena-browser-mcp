@@ -749,3 +749,63 @@ export const HoverOutputSchema = z.string();
 
 export type HoverInput = z.infer<typeof HoverInputSchema>;
 export type HoverOutput = z.infer<typeof HoverOutputSchema>;
+
+// ============================================================================
+// take_screenshot - Capture page or element screenshot
+// ============================================================================
+
+// Base schema without refinement (for .shape access in tool registration)
+const TakeScreenshotInputSchemaBase = z.object({
+  /** Page ID. If omitted, operates on the most recently used page */
+  page_id: z.string().optional().describe('The ID of the page to screenshot.'),
+  /** Element ID to capture (requires prior snapshot). Cannot combine with fullPage. */
+  eid: z
+    .string()
+    .optional()
+    .describe(
+      'Element ID to screenshot. Requires a prior snapshot. Cannot be combined with fullPage.'
+    ),
+  /** Capture full page beyond viewport. Cannot combine with eid. */
+  fullPage: z
+    .boolean()
+    .default(false)
+    .optional()
+    .describe('Capture full page height beyond the viewport. Cannot be combined with eid.'),
+  /** Image format (default: png) */
+  format: z
+    .enum(['png', 'jpeg'])
+    .default('png')
+    .optional()
+    .describe("Image format: 'png' (lossless, default) or 'jpeg' (lossy with quality control)."),
+  /** JPEG quality 0-100 (ignored for PNG) */
+  quality: z
+    .number()
+    .int()
+    .min(0)
+    .max(100)
+    .optional()
+    .describe('JPEG quality 0-100. Only applies when format is jpeg.'),
+});
+
+export const TakeScreenshotInputSchema = TakeScreenshotInputSchemaBase;
+export { TakeScreenshotInputSchemaBase };
+
+export type TakeScreenshotInput = z.infer<typeof TakeScreenshotInputSchema>;
+
+/** Discriminated union output: inline image or file path */
+export const TakeScreenshotOutputSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('image'),
+    data: z.string(),
+    mimeType: z.string(),
+    sizeBytes: z.number(),
+  }),
+  z.object({
+    type: z.literal('file'),
+    path: z.string(),
+    mimeType: z.string(),
+    sizeBytes: z.number(),
+  }),
+]);
+
+export type TakeScreenshotOutput = z.infer<typeof TakeScreenshotOutputSchema>;

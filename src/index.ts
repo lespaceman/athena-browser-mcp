@@ -40,6 +40,7 @@ import {
   hover,
   getFormUnderstanding,
   getFieldContext,
+  takeScreenshot,
   // Input schemas only (all outputs are XML strings now)
   ListPagesInputSchema,
   ClosePageInputSchema,
@@ -60,6 +61,7 @@ import {
   HoverInputSchemaBase,
   GetFormUnderstandingInputSchema,
   GetFieldContextInputSchema,
+  TakeScreenshotInputSchemaBase,
 } from './tools/index.js';
 
 /**
@@ -238,6 +240,17 @@ function initializeServer(): BrowserAutomationServer {
       inputSchema: GetNodeDetailsInputSchema.shape,
     },
     withLazyInit(getNodeDetails, 'get_element_details')
+  );
+
+  server.registerTool(
+    'take_screenshot',
+    {
+      title: 'Take Screenshot',
+      description:
+        'Capture a screenshot of the current page or a specific element. Returns the image directly for small screenshots (<2MB) or saves to a temp file for large ones. Use `eid` for element screenshots (requires a prior snapshot) or `fullPage: true` for full-page capture. Supports PNG (lossless, default) and JPEG (lossy with quality 0-100). Cannot combine eid and fullPage.',
+      inputSchema: TakeScreenshotInputSchemaBase.shape,
+    },
+    withLazyInit(takeScreenshot, 'take_screenshot')
   );
 
   // ============================================================================
